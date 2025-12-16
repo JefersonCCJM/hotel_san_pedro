@@ -35,7 +35,7 @@ Route::middleware('guest')->group(function () {
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
     Route::get('/register', [AuthController::class, 'showRegistrationForm'])->name('register');
     Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:3,1');
-    
+
     // Password reset routes
     Route::get('/forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
     Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
@@ -53,8 +53,29 @@ Route::middleware('auth')->group(function () {
     // Productos (Inventario) - Resource route with rate limiting
     Route::resource('products', ProductController::class)->middleware('throttle:60,1');
 
-    // Clientes - Resource route
-    Route::resource('customers', CustomerController::class);
+    // Clientes - con middleware de permisos
+    Route::middleware('permission:view_customers')->group(function () {
+        Route::get('/customers', [CustomerController::class, 'index'])->name('customers.index');
+    });
+
+    Route::middleware('permission:create_customers')->group(function () {
+        Route::get('/customers/create', [CustomerController::class, 'create'])->name('customers.create');
+        Route::post('/customers', [CustomerController::class, 'store'])->name('customers.store');
+    });
+
+    Route::middleware('permission:edit_customers')->group(function () {
+        Route::get('/customers/{customer}/edit', [CustomerController::class, 'edit'])->name('customers.edit');
+        Route::put('/customers/{customer}', [CustomerController::class, 'update'])->name('customers.update');
+    });
+
+    Route::middleware('permission:delete_customers')->group(function () {
+        Route::delete('/customers/{customer}', [CustomerController::class, 'destroy'])->name('customers.destroy');
+    });
+
+    // Show debe ir al final para evitar conflictos con create y edit
+    Route::middleware('permission:view_customers')->group(function () {
+        Route::get('/customers/{customer}', [CustomerController::class, 'show'])->name('customers.show');
+    });
 
     // Categorías - con middleware de permisos para administradores
     Route::middleware('permission:view_categories')->group(function () {
