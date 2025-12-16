@@ -94,12 +94,6 @@
             </div>
 
             <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                <a href="{{ route('sales.show', $electronicInvoice->sale) }}"
-                   class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
-                    <i class="fas fa-receipt mr-2"></i>
-                    <span>Ver Venta</span>
-                </a>
-
                 @if($electronicInvoice->pdf_url)
                     <a href="{{ $electronicInvoice->pdf_url }}"
                        target="_blank"

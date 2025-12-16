@@ -97,11 +97,6 @@ class ProductController extends Controller
      */
     public function destroy(\App\Models\Product $product): RedirectResponse
     {
-        // Check if product has associated sales
-        if ($this->productRepository->hasSales($product)) {
-            return back()->with('error', 'No se puede eliminar el producto porque tiene ventas asociadas.');
-        }
-
         $product->delete();
         $this->productRepository->clearCache();
 

@@ -303,13 +303,6 @@
                                     <i class="fas fa-file-pdf mr-1"></i>
                                     PDF
                                 </a>
-                                @if($invoice->sale)
-                                    <a href="{{ route('sales.show', $invoice->sale) }}"
-                                       class="inline-flex items-center px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-700 text-xs font-semibold hover:bg-gray-50 transition-colors">
-                                        <i class="fas fa-receipt mr-1"></i>
-                                        Venta
-                                    </a>
-                                @endif
                             </div>
                         </td>
                     </tr>
@@ -457,12 +450,6 @@
                    title="Descargar PDF">
                     <i class="fas fa-file-pdf"></i>
                 </a>
-                @if($invoice->sale)
-                    <a href="{{ route('sales.show', $invoice->sale) }}"
-                       class="inline-flex items-center justify-center px-3 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all duration-200">
-                        <i class="fas fa-receipt"></i>
-                    </a>
-                @endif
             </div>
         </div>
         @empty
