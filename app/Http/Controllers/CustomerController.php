@@ -117,7 +117,12 @@ class CustomerController extends Controller
      */
     public function show(Customer $customer)
     {
-        $customer->load('taxProfile');
+        $customer->load([
+            'taxProfile.identificationDocument',
+            'taxProfile.legalOrganization',
+            'taxProfile.tribute',
+            'taxProfile.municipality',
+        ]);
 
         return view('customers.show', compact('customer'));
     }

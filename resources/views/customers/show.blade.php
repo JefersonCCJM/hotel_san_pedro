@@ -35,16 +35,13 @@
                             <i class="fas fa-hashtag"></i>
                             <span>ID: <span class="font-semibold text-gray-900">#{{ $customer->id }}</span></span>
                         </div>
-                        <span class="hidden sm:inline text-gray-300">•</span>
-                        <div class="flex items-center space-x-1.5">
-                            <i class="fas fa-shopping-cart"></i>
-                            <span><span class="font-semibold text-gray-900">{{ $customer->sales_count ?? 0 }}</span> ventas</span>
-                        </div>
-                        <span class="hidden sm:inline text-gray-300">•</span>
-                        <div class="flex items-center space-x-1.5">
-                            <i class="fas fa-tools"></i>
-                            <span><span class="font-semibold text-gray-900">{{ $customer->repairs_count ?? 0 }}</span> reparaciones</span>
-                        </div>
+                        @if($customer->requires_electronic_invoice && $customer->taxProfile)
+                            <span class="hidden sm:inline text-gray-300">•</span>
+                            <div class="flex items-center space-x-1.5">
+                                <i class="fas fa-file-invoice"></i>
+                                <span class="font-semibold text-emerald-600">Facturación Electrónica</span>
+                            </div>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -177,180 +174,130 @@
                 @endif
             </div>
             
-            <!-- Historial de Ventas -->
-            @if($customer->sales->count() > 0)
-            <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
-                <div class="px-4 sm:px-6 py-4 border-b border-gray-100">
-                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div class="flex items-center space-x-3">
-                            <div class="p-2 rounded-xl bg-emerald-50 text-emerald-600">
-                                <i class="fas fa-shopping-cart text-lg"></i>
-                            </div>
-                            <div>
-                                <h2 class="text-lg sm:text-xl font-bold text-gray-900">Historial de Ventas</h2>
-                                <p class="text-xs text-gray-500 mt-0.5">{{ $customer->sales_count ?? 0 }} ventas registradas</p>
-                            </div>
-                        </div>
+            <!-- Perfil Fiscal -->
+            @if($customer->requires_electronic_invoice && $customer->taxProfile)
+            <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
+                <div class="flex items-center space-x-3 mb-4 sm:mb-6">
+                    <div class="p-2.5 rounded-xl bg-blue-50 text-blue-600">
+                        <i class="fas fa-file-invoice text-lg"></i>
                     </div>
+                    <div class="flex-1">
+                        <h2 class="text-lg sm:text-xl font-bold text-gray-900">Perfil Fiscal</h2>
+                        <p class="text-xs text-gray-500 mt-0.5">Información para facturación electrónica DIAN</p>
+                    </div>
+                    @if($customer->hasCompleteTaxProfileData())
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">
+                            <i class="fas fa-check-circle mr-1.5"></i>
+                            Completo
+                        </span>
+                    @else
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700">
+                            <i class="fas fa-exclamation-circle mr-1.5"></i>
+                            Incompleto
+                        </span>
+                    @endif
                 </div>
                 
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-100">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                    Fecha
-                                </th>
-                                <th class="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                    ID Venta
-                                </th>
-                                <th class="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                    Total
-                                </th>
-                                <th class="px-4 sm:px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                    Acciones
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-100">
-                            @foreach($customer->sales as $sale)
-                            <tr class="hover:bg-gray-50 transition-colors duration-150">
-                                <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {{ $sale->created_at->format('d/m/Y') }}
-                                    <div class="text-xs text-gray-500">{{ $sale->created_at->format('H:i') }}</div>
-                                </td>
-                                <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                    <span class="inline-flex items-center px-2 py-1 rounded-lg bg-gray-100 text-gray-700 text-xs font-mono font-semibold">
-                                    #{{ $sale->id }}
-                                    </span>
-                                </td>
-                                <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                    <span class="text-sm font-bold text-emerald-600">
-                                    ${{ number_format($sale->total, 2) }}
-                                    </span>
-                                </td>
-                                <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <div class="flex items-center justify-end space-x-3">
-                                    <a href="{{ route('sales.show', $sale) }}" 
-                                           class="text-blue-600 hover:text-blue-700 transition-colors"
-                                           title="Ver detalles">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                        @if(route('sales.pdf', $sale))
-                                    <a href="{{ route('sales.pdf', $sale) }}" 
-                                           class="text-red-600 hover:text-red-700 transition-colors"
-                                           title="Descargar PDF">
-                                        <i class="fas fa-file-pdf"></i>
-                                    </a>
-                                        @endif
-                                    </div>
-                                </td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            @endif
-            
-            <!-- Historial de Reparaciones -->
-            @if($customer->repairs->count() > 0)
-            <div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
-                <div class="px-4 sm:px-6 py-4 border-b border-gray-100">
-                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div class="flex items-center space-x-3">
-                            <div class="p-2 rounded-xl bg-amber-50 text-amber-600">
-                                <i class="fas fa-tools text-lg"></i>
-                            </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                    <div class="space-y-4">
+                        @if($customer->taxProfile->identificationDocument)
                             <div>
-                                <h2 class="text-lg sm:text-xl font-bold text-gray-900">Historial de Reparaciones</h2>
-                                <p class="text-xs text-gray-500 mt-0.5">{{ $customer->repairs_count ?? 0 }} reparaciones registradas</p>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                                    Tipo de Documento
+                                </label>
+                                <div class="flex items-center space-x-2 text-sm text-gray-900">
+                                    <i class="fas fa-id-card text-gray-400"></i>
+                                    <span class="font-semibold">{{ $customer->taxProfile->identificationDocument->code }}</span>
+                                    <span class="text-gray-500">-</span>
+                                    <span>{{ $customer->taxProfile->identificationDocument->name }}</span>
+                                </div>
                             </div>
-                        </div>
+                        @endif
+                        
+                        @if($customer->taxProfile->identification)
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                                    Número de Identificación
+                                </label>
+                                <div class="flex items-center space-x-2 text-sm text-gray-900">
+                                    <i class="fas fa-hashtag text-gray-400"></i>
+                                    <span class="font-mono font-semibold">{{ $customer->taxProfile->identification }}</span>
+                                    @if($customer->taxProfile->dv)
+                                        <span class="text-gray-500">-</span>
+                                        <span class="font-mono">{{ $customer->taxProfile->dv }}</span>
+                                    @endif
+                                </div>
+                            </div>
+                        @endif
+                        
+                        @if($customer->taxProfile->company)
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                                    Razón Social
+                                </label>
+                                <div class="flex items-center space-x-2 text-sm text-gray-900">
+                                    <i class="fas fa-building text-gray-400"></i>
+                                    <span class="font-semibold">{{ $customer->taxProfile->company }}</span>
+                                </div>
+                            </div>
+                        @endif
+                        
+                        @if($customer->taxProfile->trade_name)
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                                    Nombre Comercial
+                                </label>
+                                <div class="flex items-center space-x-2 text-sm text-gray-900">
+                                    <i class="fas fa-store text-gray-400"></i>
+                                    <span>{{ $customer->taxProfile->trade_name }}</span>
+                                </div>
+                            </div>
+                        @endif
                     </div>
-                </div>
-                
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-100">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                    Fecha
-                                </th>
-                                <th class="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                    ID
-                                </th>
-                                <th class="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                    Dispositivo
-                                </th>
-                                <th class="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                    Costo
-                                </th>
-                                <th class="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                    Estado
-                                </th>
-                                <th class="px-4 sm:px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                    Acciones
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-100">
-                            @foreach($customer->repairs as $repair)
-                            <tr class="hover:bg-gray-50 transition-colors duration-150">
-                                <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {{ $repair->created_at->format('d/m/Y') }}
-                                    <div class="text-xs text-gray-500">{{ $repair->created_at->format('H:i') }}</div>
-                                </td>
-                                <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                    <span class="inline-flex items-center px-2 py-1 rounded-lg bg-gray-100 text-gray-700 text-xs font-mono font-semibold">
-                                    #{{ $repair->id }}
-                                    </span>
-                                </td>
-                                <td class="px-4 sm:px-6 py-4">
-                                    <div class="text-sm font-semibold text-gray-900">{{ $repair->phone_model }}</div>
-                                    @if($repair->imei)
-                                    <div class="text-xs text-gray-500 font-mono">{{ $repair->imei }}</div>
+                    
+                    <div class="space-y-4">
+                        @if($customer->taxProfile->municipality)
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                                    Municipio
+                                </label>
+                                <div class="flex items-center space-x-2 text-sm text-gray-900">
+                                    <i class="fas fa-map-marker-alt text-gray-400"></i>
+                                    <span>{{ $customer->taxProfile->municipality->name }}</span>
+                                    @if($customer->taxProfile->municipality->department)
+                                        <span class="text-gray-500">,</span>
+                                        <span class="text-gray-600">{{ $customer->taxProfile->municipality->department }}</span>
                                     @endif
-                                </td>
-                                <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                    <span class="text-sm font-bold text-amber-600">
-                                    ${{ number_format($repair->repair_cost, 2) }}
-                                    </span>
-                                </td>
-                                <td class="px-4 sm:px-6 py-4 whitespace-nowrap">
-                                    @if($repair->repair_status == 'completed')
-                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">
-                                            <i class="fas fa-check-circle mr-1.5"></i>
-                                            Completada
-                                        </span>
-                                    @elseif($repair->repair_status == 'in_progress')
-                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
-                                            <i class="fas fa-clock mr-1.5"></i>
-                                            En Progreso
-                                        </span>
-                                    @elseif($repair->repair_status == 'delivered')
-                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-50 text-violet-700">
-                                            <i class="fas fa-handshake mr-1.5"></i>
-                                            Entregada
-                                        </span>
-                                    @else
-                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700">
-                                            <i class="fas fa-hourglass-half mr-1.5"></i>
-                                            Pendiente
-                                        </span>
-                                    @endif
-                                </td>
-                                <td class="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <a href="{{ route('repairs.show', $repair) }}" 
-                                       class="text-blue-600 hover:text-blue-700 transition-colors"
-                                       title="Ver detalles">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+                                </div>
+                            </div>
+                        @endif
+                        
+                        @if($customer->taxProfile->legalOrganization)
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                                    Tipo de Organización
+                                </label>
+                                <div class="flex items-center space-x-2 text-sm text-gray-900">
+                                    <i class="fas fa-sitemap text-gray-400"></i>
+                                    <span>{{ $customer->taxProfile->legalOrganization->name }}</span>
+                                </div>
+                            </div>
+                        @endif
+                        
+                        @if($customer->taxProfile->tribute)
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                                    Régimen Tributario
+                                </label>
+                                <div class="flex items-center space-x-2 text-sm text-gray-900">
+                                    <i class="fas fa-receipt text-gray-400"></i>
+                                    <span class="font-semibold">{{ $customer->taxProfile->tribute->code }}</span>
+                                    <span class="text-gray-500">-</span>
+                                    <span>{{ $customer->taxProfile->tribute->name }}</span>
+                                </div>
+                            </div>
+                        @endif
+                    </div>
                 </div>
             </div>
             @endif
@@ -368,49 +315,6 @@
                 </div>
                 
                 <div class="space-y-4">
-                    <!-- Total de Ventas -->
-                    <div class="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                        <div class="flex items-center justify-between mb-2">
-                            <div class="flex items-center space-x-2">
-                                <div class="p-2 rounded-lg bg-emerald-600 text-white">
-                                    <i class="fas fa-shopping-cart text-sm"></i>
-                                </div>
-                                <span class="text-sm font-semibold text-gray-700">Total de Ventas</span>
-                            </div>
-                        </div>
-                        <div class="text-2xl sm:text-3xl font-bold text-emerald-600">{{ $customer->sales_count ?? 0 }}</div>
-                    </div>
-                    
-                    <!-- Total Gastado -->
-                    <div class="p-4 bg-blue-50 rounded-xl border border-blue-100">
-                        <div class="flex items-center justify-between mb-2">
-                            <div class="flex items-center space-x-2">
-                                <div class="p-2 rounded-lg bg-blue-600 text-white">
-                                    <i class="fas fa-dollar-sign text-sm"></i>
-                                </div>
-                                <span class="text-sm font-semibold text-gray-700">Total Gastado</span>
-                            </div>
-                        </div>
-                        <div class="text-2xl sm:text-3xl font-bold text-blue-600">
-                            ${{ number_format($customer->total_spent ?? 0, 0) }}
-                        </div>
-                    </div>
-                    
-                    <!-- Reparaciones -->
-                    <div class="p-4 bg-amber-50 rounded-xl border border-amber-100">
-                        <div class="flex items-center justify-between mb-2">
-                            <div class="flex items-center space-x-2">
-                                <div class="p-2 rounded-lg bg-amber-600 text-white">
-                                    <i class="fas fa-tools text-sm"></i>
-                                </div>
-                                <span class="text-sm font-semibold text-gray-700">Reparaciones</span>
-                            </div>
-                        </div>
-                        <div class="text-2xl sm:text-3xl font-bold text-amber-600">
-                            {{ $customer->repairs_count ?? 0 }}
-                        </div>
-                    </div>
-                    
                     <!-- Cliente Desde -->
                     <div class="p-4 bg-violet-50 rounded-xl border border-violet-100">
                         <div class="flex items-center justify-between mb-2">
@@ -425,6 +329,29 @@
                             {{ $customer->created_at->format('M Y') }}
                         </div>
                     </div>
+                    
+                    @if($customer->requires_electronic_invoice && $customer->taxProfile)
+                    <!-- Estado Facturación Electrónica -->
+                    <div class="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center space-x-2">
+                                <div class="p-2 rounded-lg bg-blue-600 text-white">
+                                    <i class="fas fa-file-invoice text-sm"></i>
+                                </div>
+                                <span class="text-sm font-semibold text-gray-700">Facturación Electrónica</span>
+                            </div>
+                        </div>
+                        <div class="text-sm font-semibold {{ $customer->hasCompleteTaxProfileData() ? 'text-emerald-600' : 'text-amber-600' }}">
+                            @if($customer->hasCompleteTaxProfileData())
+                                <i class="fas fa-check-circle mr-1"></i>
+                                Perfil Completo
+                            @else
+                                <i class="fas fa-exclamation-circle mr-1"></i>
+                                Perfil Incompleto
+                            @endif
+                        </div>
+                    </div>
+                    @endif
                 </div>
             </div>
             
@@ -443,22 +370,6 @@
                        class="w-full inline-flex items-center justify-center px-4 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
                         <i class="fas fa-edit mr-2"></i>
                         Editar Cliente
-                    </a>
-                    @endcan
-                    
-                    @can('create_sales')
-                    <a href="{{ route('sales.create', ['customer_id' => $customer->id]) }}" 
-                       class="w-full inline-flex items-center justify-center px-4 py-3 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md">
-                        <i class="fas fa-shopping-cart mr-2"></i>
-                        Nueva Venta
-                    </a>
-                    @endcan
-                    
-                    @can('create_repairs')
-                    <a href="{{ route('repairs.create', ['customer_id' => $customer->id]) }}" 
-                       class="w-full inline-flex items-center justify-center px-4 py-3 rounded-xl border-2 border-amber-600 bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 hover:border-amber-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 shadow-sm hover:shadow-md">
-                        <i class="fas fa-tools mr-2"></i>
-                        Nueva Reparación
                     </a>
                     @endcan
                 </div>
