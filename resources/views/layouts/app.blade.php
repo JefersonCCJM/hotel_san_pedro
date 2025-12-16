@@ -79,24 +79,10 @@
                     <span class="ml-3">Clientes</span>
                 </a>
                 
-                @can('view_sales')
-                <a href="{{ route('sales.index') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('sales.*') ? 'bg-gray-700 text-white' : '' }}">
-                    <i class="fas fa-shopping-cart w-5"></i>
-                    <span class="ml-3">Ventas</span>
-                </a>
-                @endcan
-                
-                @can('view_sales')
+                @can('generate_invoices')
                 <a href="{{ route('electronic-invoices.index') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('electronic-invoices.*') ? 'bg-gray-700 text-white' : '' }}">
                     <i class="fas fa-file-invoice-dollar w-5"></i>
                     <span class="ml-3">Facturas Electrónicas</span>
-                </a>
-                @endcan
-                
-                @can('view_repairs')
-                <a href="{{ route('repairs.index') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('repairs.*') ? 'bg-gray-700 text-white' : '' }}">
-                    <i class="fas fa-tools w-5"></i>
-                    <span class="ml-3">Reparaciones</span>
                 </a>
                 @endcan
                 

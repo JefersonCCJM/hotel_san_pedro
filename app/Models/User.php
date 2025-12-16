@@ -47,19 +47,4 @@ class User extends Authenticatable
         ];
     }
 
-    /**
-     * Get the sales for the user.
-     */
-    public function sales()
-    {
-        return $this->hasMany(Sale::class);
-    }
-
-    /**
-     * Get the repairs for the user.
-     */
-    public function repairs()
-    {
-        return $this->hasMany(Repair::class);
-    }
 }

@@ -103,7 +103,6 @@ class DeploymentController extends Controller
             'DianPaymentFormSeeder',
             'DianProductStandardSeeder',
             'ProductionSeeder',
-            'SalesPermissionSeeder',
             'DatabaseSeeder',
         ];
 

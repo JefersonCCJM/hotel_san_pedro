@@ -23,7 +23,7 @@ class ProductRepository
      */
     public function searchWithFilters(array $filters): LengthAwarePaginator
     {
-        $query = Product::with(['category', 'saleItems']);
+        $query = Product::with(['category']);
 
         // Search filter
         if (isset($filters['search']) && $filters['search']) {
@@ -92,17 +92,6 @@ class ProductRepository
     public function findWithCategory(int $id): ?Product
     {
         return Product::with('category')->find($id);
-    }
-
-    /**
-     * Check if product has associated sales.
-     *
-     * @param Product $product
-     * @return bool
-     */
-    public function hasSales(Product $product): bool
-    {
-        return $product->saleItems()->exists();
     }
 
     /**
