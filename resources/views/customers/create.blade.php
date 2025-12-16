@@ -95,7 +95,7 @@
                     @enderror
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
                     <!-- Email -->
                     <div>
                         <label for="email" class="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
@@ -193,7 +193,7 @@
                     @enderror
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5 md:gap-6">
                     <!-- Ciudad -->
                     <div>
                         <label for="city" class="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
@@ -366,7 +366,7 @@
                 </div>
 
                 <!-- Tipo de Documento -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
                     <div>
                         <label class="block text-xs font-semibold text-gray-700 mb-2">
                             Tipo de Documento <span class="text-red-500">*</span>
@@ -402,7 +402,7 @@
                 </div>
 
                 <!-- Dígito Verificador (solo si el documento lo requiere) -->
-                <div x-show="requiresDV" class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div x-show="requiresDV" class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
                     <div>
                         <label class="block text-xs font-semibold text-gray-700 mb-2">
                             Dígito Verificador (DV) <span class="text-red-500">*</span>
@@ -420,7 +420,7 @@
                 </div>
 
                 <!-- Razón Social / Nombre Comercial (solo para personas jurídicas) -->
-                <div x-show="isJuridicalPerson" class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div x-show="isJuridicalPerson" class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
                     <div>
                         <label class="block text-xs font-semibold text-gray-700 mb-2">
                             Razón Social / Empresa <span class="text-red-500">*</span>
@@ -441,7 +441,7 @@
                 </div>
 
                 <!-- Nombres (solo para personas naturales) -->
-                <div x-show="!isJuridicalPerson" class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div x-show="!isJuridicalPerson" class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
                     <div>
                         <label class="block text-xs font-semibold text-gray-700 mb-2">
                             Nombres
@@ -535,7 +535,7 @@
                 </div>
 
                 <!-- Información de Contacto Adicional -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
                     <div>
                         <label class="block text-xs font-semibold text-gray-700 mb-2">
                             Dirección Fiscal
@@ -582,7 +582,7 @@
         </div>
 
         <!-- Botones de Acción -->
-        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-4 border-t border-gray-100">
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 pt-4 border-t border-gray-100">
             <div class="text-xs sm:text-sm text-gray-500 flex items-center">
                 <i class="fas fa-info-circle mr-1.5"></i>
                 Los campos marcados con <span class="text-red-500 ml-1">*</span> son obligatorios
@@ -590,13 +590,13 @@
 
             <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <a href="{{ route('customers.index') }}"
-                   class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                   class="w-full sm:w-auto inline-flex items-center justify-center px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl border-2 border-gray-200 bg-white text-gray-700 text-sm sm:text-base font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 min-h-[44px]">
                     <i class="fas fa-arrow-left mr-2"></i>
                     Volver
                 </a>
 
                 <button type="submit"
-                        class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="w-full sm:w-auto inline-flex items-center justify-center px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm sm:text-base font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
                         :disabled="loading"
                         x-bind:class="loading ? 'opacity-50 cursor-not-allowed' : ''">
                     <template x-if="!loading">

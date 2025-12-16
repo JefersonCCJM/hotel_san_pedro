@@ -46,17 +46,17 @@
                 </div>
             </div>
 
-            <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <div class="flex flex-col sm:flex-row gap-3 sm:gap-3">
                 @can('edit_customers')
                 <a href="{{ route('customers.edit', $customer) }}"
-                   class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
+                   class="w-full sm:w-auto inline-flex items-center justify-center px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl border-2 border-gray-200 bg-white text-gray-700 text-sm sm:text-base font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 min-h-[44px]">
                     <i class="fas fa-edit mr-2"></i>
                     <span>Editar Cliente</span>
                 </a>
                 @endcan
 
                 <a href="{{ route('customers.index') }}"
-                   class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md">
+                   class="w-full sm:w-auto inline-flex items-center justify-center px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm sm:text-base font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md min-h-[44px]">
                     <i class="fas fa-arrow-left mr-2"></i>
                     <span>Volver</span>
                 </a>
@@ -357,17 +357,17 @@
 
             <!-- Acciones Rápidas -->
             <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
-                <div class="flex items-center space-x-3 mb-4 sm:mb-6">
-                    <div class="p-2 rounded-xl bg-indigo-50 text-indigo-600">
-                        <i class="fas fa-bolt text-lg"></i>
+                    <div class="flex items-center space-x-2 sm:space-x-3 mb-4 sm:mb-6">
+                        <div class="p-2 sm:p-2.5 rounded-xl bg-indigo-50 text-indigo-600">
+                            <i class="fas fa-bolt text-base sm:text-lg"></i>
+                        </div>
+                        <h2 class="text-base sm:text-lg md:text-xl font-bold text-gray-900">Acciones Rápidas</h2>
                     </div>
-                    <h2 class="text-lg sm:text-xl font-bold text-gray-900">Acciones Rápidas</h2>
-                </div>
 
                 <div class="space-y-3">
                     @can('edit_customers')
                     <a href="{{ route('customers.edit', $customer) }}"
-                       class="w-full inline-flex items-center justify-center px-4 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
+                       class="w-full inline-flex items-center justify-center px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl border-2 border-gray-200 bg-white text-gray-700 text-sm sm:text-base font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 min-h-[44px]">
                         <i class="fas fa-edit mr-2"></i>
                         Editar Cliente
                     </a>

@@ -26,10 +26,11 @@
                 </div>
             </div>
             
-            <a href="{{ route('customers.create') }}" 
-               class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md">
+            <a href="{{ route('customers.create') }}"
+               class="inline-flex items-center justify-center px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm sm:text-base font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md min-h-[44px] w-full sm:w-auto">
                 <i class="fas fa-plus mr-2"></i>
-                <span>Nuevo Cliente</span>
+                <span class="hidden sm:inline">Nuevo Cliente</span>
+                <span class="sm:hidden">Nuevo</span>
             </a>
         </div>
     </div>
@@ -48,7 +49,7 @@
                 @endif
             </div>
             
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
                 <div>
                     <label for="search" class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
                         Buscar Cliente
@@ -92,9 +93,10 @@
                 
                 <div class="flex items-end">
                     <button type="submit"
-                            class="w-full inline-flex items-center justify-center px-4 py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md">
+                            class="w-full inline-flex items-center justify-center px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm sm:text-base font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md min-h-[44px]">
                         <i class="fas fa-filter mr-2"></i>
-                        Aplicar Filtros
+                        <span class="hidden sm:inline">Aplicar Filtros</span>
+                        <span class="sm:hidden">Filtrar</span>
                     </button>
                 </div>
             </div>
@@ -122,7 +124,7 @@
     
     <!-- Tabla de clientes - Desktop -->
     <div class="hidden lg:block bg-white rounded-xl border border-gray-100 overflow-hidden">
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto -mx-6 lg:mx-0">
             <table class="min-w-full divide-y divide-gray-100">
                 <thead class="bg-gray-50">
                     <tr>
@@ -228,25 +230,25 @@
                         </td>
                         
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div class="flex items-center justify-end space-x-3">
+                            <div class="flex items-center justify-end space-x-2 sm:space-x-3">
                                 <a href="{{ route('customers.show', $customer) }}"
-                                   class="text-blue-600 hover:text-blue-700 transition-colors"
+                                   class="p-2 sm:p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
                                    title="Ver detalles">
-                                    <i class="fas fa-eye"></i>
+                                    <i class="fas fa-eye text-sm sm:text-base"></i>
                                 </a>
                                 
                                 <a href="{{ route('customers.edit', $customer) }}"
-                                   class="text-indigo-600 hover:text-indigo-700 transition-colors"
+                                   class="p-2 sm:p-1.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
                                    title="Editar">
-                                    <i class="fas fa-edit"></i>
+                                    <i class="fas fa-edit text-sm sm:text-base"></i>
                                 </a>
                                 
                                 <button type="button"
                                         onclick="openDeleteModal({{ $customer->id }}, {{ json_encode($customer->name) }})"
-                                        class="text-red-600 hover:text-red-700 transition-colors"
+                                        class="p-2 sm:p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
                                         title="Eliminar">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
+                                    <i class="fas fa-trash text-sm sm:text-base"></i>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -262,8 +264,8 @@
                                     <p class="text-sm text-gray-500 mb-4">
                                         No hay clientes que coincidan con los filtros aplicados.
                                     </p>
-                                    <a href="{{ route('customers.index') }}" 
-                                       class="inline-flex items-center px-4 py-2 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-all">
+                                    <a href="{{ route('customers.index') }}"
+                                       class="inline-flex items-center justify-center px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm sm:text-base font-semibold hover:bg-emerald-700 transition-all min-h-[44px]">
                                         <i class="fas fa-times mr-2"></i>
                                         Limpiar filtros
                                     </a>
@@ -275,10 +277,11 @@
                                     <p class="text-sm text-gray-500 mb-4">
                                         Comienza agregando tu primer cliente al sistema.
                                     </p>
-                                    <a href="{{ route('customers.create') }}" 
-                                       class="inline-flex items-center px-4 py-2 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-all">
+                                    <a href="{{ route('customers.create') }}"
+                                       class="inline-flex items-center justify-center px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm sm:text-base font-semibold hover:bg-emerald-700 transition-all min-h-[44px]">
                                         <i class="fas fa-plus mr-2"></i>
-                                        Crear Primer Cliente
+                                        <span class="hidden sm:inline">Crear Primer Cliente</span>
+                                        <span class="sm:hidden">Crear Cliente</span>
                                     </a>
                                 @endif
                             </div>
@@ -402,24 +405,24 @@
             </div>
             
             <!-- Acciones -->
-            <div class="flex items-center justify-end space-x-3 pt-3 border-t border-gray-100">
+            <div class="flex items-center justify-end space-x-2 sm:space-x-3 pt-3 border-t border-gray-100">
                 <a href="{{ route('customers.show', $customer) }}"
-                   class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                   class="p-3 sm:p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
                    title="Ver">
-                    <i class="fas fa-eye text-sm"></i>
+                    <i class="fas fa-eye text-base sm:text-sm"></i>
                 </a>
                 
                 <a href="{{ route('customers.edit', $customer) }}"
-                   class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                   class="p-3 sm:p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
                    title="Editar">
-                    <i class="fas fa-edit text-sm"></i>
+                    <i class="fas fa-edit text-base sm:text-sm"></i>
                 </a>
                 
                 <button type="button"
                         onclick="openDeleteModal({{ $customer->id }}, {{ json_encode($customer->name) }})"
-                        class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        class="p-3 sm:p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
                         title="Eliminar">
-                    <i class="fas fa-trash text-sm"></i>
+                    <i class="fas fa-trash text-base sm:text-sm"></i>
                 </button>
             </div>
         </div>
