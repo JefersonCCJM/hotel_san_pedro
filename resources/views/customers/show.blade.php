@@ -45,17 +45,17 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
                 @can('edit_customers')
-                <a href="{{ route('customers.edit', $customer) }}" 
+                <a href="{{ route('customers.edit', $customer) }}"
                    class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
                     <i class="fas fa-edit mr-2"></i>
                     <span>Editar Cliente</span>
                 </a>
                 @endcan
-                
-                <a href="{{ route('customers.index') }}" 
+
+                <a href="{{ route('customers.index') }}"
                    class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md">
                     <i class="fas fa-arrow-left mr-2"></i>
                     <span>Volver</span>
@@ -75,7 +75,7 @@
                     </div>
                     <h2 class="text-lg sm:text-xl font-bold text-gray-900">Información Personal</h2>
                 </div>
-                
+
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                     <div class="space-y-4">
                             <div>
@@ -87,7 +87,7 @@
                                 <span class="font-semibold">#{{ $customer->id }}</span>
                             </div>
                         </div>
-                        
+
                         @if($customer->email)
                             <div>
                             <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
@@ -101,7 +101,7 @@
                             </div>
                         </div>
                         @endif
-                        
+
                         @if($customer->phone)
                             <div>
                             <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
@@ -116,7 +116,7 @@
                         </div>
                         @endif
                     </div>
-                    
+
                     <div class="space-y-4">
                             <div>
                             <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
@@ -127,7 +127,7 @@
                                 <span>{{ $customer->created_at->format('d/m/Y H:i') }}</span>
                             </div>
                         </div>
-                        
+
                             <div>
                             <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
                                 Última Actualización
@@ -139,7 +139,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 @if($customer->address || $customer->city || $customer->state || $customer->zip_code)
                 <div class="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-100">
                     <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
@@ -160,7 +160,7 @@
                     </div>
                 </div>
                 @endif
-                
+
                 @if($customer->notes)
                 <div class="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-100">
                     <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
@@ -173,7 +173,7 @@
                 </div>
                 @endif
             </div>
-            
+
             <!-- Perfil Fiscal -->
             @if($customer->requires_electronic_invoice && $customer->taxProfile)
             <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
@@ -197,7 +197,7 @@
                         </span>
                     @endif
                 </div>
-                
+
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                     <div class="space-y-4">
                         @if($customer->taxProfile->identificationDocument)
@@ -213,7 +213,7 @@
                                 </div>
                             </div>
                         @endif
-                        
+
                         @if($customer->taxProfile->identification)
                             <div>
                                 <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
@@ -229,7 +229,7 @@
                                 </div>
                             </div>
                         @endif
-                        
+
                         @if($customer->taxProfile->company)
                             <div>
                                 <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
@@ -241,7 +241,7 @@
                                 </div>
                             </div>
                         @endif
-                        
+
                         @if($customer->taxProfile->trade_name)
                             <div>
                                 <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
@@ -254,7 +254,7 @@
                             </div>
                         @endif
                     </div>
-                    
+
                     <div class="space-y-4">
                         @if($customer->taxProfile->municipality)
                             <div>
@@ -271,7 +271,7 @@
                                 </div>
                             </div>
                         @endif
-                        
+
                         @if($customer->taxProfile->legalOrganization)
                             <div>
                                 <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
@@ -283,7 +283,7 @@
                                 </div>
                             </div>
                         @endif
-                        
+
                         @if($customer->taxProfile->tribute)
                             <div>
                                 <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
@@ -302,7 +302,7 @@
             </div>
             @endif
         </div>
-        
+
         <!-- Panel Lateral -->
         <div class="space-y-4 sm:space-y-6">
             <!-- Estadísticas -->
@@ -313,7 +313,7 @@
                     </div>
                     <h2 class="text-lg sm:text-xl font-bold text-gray-900">Estadísticas</h2>
                 </div>
-                
+
                 <div class="space-y-4">
                     <!-- Cliente Desde -->
                     <div class="p-4 bg-violet-50 rounded-xl border border-violet-100">
@@ -329,7 +329,7 @@
                             {{ $customer->created_at->format('M Y') }}
                         </div>
                     </div>
-                    
+
                     @if($customer->requires_electronic_invoice && $customer->taxProfile)
                     <!-- Estado Facturación Electrónica -->
                     <div class="p-4 bg-blue-50 rounded-xl border border-blue-100">
@@ -354,7 +354,7 @@
                     @endif
                 </div>
             </div>
-            
+
             <!-- Acciones Rápidas -->
             <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
                 <div class="flex items-center space-x-3 mb-4 sm:mb-6">
@@ -363,10 +363,10 @@
                     </div>
                     <h2 class="text-lg sm:text-xl font-bold text-gray-900">Acciones Rápidas</h2>
                 </div>
-                
+
                 <div class="space-y-3">
                     @can('edit_customers')
-                    <a href="{{ route('customers.edit', $customer) }}" 
+                    <a href="{{ route('customers.edit', $customer) }}"
                        class="w-full inline-flex items-center justify-center px-4 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
                         <i class="fas fa-edit mr-2"></i>
                         Editar Cliente

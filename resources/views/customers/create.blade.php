@@ -18,8 +18,41 @@
         </div>
     </div>
 
-    <form method="POST" action="{{ route('customers.store') }}" id="customer-form" 
-          x-data="customerForm()" 
+    <!-- Mensajes de éxito/error -->
+    @if(session('success'))
+        <div class="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-lg shadow-sm">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-check-circle text-emerald-500 text-lg"></i>
+                </div>
+                <div class="ml-3 flex-1">
+                    <p class="text-sm font-semibold text-emerald-800">{{ session('success') }}</p>
+                </div>
+                <button type="button" onclick="this.parentElement.parentElement.remove()" class="ml-auto text-emerald-500 hover:text-emerald-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    @endif
+
+    @if(session('error'))
+        <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg shadow-sm">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
+                </div>
+                <div class="ml-3 flex-1">
+                    <p class="text-sm font-semibold text-red-800">{{ session('error') }}</p>
+                </div>
+                <button type="button" onclick="this.parentElement.parentElement.remove()" class="ml-auto text-red-500 hover:text-red-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    @endif
+
+    <form method="POST" action="{{ route('customers.store') }}" id="customer-form"
+          x-data="customerForm()"
           @submit="loading = true">
         @csrf
 
@@ -50,8 +83,9 @@
                                placeholder="Ej: Juan Pérez García"
                                required>
                     </div>
-                    <p class="mt-1.5 text-xs text-gray-500">
-                        Nombre completo del cliente para identificación
+                    <p class="mt-1.5 text-xs text-gray-500 flex items-start">
+                        <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
+                        <span>Nombre completo del cliente para identificación y facturación</span>
                     </p>
                     @error('name')
                         <p class="mt-1.5 text-xs text-red-600 flex items-center">
@@ -78,8 +112,9 @@
                                    class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('email') border-red-300 focus:ring-red-500 @enderror"
                                    placeholder="juan.perez@email.com">
                         </div>
-                        <p class="mt-1.5 text-xs text-gray-500">
-                            Email para comunicaciones y facturas
+                        <p class="mt-1.5 text-xs text-gray-500 flex items-start">
+                            <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
+                            <span>Email para comunicaciones y envío de facturas electrónicas (opcional)</span>
                         </p>
                         @error('email')
                             <p class="mt-1.5 text-xs text-red-600 flex items-center">
@@ -105,8 +140,9 @@
                                    class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('phone') border-red-300 focus:ring-red-500 @enderror"
                                    placeholder="+1 (555) 123-4567">
                         </div>
-                        <p class="mt-1.5 text-xs text-gray-500">
-                            Número de contacto principal
+                        <p class="mt-1.5 text-xs text-gray-500 flex items-start">
+                            <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
+                            <span>Número de contacto principal. Puede incluir código de país (opcional)</span>
                         </p>
                         @error('phone')
                             <p class="mt-1.5 text-xs text-red-600 flex items-center">
@@ -145,8 +181,9 @@
                                class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('address') border-red-300 focus:ring-red-500 @enderror"
                                placeholder="Calle, número, colonia">
                     </div>
-                    <p class="mt-1.5 text-xs text-gray-500">
-                        Dirección completa para envíos y facturación
+                    <p class="mt-1.5 text-xs text-gray-500 flex items-start">
+                        <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
+                        <span>Dirección completa para envíos y facturación (opcional)</span>
                     </p>
                     @error('address')
                         <p class="mt-1.5 text-xs text-red-600 flex items-center">
@@ -275,8 +312,9 @@
                                class="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 focus:ring-2 transition-colors">
                         <span class="ml-3 text-sm font-medium text-gray-700">Cliente activo</span>
                     </label>
-                    <p class="mt-2 text-xs text-gray-500">
-                        Los clientes inactivos no aparecerán en los formularios de ventas
+                    <p class="mt-2 text-xs text-gray-500 flex items-start">
+                        <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
+                        <span>Los clientes inactivos no aparecerán en los formularios de reservas y facturación</span>
                     </p>
                 </div>
             </div>
@@ -315,14 +353,14 @@
                  x-transition:enter-start="opacity-0 transform scale-95"
                  x-transition:enter-end="opacity-100 transform scale-100"
                  class="mt-6 space-y-5 border-t border-gray-200 pt-6">
-                
+
                 <!-- Mensaje informativo -->
                 <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div class="flex items-start">
                         <i class="fas fa-info-circle text-blue-600 mt-0.5 mr-3"></i>
                         <div class="text-sm text-blue-800">
                             <p class="font-semibold mb-1">Campos Obligatorios para Facturación Electrónica</p>
-                            <p class="text-xs">Complete todos los campos marcados con <span class="text-red-500 font-bold">*</span> para poder generar facturas electrónicas válidas según la normativa DIAN.</p>
+                            <p class="text-xs">Complete todos los campos marcados con <span class="text-red-500 font-bold">*</span> para poder generar facturas electrónicas válidas según la normativa DIAN. Los campos opcionales pueden completarse más tarde.</p>
                         </div>
                     </div>
                 </div>
@@ -340,7 +378,7 @@
                                 :required="requiresElectronicInvoice">
                             <option value="">Seleccione...</option>
                             @foreach($identificationDocuments as $doc)
-                                <option value="{{ $doc->id }}" 
+                                <option value="{{ $doc->id }}"
                                         data-code="{{ $doc->code }}"
                                         data-requires-dv="{{ $doc->requires_dv ? 'true' : 'false' }}">
                                     {{ $doc->name }}@if($doc->code) ({{ $doc->code }})@endif
@@ -558,15 +596,21 @@
                 </a>
 
                 <button type="submit"
-                        class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md"
-                        :disabled="loading">
+                        class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                        :disabled="loading"
+                        x-bind:class="loading ? 'opacity-50 cursor-not-allowed' : ''">
                     <template x-if="!loading">
-                        <i class="fas fa-user-plus mr-2"></i>
+                        <span>
+                            <i class="fas fa-user-plus mr-2"></i>
+                            Crear Cliente
+                        </span>
                     </template>
                     <template x-if="loading">
-                        <i class="fas fa-spinner fa-spin mr-2"></i>
+                        <span>
+                            <i class="fas fa-spinner fa-spin mr-2"></i>
+                            Procesando...
+                        </span>
                     </template>
-                    <span x-text="loading ? 'Procesando...' : 'Crear Cliente'">Crear Cliente</span>
                 </button>
             </div>
         </div>
@@ -583,22 +627,22 @@ function customerForm() {
         dv: '',
         requiresDV: false,
         isJuridicalPerson: false,
-        
+
         updateRequiredFields() {
             const select = document.querySelector('select[name="identification_document_id"]');
             const selectedOption = select.options[select.selectedIndex];
-            
+
             if (selectedOption) {
                 this.requiresDV = selectedOption.dataset.requiresDv === 'true';
                 this.isJuridicalPerson = selectedOption.dataset.code === 'NIT';
-                
+
                 // Si requiere DV y es NIT, calcular DV
                 if (this.requiresDV && this.isJuridicalPerson && this.identification) {
                     this.calculateDV();
                 }
             }
         },
-        
+
         calculateDV() {
             if (this.requiresDV && this.identification && this.identification.length >= 9) {
                 // Algoritmo básico para calcular DV de NIT (simplificado)
@@ -621,7 +665,7 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', function(e) {
         const requiresElectronicInvoice = form.querySelector('input[name="requires_electronic_invoice"]');
         const isChecked = requiresElectronicInvoice && requiresElectronicInvoice.checked;
-        
+
         if (!isChecked) {
             // Remove required from all electronic invoice fields
             const electronicInvoiceFields = form.querySelectorAll('[name="identification_document_id"], [name="identification"], [name="municipality_id"], [name="dv"], [name="company"]');

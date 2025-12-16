@@ -18,6 +18,39 @@
         </div>
     </div>
 
+    <!-- Mensajes de éxito/error -->
+    @if(session('success'))
+        <div class="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-lg shadow-sm">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-check-circle text-emerald-500 text-lg"></i>
+                </div>
+                <div class="ml-3 flex-1">
+                    <p class="text-sm font-semibold text-emerald-800">{{ session('success') }}</p>
+                </div>
+                <button type="button" onclick="this.parentElement.parentElement.remove()" class="ml-auto text-emerald-500 hover:text-emerald-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    @endif
+
+    @if(session('error'))
+        <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg shadow-sm">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-exclamation-circle text-red-500 text-lg"></i>
+                </div>
+                <div class="ml-3 flex-1">
+                    <p class="text-sm font-semibold text-red-800">{{ session('error') }}</p>
+                </div>
+                <button type="button" onclick="this.parentElement.parentElement.remove()" class="ml-auto text-red-500 hover:text-red-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    @endif
+
     <form method="POST" action="{{ route('customers.update', $customer) }}" id="customer-form" 
           x-data="customerForm()" 
           @submit="loading = true">
@@ -51,8 +84,9 @@
                                placeholder="Ej: Juan Pérez García"
                                required>
                     </div>
-                    <p class="mt-1.5 text-xs text-gray-500">
-                        Nombre completo del cliente para identificación
+                    <p class="mt-1.5 text-xs text-gray-500 flex items-start">
+                        <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
+                        <span>Nombre completo del cliente para identificación y facturación</span>
                     </p>
                     @error('name')
                         <p class="mt-1.5 text-xs text-red-600 flex items-center">
@@ -79,8 +113,9 @@
                                    class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('email') border-red-300 focus:ring-red-500 @enderror"
                                    placeholder="juan.perez@email.com">
                         </div>
-                        <p class="mt-1.5 text-xs text-gray-500">
-                            Email para comunicaciones y facturas
+                        <p class="mt-1.5 text-xs text-gray-500 flex items-start">
+                            <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
+                            <span>Email para comunicaciones y envío de facturas electrónicas (opcional)</span>
                         </p>
                         @error('email')
                             <p class="mt-1.5 text-xs text-red-600 flex items-center">
@@ -106,8 +141,9 @@
                                    class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('phone') border-red-300 focus:ring-red-500 @enderror"
                                    placeholder="+1 (555) 123-4567">
                         </div>
-                        <p class="mt-1.5 text-xs text-gray-500">
-                            Número de contacto principal
+                        <p class="mt-1.5 text-xs text-gray-500 flex items-start">
+                            <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
+                            <span>Número de contacto principal. Puede incluir código de país (opcional)</span>
                         </p>
                         @error('phone')
                             <p class="mt-1.5 text-xs text-red-600 flex items-center">
@@ -146,8 +182,9 @@
                                class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('address') border-red-300 focus:ring-red-500 @enderror"
                                placeholder="Calle, número, colonia">
                     </div>
-                    <p class="mt-1.5 text-xs text-gray-500">
-                        Dirección completa para envíos y facturación
+                    <p class="mt-1.5 text-xs text-gray-500 flex items-start">
+                        <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
+                        <span>Dirección completa para envíos y facturación (opcional)</span>
                     </p>
                     @error('address')
                         <p class="mt-1.5 text-xs text-red-600 flex items-center">
@@ -276,8 +313,9 @@
                                class="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 focus:ring-2 transition-colors">
                         <span class="ml-3 text-sm font-medium text-gray-700">Cliente activo</span>
                     </label>
-                    <p class="mt-2 text-xs text-gray-500">
-                        Los clientes inactivos no aparecerán en los formularios de ventas
+                    <p class="mt-2 text-xs text-gray-500 flex items-start">
+                        <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
+                        <span>Los clientes inactivos no aparecerán en los formularios de reservas y facturación</span>
                     </p>
                 </div>
             </div>
@@ -323,7 +361,7 @@
                         <i class="fas fa-info-circle text-blue-600 mt-0.5 mr-3"></i>
                         <div class="text-sm text-blue-800">
                             <p class="font-semibold mb-1">Campos Obligatorios para Facturación Electrónica</p>
-                            <p class="text-xs">Complete todos los campos marcados con <span class="text-red-500 font-bold">*</span> para poder generar facturas electrónicas válidas según la normativa DIAN.</p>
+                            <p class="text-xs">Complete todos los campos marcados con <span class="text-red-500 font-bold">*</span> para poder generar facturas electrónicas válidas según la normativa DIAN. Los campos opcionales pueden completarse más tarde.</p>
                         </div>
                     </div>
                 </div>
@@ -557,17 +595,20 @@
             </div>
         </div>
 
-        <!-- Información del Sistema -->
-        <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
+        <!-- Información del Sistema (Solo Lectura) -->
+        <div class="bg-gray-50 rounded-xl border border-gray-200 p-4 sm:p-6">
             <div class="flex items-center space-x-2 sm:space-x-3 mb-4 sm:mb-6">
-                <div class="p-2 rounded-xl bg-gray-50 text-gray-600">
+                <div class="p-2 rounded-xl bg-gray-100 text-gray-600">
                     <i class="fas fa-info-circle text-sm"></i>
                 </div>
-                <h2 class="text-base sm:text-lg font-semibold text-gray-900">Información del Sistema</h2>
+                <div>
+                    <h2 class="text-base sm:text-lg font-semibold text-gray-900">Información del Sistema</h2>
+                    <p class="text-xs text-gray-500 mt-0.5">Esta información es de solo lectura y no puede modificarse</p>
+                </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <div class="bg-white rounded-xl p-4 border border-gray-200">
                     <div class="flex items-center space-x-3">
                         <div class="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm">
                             <i class="fas fa-hashtag text-sm"></i>
@@ -579,31 +620,7 @@
                     </div>
                 </div>
 
-                <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                    <div class="flex items-center space-x-3">
-                        <div class="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-sm">
-                            <i class="fas fa-shopping-cart text-sm"></i>
-                        </div>
-                        <div>
-                            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total de Ventas</div>
-                            <div class="text-base sm:text-lg font-bold text-gray-900">{{ $customer->sales_count ?? 0 }} ventas</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                    <div class="flex items-center space-x-3">
-                        <div class="h-10 w-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-sm">
-                            <i class="fas fa-tools text-sm"></i>
-                        </div>
-                        <div>
-                            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total de Reparaciones</div>
-                            <div class="text-base sm:text-lg font-bold text-gray-900">{{ $customer->repairs_count ?? 0 }} reparaciones</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <div class="bg-white rounded-xl p-4 border border-gray-200">
                     <div class="flex items-center space-x-3">
                         <div class="h-10 w-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center shadow-sm">
                             <i class="fas fa-calendar-plus text-sm"></i>
@@ -614,6 +631,34 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="bg-white rounded-xl p-4 border border-gray-200">
+                    <div class="flex items-center space-x-3">
+                        <div class="h-10 w-10 rounded-xl bg-gray-50 text-gray-600 flex items-center justify-center shadow-sm">
+                            <i class="fas fa-calendar-edit text-sm"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Última Actualización</div>
+                            <div class="text-sm font-semibold text-gray-900">{{ $customer->updated_at->format('d/m/Y H:i') }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                @if($customer->requires_electronic_invoice && $customer->taxProfile)
+                <div class="bg-white rounded-xl p-4 border border-gray-200">
+                    <div class="flex items-center space-x-3">
+                        <div class="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm">
+                            <i class="fas fa-file-invoice text-sm"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Facturación Electrónica</div>
+                            <div class="text-sm font-semibold {{ $customer->hasCompleteTaxProfileData() ? 'text-emerald-600' : 'text-amber-600' }}">
+                                {{ $customer->hasCompleteTaxProfileData() ? 'Perfil Completo' : 'Perfil Incompleto' }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                @endif
             </div>
         </div>
 
@@ -632,15 +677,21 @@
                 </a>
 
                 <button type="submit"
-                        class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md"
-                        :disabled="loading">
+                        class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                        :disabled="loading"
+                        x-bind:class="loading ? 'opacity-50 cursor-not-allowed' : ''">
                     <template x-if="!loading">
-                        <i class="fas fa-save mr-2"></i>
+                        <span>
+                            <i class="fas fa-save mr-2"></i>
+                            Actualizar Cliente
+                        </span>
                     </template>
                     <template x-if="loading">
-                        <i class="fas fa-spinner fa-spin mr-2"></i>
+                        <span>
+                            <i class="fas fa-spinner fa-spin mr-2"></i>
+                            Procesando...
+                        </span>
                     </template>
-                    <span x-text="loading ? 'Procesando...' : 'Actualizar Cliente'">Actualizar Cliente</span>
                 </button>
             </div>
         </div>
