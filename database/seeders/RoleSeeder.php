@@ -69,6 +69,7 @@ class RoleSeeder extends Seeder
         $adminRole = Role::firstOrCreate(['name' => 'Administrador']);
         $receptionistDayRole = Role::firstOrCreate(['name' => 'Recepcionista Día']);
         $receptionistNightRole = Role::firstOrCreate(['name' => 'Recepcionista Noche']);
+        $vendedorRole = Role::firstOrCreate(['name' => 'Vendedor']);
 
         // Asignar permisos al administrador (todos)
         $adminRole->givePermissionTo(Permission::all());
@@ -92,6 +93,23 @@ class RoleSeeder extends Seeder
 
         // Asignar permisos al Recepcionista Noche
         $receptionistNightRole->givePermissionTo([
+            'view_products',
+            'view_categories',
+            'view_customers',
+            'create_customers',
+            'edit_customers',
+            'view_reservations',
+            'create_reservations',
+            'edit_reservations',
+            'generate_invoices',
+            'download_invoices',
+            'view_shifts',
+            'create_shifts',
+            'view_reports',
+        ]);
+
+        // Asignar permisos al Vendedor (igual que recepcionista día por ahora)
+        $vendedorRole->givePermissionTo([
             'view_products',
             'view_categories',
             'view_customers',

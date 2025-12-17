@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('electronic_invoices', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('sale_id')->constrained()->onDelete('cascade');
+            $table->unsignedBigInteger('sale_id')->nullable();
             $table->foreignId('customer_id')->constrained()->onDelete('cascade');
             $table->unsignedBigInteger('factus_numbering_range_id')->nullable();
             

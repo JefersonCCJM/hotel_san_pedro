@@ -59,8 +59,9 @@ class CustomerController extends Controller
     public function store(StoreCustomerRequest $request)
     {
         $data = $request->validated();
-        $data['is_active'] = $request->has('is_active') ? true : false;
-        $requiresElectronicInvoice = $request->boolean('requires_electronic_invoice');
+        $data['is_active'] = $request->boolean('is_active');
+        $data['requires_electronic_invoice'] = $request->boolean('requires_electronic_invoice');
+        $requiresElectronicInvoice = $data['requires_electronic_invoice'];
 
         $customer = Customer::create($data);
 
@@ -149,8 +150,9 @@ class CustomerController extends Controller
     public function update(UpdateCustomerRequest $request, Customer $customer)
     {
         $data = $request->validated();
-        $data['is_active'] = $request->has('is_active') ? true : false;
-        $requiresElectronicInvoice = $request->boolean('requires_electronic_invoice');
+        $data['is_active'] = $request->boolean('is_active');
+        $data['requires_electronic_invoice'] = $request->boolean('requires_electronic_invoice');
+        $requiresElectronicInvoice = $data['requires_electronic_invoice'];
 
         // Update customer
         $customer->update($data);

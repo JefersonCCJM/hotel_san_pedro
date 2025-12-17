@@ -349,6 +349,12 @@
                                 </option>
                             @endforeach
                         </select>
+                        @error('identification_document_id')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
 
                     <!-- Identificación -->
@@ -363,6 +369,12 @@
                                value="{{ old('identification', $customer->taxProfile->identification ?? '') }}"
                                class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
                                :required="requiresElectronicInvoice">
+                        @error('identification')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
                 </div>
 
@@ -738,6 +750,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('customer-form');
     const emailInput = document.getElementById('email');
     const phoneInput = document.getElementById('phone');
+    const identificationInput = document.querySelector('input[name="identification"]');
 
     // Remove required attribute from hidden fields before submit
     form.addEventListener('submit', function(e) {
@@ -777,6 +790,21 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Validación en tiempo real para identificación (solo números, 5-20 chars)
+    if (identificationInput) {
+        identificationInput.addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '').slice(0, 20);
+        });
+        identificationInput.addEventListener('blur', function() {
+            const value = this.value.trim();
+            if (value && !isValidIdentification(value)) {
+                this.classList.add('border-red-300');
+            } else {
+                this.classList.remove('border-red-300');
+            }
+        });
+    }
+
     function isValidEmail(email) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return emailRegex.test(email);
@@ -786,6 +814,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // Permite formato internacional con + y números
         const phoneRegex = /^[\+]?[1-9][\d\s\-\(\)]{7,15}$/;
         return phoneRegex.test(phone);
+    }
+
+    function isValidIdentification(value) {
+        const idRegex = /^[0-9]{5,20}$/;
+        return idRegex.test(value);
     }
 });
 </script>
