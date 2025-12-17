@@ -15,12 +15,8 @@ class ProductImportController extends Controller
         return view('products.import');
     }
 
-    public function store(Request $request)
+    public function store(\App\Http\Requests\Product\ProductImportRequest $request)
     {
-        $request->validate([
-            'file' => 'required|file|mimes:xls,xlsx',
-        ]);
-
         $the_file = $request->file('file');
 
         try{

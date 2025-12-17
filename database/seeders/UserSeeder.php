@@ -36,23 +36,23 @@ class UserSeeder extends Seeder
             $admin->assignRole('Administrador');
         }
 
-        // Usuario vendedor (safe - won't duplicate if exists)
-        $sellerData = [
-            'name' => 'Vendedor',
-            'password' => Hash::make('Vendedor2025#'),
+        // Usuario recepcionista día (alineado al dominio hotelero)
+        $receptionistData = [
+            'name' => 'Recepcionista Día',
+            'password' => Hash::make('Recepcionista2025#'),
         ];
 
         if ($hasUsernameColumn) {
-            $sellerData['username'] = 'vendedor';
+            $receptionistData['username'] = 'recepcionista.dia';
         }
 
-        $seller = User::firstOrCreate(
-            ['email' => 'vendedor@moviltech.com'],
-            $sellerData
+        $receptionist = User::firstOrCreate(
+            ['email' => 'recepcionista.dia@hotel.com'],
+            $receptionistData
         );
         
-        if (!$seller->hasRole('Vendedor')) {
-            $seller->assignRole('Vendedor');
+        if (!$receptionist->hasRole('Recepcionista Día')) {
+            $receptionist->assignRole('Recepcionista Día');
         }
     }
 }

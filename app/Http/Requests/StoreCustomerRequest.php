@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreCustomerRequest extends FormRequest
 {
@@ -15,7 +16,7 @@ class StoreCustomerRequest extends FormRequest
     {
         $rules = [
             'name' => 'required|string|max:255',
-            'email' => 'nullable|email|unique:customers|max:255',
+            'email' => 'nullable|email|unique:customers,email|max:255',
             'phone' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:255',
             'city' => 'nullable|string|max:100',
@@ -30,11 +31,13 @@ class StoreCustomerRequest extends FormRequest
                 'nullable',
                 'string',
                 'max:20',
+                Rule::unique('customer_tax_profiles', 'identification')
+                    ->where('identification_document_id', $this->input('identification_document_id')),
             ],
             'municipality_id' => [
                 'required_if:requires_electronic_invoice,1',
                 'nullable',
-                function ($attribute, $value, $fail) {
+                function (string $attribute, $value, $fail): void {
                     if ($value && !\App\Models\DianMunicipality::where('factus_id', $value)->exists()) {
                         $fail('El municipio seleccionado no es válido.');
                     }
@@ -65,19 +68,6 @@ class StoreCustomerRequest extends FormRequest
             // Company required for juridical persons (NIT) when electronic invoice is enabled
             if ($identificationDocument && $identificationDocument->code === 'NIT') {
                 $rules['company'] = 'required_if:requires_electronic_invoice,1|string|max:255';
-            }
-
-            // Unique identification validation: combination of identification + identification_document_id must be unique
-            if ($this->has('identification') && $this->filled('identification')) {
-                $rules['identification'][] = function ($_attribute, $value, $fail) {
-                    $exists = \App\Models\CustomerTaxProfile::where('identification', $value)
-                        ->where('identification_document_id', $this->input('identification_document_id'))
-                        ->exists();
-
-                    if ($exists) {
-                        $fail('Ya existe un cliente con este número de identificación y tipo de documento.');
-                    }
-                };
             }
         }
 

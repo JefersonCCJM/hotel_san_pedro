@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ElectronicInvoice\ElectronicInvoiceFilterRequest;
 use App\Models\ElectronicInvoice;
 use App\Services\ElectronicInvoiceService;
 use Illuminate\Http\Request;
@@ -16,50 +17,52 @@ class ElectronicInvoiceController extends Controller
     // La facturación electrónica se generará desde las reservas, no desde ventas
     // public function generate(Reservation $reservation) { ... }
 
-    public function index(Request $request)
+    public function index(ElectronicInvoiceFilterRequest $request)
     {
+        $filters = $request->validated();
+
         $query = ElectronicInvoice::with(['customer.taxProfile', 'documentType', 'operationType', 'paymentMethod', 'paymentForm'])
             ->orderBy('created_at', 'desc');
 
         // Filtro por número de documento
-        if ($request->filled('filter_number')) {
-            $query->where('document', 'like', '%' . $request->input('filter_number') . '%');
+        if (!empty($filters['filter_number'] ?? null)) {
+            $query->where('document', 'like', '%' . $filters['filter_number'] . '%');
         }
 
         // Filtro por código de referencia
-        if ($request->filled('filter_reference_code')) {
-            $query->where('reference_code', 'like', '%' . $request->input('filter_reference_code') . '%');
+        if (!empty($filters['filter_reference_code'] ?? null)) {
+            $query->where('reference_code', 'like', '%' . $filters['filter_reference_code'] . '%');
         }
 
         // Filtro por estado
-        if ($request->filled('filter_status')) {
+        if (!empty($filters['filter_status'] ?? null)) {
             $statusMap = [
                 '1' => 'accepted',
                 '0' => 'pending',
             ];
-            $status = $statusMap[$request->input('filter_status')] ?? $request->input('filter_status');
+            $status = $statusMap[$filters['filter_status']] ?? $filters['filter_status'];
             if (in_array($status, ['pending', 'sent', 'accepted', 'rejected', 'cancelled'])) {
                 $query->where('status', $status);
             }
         }
 
         // Filtro por identificación del cliente
-        if ($request->filled('filter_identification')) {
-            $query->whereHas('customer.taxProfile', function ($q) use ($request) {
-                $q->where('identification', 'like', '%' . $request->input('filter_identification') . '%');
+        if (!empty($filters['filter_identification'] ?? null)) {
+            $query->whereHas('customer.taxProfile', function ($q) use ($filters) {
+                $q->where('identification', 'like', '%' . $filters['filter_identification'] . '%');
             });
         }
 
         // Filtro por nombre del cliente
-        if ($request->filled('filter_names')) {
-            $query->whereHas('customer', function ($q) use ($request) {
-                $q->where('name', 'like', '%' . $request->input('filter_names') . '%');
+        if (!empty($filters['filter_names'] ?? null)) {
+            $query->whereHas('customer', function ($q) use ($filters) {
+                $q->where('name', 'like', '%' . $filters['filter_names'] . '%');
             });
         }
 
         // Filtro por prefijo (del número de documento)
-        if ($request->filled('filter_prefix')) {
-            $query->where('document', 'like', $request->input('filter_prefix') . '%');
+        if (!empty($filters['filter_prefix'] ?? null)) {
+            $query->where('document', 'like', $filters['filter_prefix'] . '%');
         }
 
         $invoices = $query->paginate(15)->withQueryString();
@@ -120,163 +123,123 @@ class ElectronicInvoiceController extends Controller
 
     public function refreshStatus(ElectronicInvoice $electronicInvoice, \App\Services\FactusApiService $factusApi)
     {
-        try {
-            // Intentar buscar por número de documento, CUFE, o reference_code
-            $bill = null;
-            $searchNumber = $electronicInvoice->document;
-            
-            // Si tenemos CUFE, intentar buscar por ese campo primero
-            if ($electronicInvoice->cufe) {
-                try {
-                    $bills = $factusApi->getBills(['cufe' => $electronicInvoice->cufe], 1, 1);
-                    // La respuesta puede tener estructura: ['data' => ['data' => [...]]] o ['data' => [...]]
-                    $data = $bills['data']['data'] ?? $bills['data'] ?? [];
-                    if (is_array($data) && !empty($data) && isset($data[0])) {
-                        $bill = $data[0];
-                    }
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::warning('Error al buscar factura por CUFE', [
-                        'cufe' => $electronicInvoice->cufe,
-                        'error' => $e->getMessage(),
-                    ]);
+        // Intentar buscar por número de documento, CUFE, o reference_code
+        $bill = null;
+        $searchNumber = $electronicInvoice->document;
+        
+        // Si tenemos CUFE, intentar buscar por ese campo primero
+        if ($electronicInvoice->cufe) {
+            try {
+                $bills = $factusApi->getBills(['cufe' => $electronicInvoice->cufe], 1, 1);
+                $data = $bills['data']['data'] ?? $bills['data'] ?? [];
+                if (is_array($data) && !empty($data) && isset($data[0])) {
+                    $bill = $data[0];
                 }
-            }
-            
-            // Si no se encontró por CUFE y tenemos número de documento, buscar por número
-            if (!$bill && $searchNumber) {
-                try {
-                    $bill = $factusApi->getBillByNumber($searchNumber);
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::warning('Error al buscar factura por número', [
-                        'number' => $searchNumber,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
-            
-            // Si aún no se encontró, intentar por reference_code
-            if (!$bill && $electronicInvoice->reference_code) {
-                try {
-                    $bills = $factusApi->getBills(['reference_code' => $electronicInvoice->reference_code], 1, 1);
-                    // La respuesta puede tener estructura: ['data' => ['data' => [...]]] o ['data' => [...]]
-                    $data = $bills['data']['data'] ?? $bills['data'] ?? [];
-                    if (is_array($data) && !empty($data) && isset($data[0])) {
-                        $bill = $data[0];
-                    }
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::warning('Error al buscar factura por reference_code', [
-                        'reference_code' => $electronicInvoice->reference_code,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
-            
-            if (!$bill) {
-                \Illuminate\Support\Facades\Log::warning('No se pudo encontrar factura en Factus', [
-                    'invoice_id' => $electronicInvoice->id,
-                    'document' => $electronicInvoice->document,
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('Error al buscar factura por CUFE', [
                     'cufe' => $electronicInvoice->cufe,
-                    'reference_code' => $electronicInvoice->reference_code,
+                    'error' => $e->getMessage(),
                 ]);
-                
-                return redirect()->route('electronic-invoices.show', $electronicInvoice)
-                    ->with('warning', 'No se pudo encontrar la factura en Factus. Verifica que esté generada correctamente. Si la factura fue rechazada o está en estado pendiente, puede que aún no esté disponible en Factus.');
             }
-
-            // Mapear estado desde la respuesta de Factus
-            $status = 'pending';
-            if (isset($bill['status'])) {
-                $status = strtolower($bill['status']);
-            } elseif (isset($bill['cufe']) && !empty($bill['cufe'])) {
-                $status = 'accepted';
-            }
-
-            $updateData = [
-                'status' => $status,
-            ];
-
-            if (isset($bill['cufe']) && !empty($bill['cufe'])) {
-                $updateData['cufe'] = $bill['cufe'];
-            }
-
-            if (isset($bill['qr']) && !empty($bill['qr'])) {
-                $updateData['qr'] = $bill['qr'];
-            }
-
-            if (isset($bill['pdf_url']) && !empty($bill['pdf_url'])) {
-                $updateData['pdf_url'] = $bill['pdf_url'];
-            }
-
-            if (isset($bill['xml_url']) && !empty($bill['xml_url'])) {
-                $updateData['xml_url'] = $bill['xml_url'];
-            }
-
-            // Actualizar el número de documento si viene en la respuesta
-            if (isset($bill['number']) && !empty($bill['number'])) {
-                $updateData['document'] = $bill['number'];
-            }
-
-            $electronicInvoice->update($updateData);
-
-            $statusMessages = [
-                'accepted' => 'Factura actualizada: Estado cambiado a Aceptada',
-                'rejected' => 'Factura actualizada: Estado cambiado a Rechazada',
-                'sent' => 'Factura actualizada: Estado cambiado a Enviada',
-                'pending' => 'Factura actualizada: Estado sigue Pendiente',
-            ];
-
-            $message = $statusMessages[$status] ?? 'Estado de la factura actualizado';
-
-            return redirect()->route('electronic-invoices.show', $electronicInvoice)
-                ->with('success', $message);
-
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Error al actualizar estado de factura electrónica', [
-                'invoice_id' => $electronicInvoice->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return redirect()->route('electronic-invoices.show', $electronicInvoice)
-                ->with('error', 'Error al actualizar estado: ' . $e->getMessage());
         }
+        
+        // Si no se encontró por CUFE y tenemos número de documento, buscar por número
+        if (!$bill && $searchNumber) {
+            try {
+                $bill = $factusApi->getBillByNumber($searchNumber);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('Error al buscar factura por número', [
+                    'number' => $searchNumber,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+        
+        // Si aún no se encontró, intentar por reference_code
+        if (!$bill && $electronicInvoice->reference_code) {
+            try {
+                $bills = $factusApi->getBills(['reference_code' => $electronicInvoice->reference_code], 1, 1);
+                $data = $bills['data']['data'] ?? $bills['data'] ?? [];
+                if (is_array($data) && !empty($data) && isset($data[0])) {
+                    $bill = $data[0];
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('Error al buscar factura por reference_code', [
+                    'reference_code' => $electronicInvoice->reference_code,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+        
+        if (!$bill) {
+            return redirect()->route('electronic-invoices.show', $electronicInvoice)
+                ->with('warning', 'No se pudo encontrar la factura en Factus. Verifica que esté generada correctamente.');
+        }
+
+        // Mapear estado desde la respuesta de Factus
+        $status = 'pending';
+        if (isset($bill['status'])) {
+            $status = strtolower($bill['status']);
+        } elseif (isset($bill['cufe']) && !empty($bill['cufe'])) {
+            $status = 'accepted';
+        }
+
+        $updateData = [
+            'status' => $status,
+        ];
+
+        if (isset($bill['cufe']) && !empty($bill['cufe'])) {
+            $updateData['cufe'] = $bill['cufe'];
+        }
+
+        if (isset($bill['qr']) && !empty($bill['qr'])) {
+            $updateData['qr'] = $bill['qr'];
+        }
+
+        if (isset($bill['pdf_url']) && !empty($bill['pdf_url'])) {
+            $updateData['pdf_url'] = $bill['pdf_url'];
+        }
+
+        if (isset($bill['xml_url']) && !empty($bill['xml_url'])) {
+            $updateData['xml_url'] = $bill['xml_url'];
+        }
+
+        if (isset($bill['number']) && !empty($bill['number'])) {
+            $updateData['document'] = $bill['number'];
+        }
+
+        $electronicInvoice->update($updateData);
+
+        $statusMessages = [
+            'accepted' => 'Factura actualizada: Estado cambiado a Aceptada',
+            'rejected' => 'Factura actualizada: Estado cambiado a Rechazada',
+            'sent' => 'Factura actualizada: Estado cambiado a Enviada',
+            'pending' => 'Factura actualizada: Estado sigue Pendiente',
+        ];
+
+        return redirect()->route('electronic-invoices.show', $electronicInvoice)
+            ->with('success', $statusMessages[$status] ?? 'Estado de la factura actualizado');
     }
 
     public function downloadPdf(ElectronicInvoice $electronicInvoice, \App\Services\FactusApiService $factusApi)
     {
-        try {
-            // Si ya tiene PDF URL guardada localmente, usar esa
-            if ($electronicInvoice->pdf_url) {
-                return redirect($electronicInvoice->pdf_url);
-            }
-
-            // Si no, descargar desde Factus
-            $response = $factusApi->downloadPdf($electronicInvoice->document);
-
-            if (!isset($response['pdf_base_64_encoded']) || !isset($response['file_name'])) {
-                throw new \Exception('Respuesta inválida de Factus: falta pdf_base_64_encoded o file_name');
-            }
-
-            $pdfContent = base64_decode($response['pdf_base_64_encoded']);
-            
-            if ($pdfContent === false) {
-                throw new \Exception('Error al decodificar el PDF desde Base64');
-            }
-
-            $fileName = $response['file_name'] . '.pdf';
-
-            return response($pdfContent, 200)
-                ->header('Content-Type', 'application/pdf')
-                ->header('Content-Disposition', 'attachment; filename="' . $fileName . '"')
-                ->header('Content-Length', strlen($pdfContent));
-
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Error al descargar PDF de factura electrónica', [
-                'invoice_id' => $electronicInvoice->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return redirect()->route('electronic-invoices.show', $electronicInvoice)
-                ->with('error', 'Error al descargar PDF: ' . $e->getMessage());
+        // Si ya tiene PDF URL guardada localmente, usar esa
+        if ($electronicInvoice->pdf_url) {
+            return redirect($electronicInvoice->pdf_url);
         }
+
+        // Si no, descargar desde Factus
+        $response = $factusApi->downloadPdf($electronicInvoice->document);
+
+        if (!isset($response['pdf_base_64_encoded'])) {
+            throw new \Exception('El PDF no está disponible en este momento.');
+        }
+
+        $pdfContent = base64_decode($response['pdf_base_64_encoded']);
+        $fileName = ($response['file_name'] ?? $electronicInvoice->document) . '.pdf';
+
+        return response($pdfContent, 200)
+            ->header('Content-Type', 'application/pdf')
+            ->header('Content-Disposition', 'attachment; filename="' . $fileName . '"');
     }
 }

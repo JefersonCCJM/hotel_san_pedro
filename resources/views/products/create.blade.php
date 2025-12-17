@@ -296,7 +296,7 @@
                         </div>
                     </div>
                     <p class="mt-1.5 text-xs text-gray-500">
-                            Los productos inactivos no aparecerán en las ventas
+                            Los productos inactivos no aparecerán en el inventario activo
                         </p>
                         @error('status')
                         <p class="mt-1.5 text-xs text-red-600 flex items-center">

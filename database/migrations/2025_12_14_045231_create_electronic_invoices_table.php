@@ -10,7 +10,6 @@ return new class extends Migration
     {
         Schema::create('electronic_invoices', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('sale_id')->constrained()->onDelete('cascade');
             $table->foreignId('customer_id')->constrained()->onDelete('cascade');
             $table->unsignedBigInteger('factus_numbering_range_id')->nullable();
             
@@ -62,7 +61,6 @@ return new class extends Migration
             $table->foreign('payment_form_code')->references('code')->on('dian_payment_forms')->onDelete('set null');
             
             // Índices
-            $table->index('sale_id');
             $table->index('customer_id');
             $table->index('status');
             $table->index('cufe');

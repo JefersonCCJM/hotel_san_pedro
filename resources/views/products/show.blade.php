@@ -252,7 +252,7 @@
                                 <i class="fas fa-check-circle text-emerald-500 mr-2 mt-0.5"></i>
                                 <div>
                                     <div class="text-xs sm:text-sm font-semibold text-emerald-800">Stock suficiente</div>
-                                    <div class="text-xs text-emerald-600 mt-0.5">Disponible para ventas</div>
+                                    <div class="text-xs text-emerald-600 mt-0.5">Disponible para consumo</div>
                                 </div>
                             </div>
                         </div>

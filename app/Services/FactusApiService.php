@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\FactusApiException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -26,7 +27,7 @@ class FactusApiService
 
         // Validar que las credenciales estén configuradas
         if (empty($this->baseUrl) || empty($this->clientId) || empty($this->clientSecret) || empty($this->username) || empty($this->password)) {
-            throw new \Exception('Las credenciales de Factus no están configuradas correctamente. Verifica las variables de entorno.');
+            throw new FactusApiException('Las credenciales de Factus no están configuradas correctamente. Verifica las variables de entorno.', 500);
         }
     }
 
@@ -44,7 +45,7 @@ class FactusApiService
             if (isset($tokenData['refresh_token'])) {
                 try {
                     return $this->refreshAccessToken($tokenData['refresh_token']);
-                } catch (\Exception $e) {
+                } catch (FactusApiException $e) {
                     Log::warning('Error al renovar token con refresh_token, obteniendo nuevo token', [
                         'error' => $e->getMessage()
                     ]);
@@ -59,11 +60,6 @@ class FactusApiService
     {
         $tokenUrl = "{$this->baseUrl}{$this->tokenEndpoint}";
         
-        Log::info('Solicitando nuevo token de acceso de Factus', [
-            'url' => $tokenUrl,
-            'has_credentials' => !empty($this->clientId) && !empty($this->username),
-        ]);
-
         $httpClient = Http::withHeaders([
             'Accept' => 'application/json',
         ]);
@@ -81,13 +77,12 @@ class FactusApiService
         ]);
 
         if (!$response->successful()) {
-            $errorBody = $response->body();
-            Log::error('Error al autenticar con Factus OAuth2', [
-                'status' => $response->status(),
-                'url' => $tokenUrl,
-                'response' => $errorBody,
-            ]);
-            throw new \Exception("Error al autenticar con Factus OAuth2 (HTTP {$response->status()}): {$errorBody}");
+            $errorBody = $response->json();
+            throw new FactusApiException(
+                "Error de autenticación con Factus: " . ($errorBody['message'] ?? $response->body()),
+                $response->status(),
+                $errorBody
+            );
         }
 
         $data = $response->json();
@@ -97,10 +92,7 @@ class FactusApiService
         $tokenType = $data['token_type'] ?? 'Bearer';
 
         if (!$accessToken) {
-            Log::error('No se recibió access_token en la respuesta de Factus', [
-                'response_data' => $data,
-            ]);
-            throw new \Exception('No se recibió access_token de Factus');
+            throw new FactusApiException('No se recibió access_token de Factus', 500, $data);
         }
 
         $expiresAt = now()->addSeconds($expiresIn - 60);
@@ -117,13 +109,6 @@ class FactusApiService
         }
 
         Cache::put('factus_token_data', $tokenData, now()->addSeconds($expiresIn));
-
-        Log::info('Nuevo token de acceso obtenido de Factus', [
-            'expires_at' => $expiresAt->toIso8601String(),
-            'expires_in' => $expiresIn,
-            'token_type' => $tokenType,
-            'has_refresh_token' => !empty($refreshToken),
-        ]);
 
         return $accessToken;
     }
@@ -146,7 +131,11 @@ class FactusApiService
         ]);
 
         if (!$response->successful()) {
-            throw new \Exception('Error al renovar token con Factus OAuth2: ' . $response->body());
+            throw new FactusApiException(
+                "Error al renovar token con Factus: " . $response->body(),
+                $response->status(),
+                $response->json()
+            );
         }
 
         $data = $response->json();
@@ -156,7 +145,7 @@ class FactusApiService
         $tokenType = $data['token_type'] ?? 'Bearer';
 
         if (!$accessToken) {
-            throw new \Exception('No se recibió access_token al renovar token');
+            throw new FactusApiException('No se recibió access_token al renovar token', 500, $data);
         }
 
         $expiresAt = now()->addSeconds($expiresIn - 60);
@@ -171,95 +160,25 @@ class FactusApiService
 
         Cache::put('factus_token_data', $tokenData, now()->addSeconds($expiresIn));
 
-        Log::info('Token de acceso renovado usando refresh_token', [
-            'expires_at' => $expiresAt->toIso8601String(),
-            'expires_in' => $expiresIn,
-            'token_type' => $tokenType,
-            'has_new_refresh_token' => ($newRefreshToken !== $refreshToken),
-        ]);
-
         return $accessToken;
     }
 
     public function get(string $endpoint, array $params = []): array
     {
-        $token = $this->getAuthToken();
-
-        if (empty($token)) {
-            throw new \Exception('No se pudo obtener token de autenticación de Factus');
-        }
-
-        $httpClient = Http::withHeaders([
-            'Authorization' => "Bearer {$token}",
-            'Accept' => 'application/json',
-        ]);
-        
-        if (!config('factus.verify_ssl', true)) {
-            $httpClient = $httpClient->withoutVerifying();
-        }
-
-        $fullUrl = "{$this->baseUrl}{$endpoint}";
-        $response = $httpClient->get($fullUrl, $params);
-
-        if (!$response->successful()) {
-            $errorBody = $response->body();
-            $statusCode = $response->status();
-            
-            if ($statusCode === 401) {
-                Log::warning('Token expirado o inválido en GET request, renovando token', [
-                    'endpoint' => $endpoint,
-                    'url' => $fullUrl,
-                    'response' => $errorBody
-                ]);
-                
-                // Limpiar token y obtener uno nuevo
-                Cache::forget('factus_token_data');
-                $token = $this->getAuthToken();
-                
-                if (empty($token)) {
-                    throw new \Exception('No se pudo renovar el token de autenticación de Factus');
-                }
-                
-                $httpClient = Http::withHeaders([
-                    'Authorization' => "Bearer {$token}",
-                    'Accept' => 'application/json',
-                ]);
-                
-                if (!config('factus.verify_ssl', true)) {
-                    $httpClient = $httpClient->withoutVerifying();
-                }
-                
-                $response = $httpClient->get($fullUrl, $params);
-                
-                if (!$response->successful()) {
-                    $errorBody = $response->body();
-                    Log::error("Error en GET {$endpoint} después de renovar token", [
-                        'status' => $response->status(),
-                        'url' => $fullUrl,
-                        'response' => $errorBody,
-                    ]);
-                    throw new \Exception("Error en GET {$endpoint} después de renovar token (HTTP {$response->status()}): {$errorBody}");
-                }
-            } else {
-                Log::error("Error en GET {$endpoint}", [
-                    'status' => $statusCode,
-                    'url' => $fullUrl,
-                    'response' => $errorBody,
-                ]);
-                throw new \Exception("Error en GET {$endpoint} (HTTP {$statusCode}): {$errorBody}");
-            }
-        }
-
-        return $response->json();
+        return $this->request('get', $endpoint, $params);
     }
 
     public function post(string $endpoint, array $data): array
+    {
+        return $this->request('post', $endpoint, $data);
+    }
+
+    private function request(string $method, string $endpoint, array $data = []): array
     {
         $token = $this->getAuthToken();
 
         $httpClient = Http::withHeaders([
             'Authorization' => "Bearer {$token}",
-            'Content-Type' => 'application/json',
             'Accept' => 'application/json',
         ]);
         
@@ -267,44 +186,28 @@ class FactusApiService
             $httpClient = $httpClient->withoutVerifying();
         }
 
-        $response = $httpClient->post("{$this->baseUrl}{$endpoint}", $data);
+        $url = "{$this->baseUrl}{$endpoint}";
+        $response = $method === 'get' 
+            ? $httpClient->get($url, $data)
+            : $httpClient->post($url, $data);
+
+        if ($response->status() === 401) {
+            Cache::forget('factus_token_data');
+            $token = $this->getAuthToken();
+            
+            $httpClient = $httpClient->withHeaders(['Authorization' => "Bearer {$token}"]);
+            $response = $method === 'get' 
+                ? $httpClient->get($url, $data)
+                : $httpClient->post($url, $data);
+        }
 
         if (!$response->successful()) {
-            if ($response->status() === 401) {
-                Log::warning('Token expirado en POST request, renovando token', ['endpoint' => $endpoint]);
-                Cache::forget('factus_token_data');
-                $token = $this->getAuthToken();
-                
-                $httpClient = Http::withHeaders([
-                    'Authorization' => "Bearer {$token}",
-                    'Content-Type' => 'application/json',
-                    'Accept' => 'application/json',
-                ]);
-                
-                if (!config('factus.verify_ssl', true)) {
-                    $httpClient = $httpClient->withoutVerifying();
-                }
-                
-                $response = $httpClient->post("{$this->baseUrl}{$endpoint}", $data);
-                
-                if (!$response->successful()) {
-                    $errorBody = $response->body();
-                    Log::error("Error en POST {$endpoint} después de renovar token", [
-                        'status' => $response->status(),
-                        'body' => $errorBody,
-                        'data_sent' => $data,
-                    ]);
-                    throw new \Exception("Error en POST {$endpoint} después de renovar token: {$errorBody}");
-                }
-            } else {
-                $errorBody = $response->body();
-                Log::error("Error en POST {$endpoint}", [
-                    'status' => $response->status(),
-                    'body' => $errorBody,
-                    'data_sent' => $data,
-                ]);
-                throw new \Exception("Error en POST {$endpoint}: {$errorBody}");
-            }
+            $errorData = $response->json();
+            throw new FactusApiException(
+                "Error en Factus API ({$method} {$endpoint}): " . ($errorData['message'] ?? $response->body()),
+                $response->status(),
+                $errorData
+            );
         }
 
         return $response->json();

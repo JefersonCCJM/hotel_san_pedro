@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class ElectronicInvoice extends Model
 {
     protected $fillable = [
-        'sale_id', 'customer_id', 'factus_numbering_range_id',
+        'customer_id', 'factus_numbering_range_id',
         'document_type_id', 'operation_type_id',
         'payment_method_code', 'payment_form_code',
         'reference_code', 'document', 'status',

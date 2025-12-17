@@ -18,10 +18,10 @@
         </div>
     </div>
 
-
-    <form method="POST" action="{{ route('customers.store') }}" id="customer-form"
-          x-data="customerForm()"
-          @submit="loading = true">
+    <form method="POST" action="{{ route('customers.store') }}" id="customer-form" 
+          x-data="customerForm()" 
+          x-init="init()" 
+          @submit.prevent="submitForm">
         @csrf
 
         <!-- Información Personal -->
@@ -46,15 +46,17 @@
                         <input type="text"
                                id="name"
                                name="name"
-                               value="{{ old('name') }}"
+                               x-model="formData.name"
+                               @blur="validateField('name')"
                                class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('name') border-red-300 focus:ring-red-500 @enderror"
-                               placeholder="Ej: Juan Pérez García"
-                               required>
+                               :class="errors.name ? 'border-red-300 focus:ring-red-500' : ''"
+                               placeholder="Ej: Juan Pérez García">
                     </div>
-                    <p class="mt-1.5 text-xs text-gray-500 flex items-start">
+                    <p x-show="!errors.name" class="mt-1.5 text-xs text-gray-500 flex items-start">
                         <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
                         <span>Nombre completo del cliente para identificación y facturación</span>
                     </p>
+                    <p x-show="errors.name" x-text="errors.name" class="mt-1.5 text-xs text-red-600 flex items-center" x-cloak></p>
                     @error('name')
                         <p class="mt-1.5 text-xs text-red-600 flex items-center">
                             <i class="fas fa-exclamation-circle mr-1.5"></i>
@@ -76,14 +78,17 @@
                             <input type="email"
                                    id="email"
                                    name="email"
-                                   value="{{ old('email') }}"
+                                   x-model="formData.email"
+                                   @blur="validateField('email')"
                                    class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('email') border-red-300 focus:ring-red-500 @enderror"
+                                   :class="errors.email ? 'border-red-300 focus:ring-red-500' : ''"
                                    placeholder="juan.perez@email.com">
                         </div>
-                        <p class="mt-1.5 text-xs text-gray-500 flex items-start">
+                        <p x-show="!errors.email" class="mt-1.5 text-xs text-gray-500 flex items-start">
                             <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
                             <span>Email para comunicaciones y envío de facturas electrónicas (opcional)</span>
                         </p>
+                        <p x-show="errors.email" x-text="errors.email" class="mt-1.5 text-xs text-red-600 flex items-center" x-cloak></p>
                         @error('email')
                             <p class="mt-1.5 text-xs text-red-600 flex items-center">
                                 <i class="fas fa-exclamation-circle mr-1.5"></i>
@@ -104,14 +109,18 @@
                             <input type="text"
                                    id="phone"
                                    name="phone"
-                                   value="{{ old('phone') }}"
+                                   x-model="formData.phone"
+                                   @input="formatPhone()"
+                                   @blur="validateField('phone')"
                                    class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('phone') border-red-300 focus:ring-red-500 @enderror"
+                                   :class="errors.phone ? 'border-red-300 focus:ring-red-500' : ''"
                                    placeholder="+1 (555) 123-4567">
                         </div>
-                        <p class="mt-1.5 text-xs text-gray-500 flex items-start">
+                        <p x-show="!errors.phone" class="mt-1.5 text-xs text-gray-500 flex items-start">
                             <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
                             <span>Número de contacto principal. Puede incluir código de país (opcional)</span>
                         </p>
+                        <p x-show="errors.phone" x-text="errors.phone" class="mt-1.5 text-xs text-red-600 flex items-center" x-cloak></p>
                         @error('phone')
                             <p class="mt-1.5 text-xs text-red-600 flex items-center">
                                 <i class="fas fa-exclamation-circle mr-1.5"></i>
@@ -289,8 +298,7 @@
         </div>
 
         <!-- Facturación Electrónica DIAN -->
-        <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6"
-             x-data="{ requiresElectronicInvoice: {{ old('requires_electronic_invoice', false) ? 'true' : 'false' }} }">
+        <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
             <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center space-x-3">
                     <div class="p-2 rounded-xl bg-blue-50 text-blue-600">
@@ -320,8 +328,8 @@
                  x-transition:enter="transition ease-out duration-200"
                  x-transition:enter-start="opacity-0 transform scale-95"
                  x-transition:enter-end="opacity-100 transform scale-100"
-                 class="mt-6 space-y-5 border-t border-gray-200 pt-6">
-
+                 class="mt-6 space-y-5 border-t border-gray-200 pt-6" x-cloak>
+                
                 <!-- Mensaje informativo -->
                 <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div class="flex items-start">
@@ -343,16 +351,25 @@
                                 x-model="identificationDocumentId"
                                 @change="updateRequiredFields()"
                                 class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
-                                :required="requiresElectronicInvoice">
+                                :required="requiresElectronicInvoice"
+                                :class="errors.identification_document_id ? 'border-red-300 focus:ring-red-500' : ''">
                             <option value="">Seleccione...</option>
                             @foreach($identificationDocuments as $doc)
                                 <option value="{{ $doc->id }}"
                                         data-code="{{ $doc->code }}"
-                                        data-requires-dv="{{ $doc->requires_dv ? 'true' : 'false' }}">
+                                        data-requires-dv="{{ $doc->requires_dv ? 'true' : 'false' }}"
+                                        {{ (string)old('identification_document_id') === (string)$doc->id ? 'selected' : '' }}>
                                     {{ $doc->name }}@if($doc->code) ({{ $doc->code }})@endif
                                 </option>
                             @endforeach
                         </select>
+                        <p x-show="errors.identification_document_id" x-text="errors.identification_document_id" class="mt-1.5 text-xs text-red-600 flex items-center" x-cloak></p>
+                        @error('identification_document_id')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
 
                     <!-- Identificación -->
@@ -364,13 +381,22 @@
                                name="identification"
                                x-model="identification"
                                @input="calculateDV()"
+                               @blur="validateField('identification')"
                                class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
-                               :required="requiresElectronicInvoice">
+                               :required="requiresElectronicInvoice"
+                               :class="errors.identification ? 'border-red-300 focus:ring-red-500' : ''">
+                        <p x-show="errors.identification" x-text="errors.identification" class="mt-1.5 text-xs text-red-600 flex items-center" x-cloak></p>
+                        @error('identification')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
                 </div>
 
                 <!-- Dígito Verificador (solo si el documento lo requiere) -->
-                <div x-show="requiresDV" class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                <div x-show="requiresDV" class="grid grid-cols-1 sm:grid-cols-2 gap-5" x-cloak>
                     <div>
                         <label class="block text-xs font-semibold text-gray-700 mb-2">
                             Dígito Verificador (DV) <span class="text-red-500">*</span>
@@ -384,19 +410,35 @@
                         <p class="mt-1 text-xs text-gray-500">
                             Se calcula automáticamente para NIT
                         </p>
+                        @error('dv')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
                 </div>
 
                 <!-- Razón Social / Nombre Comercial (solo para personas jurídicas) -->
-                <div x-show="isJuridicalPerson" class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                <div x-show="isJuridicalPerson" class="grid grid-cols-1 sm:grid-cols-2 gap-5" x-cloak>
                     <div>
                         <label class="block text-xs font-semibold text-gray-700 mb-2">
                             Razón Social / Empresa <span class="text-red-500">*</span>
                         </label>
                         <input type="text"
                                name="company"
+                               x-model="formData.company"
+                               @blur="validateField('company')"
                                :required="requiresElectronicInvoice && isJuridicalPerson"
-                               class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+                               class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+                               :class="errors.company ? 'border-red-300 focus:ring-red-500' : ''">
+                        <p x-show="errors.company" x-text="errors.company" class="mt-1.5 text-xs text-red-600 flex items-center" x-cloak></p>
+                        @error('company')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-gray-700 mb-2">
@@ -404,23 +446,37 @@
                         </label>
                         <input type="text"
                                name="trade_name"
+                               value="{{ old('trade_name') }}"
                                class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+                        @error('trade_name')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
                 </div>
 
                 <!-- Nombres (solo para personas naturales) -->
-                <div x-show="!isJuridicalPerson" class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                <div x-show="!isJuridicalPerson" class="grid grid-cols-1 sm:grid-cols-2 gap-5" x-cloak>
                     <div>
                         <label class="block text-xs font-semibold text-gray-700 mb-2">
                             Nombres
                         </label>
                         <input type="text"
                                name="names"
+                               value="{{ old('names') }}"
                                class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
                                placeholder="Nombres completos de la persona natural">
                         <p class="mt-1 text-xs text-gray-500">
                             Solo aplica para personas naturales
                         </p>
+                        @error('names')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
                 </div>
 
@@ -433,9 +489,17 @@
                             class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
                         <option value="">Seleccione...</option>
                         @foreach($legalOrganizations as $org)
-                            <option value="{{ $org->id }}">{{ $org->name }}</option>
+                            <option value="{{ $org->id }}" {{ (string)old('legal_organization_id') === (string)$org->id ? 'selected' : '' }}>
+                                {{ $org->name }}
+                            </option>
                         @endforeach
                     </select>
+                    @error('legal_organization_id')
+                        <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                            <i class="fas fa-exclamation-circle mr-1.5"></i>
+                            {{ $message }}
+                        </p>
+                    @enderror
                 </div>
 
                 <!-- Municipio -->
@@ -457,8 +521,11 @@
                     @else
                         <select name="municipality_id"
                                 id="municipality_id"
+                                x-model="formData.municipality_id"
+                                @change="validateField('municipality_id')"
                                 class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                                :required="requiresElectronicInvoice">
+                                :required="requiresElectronicInvoice"
+                                :class="errors.municipality_id ? 'border-red-300 focus:ring-red-500' : ''">
                             <option value="">Seleccione un municipio...</option>
                             @php
                                 $currentDepartment = null;
@@ -482,9 +549,16 @@
                                 @endif
                             @endforeach
                         </select>
-                        <p class="mt-1 text-xs text-gray-500">
+                        <p x-show="!errors.municipality_id" class="mt-1 text-xs text-gray-500">
                             Seleccione el municipio según el departamento
                         </p>
+                        <p x-show="errors.municipality_id" x-text="errors.municipality_id" class="mt-1.5 text-xs text-red-600 flex items-center" x-cloak></p>
+                        @error('municipality_id')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     @endif
                 </div>
 
@@ -497,9 +571,17 @@
                             class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
                         <option value="">Seleccione...</option>
                         @foreach($tributes as $tribute)
-                            <option value="{{ $tribute->id }}">{{ $tribute->name }} ({{ $tribute->code }})</option>
+                            <option value="{{ $tribute->id }}" {{ (string)old('tribute_id') === (string)$tribute->id ? 'selected' : '' }}>
+                                {{ $tribute->name }} ({{ $tribute->code }})
+                            </option>
                         @endforeach
                     </select>
+                    @error('tribute_id')
+                        <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                            <i class="fas fa-exclamation-circle mr-1.5"></i>
+                            {{ $message }}
+                        </p>
+                    @enderror
                 </div>
 
                 <!-- Información de Contacto Adicional -->
@@ -516,6 +598,12 @@
                         <p class="mt-1 text-xs text-gray-500">
                             Si no se especifica, se usará la dirección principal del cliente
                         </p>
+                        @error('tax_address')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
 
                     <div>
@@ -530,6 +618,12 @@
                         <p class="mt-1 text-xs text-gray-500">
                             Email para envío de facturas electrónicas. Si no se especifica, se usará el email principal.
                         </p>
+                        @error('tax_email')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
                 </div>
 
@@ -545,6 +639,12 @@
                     <p class="mt-1 text-xs text-gray-500">
                         Si no se especifica, se usará el teléfono principal del cliente
                     </p>
+                    @error('tax_phone')
+                        <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                            <i class="fas fa-exclamation-circle mr-1.5"></i>
+                            {{ $message }}
+                        </p>
+                    @enderror
                 </div>
             </div>
         </div>
@@ -590,21 +690,39 @@
 function customerForm() {
     return {
         loading: false,
-        identificationDocumentId: null,
-        identification: '',
-        dv: '',
+        requiresElectronicInvoice: @json((bool) old('requires_electronic_invoice')),
+        identificationDocumentId: @json(old('identification_document_id')),
+        identification: @json(old('identification')),
+        dv: @json(old('dv')),
         requiresDV: false,
         isJuridicalPerson: false,
+        
+        formData: {
+            name: @json(old('name', '')),
+            email: @json(old('email', '')),
+            phone: @json(old('phone', '')),
+            company: @json(old('company', '')),
+            municipality_id: @json(old('municipality_id', ''))
+        },
+        
+        errors: {},
+
+        init() {
+            this.updateRequiredFields();
+        },
 
         updateRequiredFields() {
             const select = document.querySelector('select[name="identification_document_id"]');
-            const selectedOption = select.options[select.selectedIndex];
+            if (select && this.identificationDocumentId) {
+                select.value = this.identificationDocumentId;
+            }
+
+            const selectedOption = select?.options[select?.selectedIndex];
 
             if (selectedOption) {
                 this.requiresDV = selectedOption.dataset.requiresDv === 'true';
                 this.isJuridicalPerson = selectedOption.dataset.code === 'NIT';
 
-                // Si requiere DV y es NIT, calcular DV
                 if (this.requiresDV && this.isJuridicalPerson && this.identification) {
                     this.calculateDV();
                 }
@@ -612,80 +730,91 @@ function customerForm() {
         },
 
         calculateDV() {
-            if (this.requiresDV && this.identification && this.identification.length >= 9) {
-                // Algoritmo básico para calcular DV de NIT (simplificado)
-                // En producción, usar algoritmo completo de DIAN
-                const nit = this.identification.replace(/\D/g, '');
-                if (nit.length >= 9) {
-                    // Aquí iría el algoritmo completo de cálculo de DV
-                    // Por ahora se deja que el usuario lo ingrese manualmente
+            if (this.requiresDV && this.identification && this.identification.length >= 5) {
+                // DV calculation logic can be implemented here if needed client-side
+                // For now, it's handled by specific business logic or on backend
+            }
+        },
+
+        formatPhone() {
+            let value = this.formData.phone.replace(/\D/g, '');
+            if (value.length > 0 && !this.formData.phone.startsWith('+')) {
+                this.formData.phone = '+' + value;
+            }
+        },
+        
+        validateField(field) {
+            this.errors[field] = null;
+            
+            if (field === 'name') {
+                if (!this.formData.name || this.formData.name.trim() === '') {
+                    this.errors.name = 'El nombre es obligatorio.';
                 }
             }
+            
+            if (field === 'email') {
+                if (this.formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.formData.email)) {
+                    this.errors.email = 'Ingrese un correo electrónico válido.';
+                }
+            }
+
+            if (field === 'phone') {
+                if (this.formData.phone && !/^[\+]?[1-9][\d\s\-\(\)]{7,15}$/.test(this.formData.phone)) {
+                    this.errors.phone = 'Ingrese un número de teléfono válido.';
+                }
+            }
+            
+            if (this.requiresElectronicInvoice) {
+                if (field === 'identification' && !this.identification) {
+                    this.errors.identification = 'La identificación es obligatoria para facturación electrónica.';
+                }
+                if (field === 'identification_document_id' && !this.identificationDocumentId) {
+                    this.errors.identification_document_id = 'El tipo de documento es obligatorio.';
+                }
+                if (field === 'company' && this.isJuridicalPerson && !this.formData.company) {
+                    this.errors.company = 'La razón social es obligatoria para NIT.';
+                }
+                if (field === 'municipality_id' && !this.formData.municipality_id) {
+                    this.errors.municipality_id = 'El municipio es obligatorio.';
+                }
+            }
+        },
+        
+        submitForm() {
+            this.errors = {};
+            
+            // Validate all necessary fields
+            this.validateField('name');
+            this.validateField('email');
+            this.validateField('phone');
+            
+            if (this.requiresElectronicInvoice) {
+                this.validateField('identification');
+                this.validateField('identification_document_id');
+                this.validateField('municipality_id');
+                if (this.isJuridicalPerson) {
+                    this.validateField('company');
+                }
+            }
+            
+            const hasErrors = Object.values(this.errors).some(error => error !== null);
+            
+            if (hasErrors) {
+                // Scroll to first error
+                const firstError = Object.keys(this.errors).find(key => this.errors[key] !== null);
+                const element = document.getElementsByName(firstError)[0] || document.getElementById(firstError);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    element.focus();
+                }
+                return;
+            }
+            
+            this.loading = true;
+            this.$el.submit();
         }
     }
 }
-
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('customer-form');
-    const inputs = form.querySelectorAll('input, textarea');
-
-    // Remove required attribute from hidden fields before submit
-    form.addEventListener('submit', function(e) {
-        const requiresElectronicInvoice = form.querySelector('input[name="requires_electronic_invoice"]');
-        const isChecked = requiresElectronicInvoice && requiresElectronicInvoice.checked;
-
-        if (!isChecked) {
-            // Remove required from all electronic invoice fields
-            const electronicInvoiceFields = form.querySelectorAll('[name="identification_document_id"], [name="identification"], [name="municipality_id"], [name="dv"], [name="company"]');
-            electronicInvoiceFields.forEach(function(field) {
-                field.removeAttribute('required');
-            });
-        }
-    });
-
-    // Validación en tiempo real para email
-    const emailInput = document.getElementById('email');
-    if (emailInput) {
-        emailInput.addEventListener('blur', function() {
-            const value = this.value.trim();
-            if (value && !isValidEmail(value)) {
-                this.classList.add('border-red-300');
-            } else {
-                this.classList.remove('border-red-300');
-            }
-        });
-    }
-
-    // Validación en tiempo real para teléfono
-    const phoneInput = document.getElementById('phone');
-    if (phoneInput) {
-        phoneInput.addEventListener('input', function() {
-            let value = this.value.replace(/\D/g, '');
-            if (value.length > 0 && !value.startsWith('+')) {
-                value = '+' + value;
-            }
-        });
-
-        phoneInput.addEventListener('blur', function() {
-            const value = this.value.trim();
-            if (value && !isValidPhone(value)) {
-                this.classList.add('border-red-300');
-            } else {
-                this.classList.remove('border-red-300');
-            }
-        });
-    }
-
-    function isValidEmail(email) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email);
-    }
-
-    function isValidPhone(phone) {
-        const phoneRegex = /^[\+]?[1-9][\d\s\-\(\)]{7,15}$/;
-        return phoneRegex.test(phone);
-    }
-});
 </script>
 @endpush
 @endsection

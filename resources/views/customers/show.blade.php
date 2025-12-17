@@ -35,10 +35,15 @@
                             <i class="fas fa-hashtag"></i>
                             <span>ID: <span class="font-semibold text-gray-900">#{{ $customer->id }}</span></span>
                         </div>
+                        <span class="hidden sm:inline text-gray-300">•</span>
+                        <div class="flex items-center space-x-1.5">
+                            <i class="fas fa-calendar-alt"></i>
+                            <span>Registrado: <span class="font-semibold text-gray-900">{{ $customer->created_at->format('d/m/Y') }}</span></span>
+                        </div>
                         @if($customer->requires_electronic_invoice && $customer->taxProfile)
                             <span class="hidden sm:inline text-gray-300">•</span>
                             <div class="flex items-center space-x-1.5">
-                                <i class="fas fa-file-invoice"></i>
+                                <i class="fas fa-file-invoice text-emerald-600"></i>
                                 <span class="font-semibold text-emerald-600">Facturación Electrónica</span>
                             </div>
                         @endif
@@ -301,6 +306,17 @@
                 </div>
             </div>
             @endif
+            
+            <!-- Secciones futuras: Historial de Reservas, etc. -->
+            <div class="bg-gray-50 rounded-xl border border-dashed border-gray-200 p-8 text-center">
+                <div class="inline-flex items-center justify-center p-3 rounded-full bg-white shadow-sm mb-3">
+                    <i class="fas fa-history text-gray-400 text-xl"></i>
+                </div>
+                <h3 class="text-sm font-semibold text-gray-900">Historial de Reservas</h3>
+                <p class="text-xs text-gray-500 mt-1 max-w-xs mx-auto">
+                    El historial de reservas aparecerá aquí una vez que se implemente el módulo de reservas.
+                </p>
+            </div>
         </div>
 
         <!-- Panel Lateral -->
@@ -366,8 +382,8 @@
 
                 <div class="space-y-3">
                     @can('edit_customers')
-                    <a href="{{ route('customers.edit', $customer) }}"
-                       class="w-full inline-flex items-center justify-center px-4 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
+                    <a href="{{ route('customers.edit', $customer) }}" 
+                       class="w-full inline-flex items-center justify-center px-4 py-3 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md">
                         <i class="fas fa-edit mr-2"></i>
                         Editar Cliente
                     </a>

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Category\StoreCategoryRequest;
+use App\Http\Requests\Category\UpdateCategoryRequest;
 use Illuminate\Http\Request;
 use App\Models\Category;
 
@@ -40,16 +42,9 @@ class CategoryController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(StoreCategoryRequest $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255|unique:categories',
-            'description' => 'nullable|string|max:500',
-            'color' => 'required|string|regex:/^#[0-9A-Fa-f]{6}$/',
-            'is_active' => 'boolean',
-        ]);
-
-        $data = $request->all();
+        $data = $request->validated();
         $data['is_active'] = $request->has('is_active');
 
         Category::create($data);
@@ -109,16 +104,9 @@ class CategoryController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Category $category)
+    public function update(UpdateCategoryRequest $request, Category $category)
     {
-        $request->validate([
-            'name' => 'required|string|max:255|unique:categories,name,' . $category->id,
-            'description' => 'nullable|string|max:500',
-            'color' => 'required|string|regex:/^#[0-9A-Fa-f]{6}$/',
-            'is_active' => 'boolean',
-        ]);
-
-        $data = $request->all();
+        $data = $request->validated();
         $data['is_active'] = $request->has('is_active');
 
         $category->update($data);

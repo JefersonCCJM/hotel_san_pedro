@@ -2,9 +2,27 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
+/**
+ * @property int $id
+ * @property string $name
+ * @property string|null $email
+ * @property string|null $phone
+ * @property string|null $address
+ * @property string|null $city
+ * @property string|null $state
+ * @property string|null $zip_code
+ * @property string|null $notes
+ * @property bool $is_active
+ * @property bool $requires_electronic_invoice
+ * @property-read CustomerTaxProfile|null $taxProfile
+ *
+ * @mixin Builder
+ */
 class Customer extends Model
 {
     use HasFactory;
@@ -30,7 +48,7 @@ class Customer extends Model
     /**
      * Get the tax profile for the customer.
      */
-    public function taxProfile()
+    public function taxProfile(): HasOne
     {
         return $this->hasOne(CustomerTaxProfile::class);
     }
@@ -127,7 +145,7 @@ class Customer extends Model
     /**
      * Scope a query to only include active customers.
      */
-    public function scopeActive($query)
+    public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
     }

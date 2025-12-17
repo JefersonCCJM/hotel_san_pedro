@@ -1,14 +1,16 @@
 <?php
-// ⚠️ TEMPORAL: Eliminar después de usar
-// Acceso: https://moviltech.site/diagnose-session.php?token=DIAG_TOKEN_12345
+// Temporary diagnostic endpoint. Remove after use.
 
-$token = $_GET['token'] ?? '';
-if ($token !== 'DIAG_TOKEN_12345') {
-    die('Unauthorized');
+$providedToken = $_GET['token'] ?? '';
+$expectedToken = env('DIAG_TOKEN');
+
+if (empty($expectedToken) || !hash_equals((string) $expectedToken, (string) $providedToken)) {
+    http_response_code(401);
+    exit('Unauthorized');
 }
 
-require __DIR__.'/../vendor/autoload.php';
-$app = require_once __DIR__.'/../bootstrap/app.php';
+require __DIR__ . '/../vendor/autoload.php';
+$app = require_once __DIR__ . '/../bootstrap/app.php';
 $kernel = $app->make(Illuminate\Contracts\Http\Kernel::class);
 
 $request = Illuminate\Http\Request::capture();
@@ -17,7 +19,7 @@ $response = $kernel->handle($request);
 header('Content-Type: text/html; charset=utf-8');
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
     <title>Diagnóstico de Sesión - MovilTech</title>
     <style>
@@ -59,17 +61,17 @@ echo "SESSION_PATH: " . config('session.path') . "\n";
         <h2>Información de la Request</h2>
         <pre><?php
 echo "Scheme: " . $request->getScheme() . "\n";
-echo "Is Secure: " . ($request->isSecure() ? '<span class="success">true ✓</span>' : '<span class="error">false ✗</span>') . "\n";
+echo "Is Secure: " . ($request->isSecure() ? '<span class=\"success\">true ✓</span>' : '<span class=\"error\">false ✗</span>') . "\n";
 echo "Full URL: " . $request->fullUrl() . "\n";
 echo "Method: " . $request->method() . "\n";
-echo "Has Session: " . ($request->hasSession() ? '<span class="success">true ✓</span>' : '<span class="error">false ✗</span>') . "\n";
+echo "Has Session: " . ($request->hasSession() ? '<span class=\"success\">true ✓</span>' : '<span class=\"error\">false ✗</span>') . "\n";
 
 if ($request->hasSession()) {
     echo "Session ID: " . $request->session()->getId() . "\n";
     echo "CSRF Token: " . csrf_token() . "\n";
     echo "Session Data: " . json_encode($request->session()->all(), JSON_PRETTY_PRINT) . "\n";
 } else {
-    echo "<span class="error">⚠️ No hay sesión activa</span>\n";
+    echo '<span class=\"error\">⚠️ No hay sesión activa</span>' . "\n";
 }
         ?></pre>
     </div>
@@ -78,16 +80,17 @@ if ($request->hasSession()) {
         <h2>Headers de Proxy (X-Forwarded-*)</h2>
         <pre><?php
 $proxyHeaders = [];
-foreach (getallheaders() as $name => $value) {
+$headerSource = function_exists('getallheaders') ? getallheaders() : [];
+foreach ($headerSource as $name => $value) {
     if (stripos($name, 'forwarded') !== false || stripos($name, 'x-forwarded') !== false) {
         $proxyHeaders[$name] = $value;
     }
 }
 if (empty($proxyHeaders)) {
-    echo "<span class="warning">No se detectaron headers de proxy</span>\n";
+    echo '<span class="warning">No se detectaron headers de proxy</span>' . "\n";
 } else {
     foreach ($proxyHeaders as $name => $value) {
-        echo "$name: $value\n";
+        echo htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . ': ' . htmlspecialchars($value, ENT_QUOTES, 'UTF-8') . "\n";
     }
 }
         ?></pre>
@@ -97,11 +100,11 @@ if (empty($proxyHeaders)) {
         <h2>Cookies Recibidas</h2>
         <pre><?php
 if (empty($_COOKIE)) {
-    echo "<span class="error">⚠️ No se recibieron cookies</span>\n";
+    echo '<span class="error">⚠️ No se recibieron cookies</span>' . "\n";
 } else {
     foreach ($_COOKIE as $name => $value) {
         $displayValue = strlen($value) > 50 ? substr($value, 0, 50) . '...' : $value;
-        echo "$name: $displayValue\n";
+        echo htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . ': ' . htmlspecialchars($displayValue, ENT_QUOTES, 'UTF-8') . "\n";
     }
 }
         ?></pre>
@@ -117,16 +120,16 @@ try {
         $exists = \Illuminate\Support\Facades\Schema::hasTable($table);
         if ($exists) {
             $count = \Illuminate\Support\Facades\DB::table($table)->count();
-            echo "Tabla '$table': <span class="success">existe ✓</span>\n";
+            echo "Tabla '$table': <span class=\"success\">existe ✓</span>\n";
             echo "Sesiones activas: $count\n";
         } else {
-            echo "Tabla '$table': <span class="error">no existe ✗</span>\n";
+            echo "Tabla '$table': <span class=\"error\">no existe ✗</span>\n";
         }
     } else {
         echo "Driver de sesión: $driver (no requiere tabla)\n";
     }
 } catch (\Exception $e) {
-    echo "<span class="error">Error: " . $e->getMessage() . "</span>\n";
+    echo '<span class="error">Error: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</span>' . "\n";
 }
         ?></pre>
     </div>
@@ -153,7 +156,7 @@ if (!$request->hasSession()) {
 }
 
 if (empty($recommendations)) {
-    echo "<span class="success">✓ Configuración parece correcta</span>\n";
+    echo '<span class="success">✓ Configuración parece correcta</span>' . "\n";
 } else {
     foreach ($recommendations as $rec) {
         echo "$rec\n";

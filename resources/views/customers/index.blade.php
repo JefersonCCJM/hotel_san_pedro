@@ -136,7 +136,7 @@
                             Ubicación
                         </th>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Registro
+                            Registro y Actividad
                         </th>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                             Estado
@@ -201,14 +201,22 @@
                         </td>
                         
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex items-center space-x-2">
-                                @if($customer->requires_electronic_invoice && $customer->taxProfile)
-                                    <div class="p-1.5 rounded-lg bg-blue-50 text-blue-600" title="Facturación Electrónica">
-                                        <i class="fas fa-file-invoice text-xs"></i>
+                            <div class="flex flex-col space-y-1.5">
+                                <div class="flex items-center space-x-2">
+                                    @if($customer->requires_electronic_invoice && $customer->taxProfile)
+                                        <div class="p-1.5 rounded-lg bg-blue-50 text-blue-600" title="Facturación Electrónica">
+                                            <i class="fas fa-file-invoice text-xs"></i>
+                                        </div>
+                                    @endif
+                                    <div class="text-xs text-gray-500">
+                                        {{ $customer->created_at->format('d/m/Y') }}
                                     </div>
-                                @endif
-                                <div class="text-xs text-gray-500">
-                                    {{ $customer->created_at->format('d/m/Y') }}
+                                </div>
+                                <div class="flex items-center">
+                                    <div class="p-1 rounded-lg bg-emerald-50 text-emerald-600 mr-2">
+                                        <i class="fas fa-history text-[10px]"></i>
+                                    </div>
+                                    <span class="text-[10px] text-gray-500 italic">Próximamente: Reservas</span>
                                 </div>
                             </div>
                         </td>
@@ -384,20 +392,28 @@
                 </div>
                 @endif
                 
-                <!-- Información Adicional -->
+                <!-- Información y Actividad -->
                 <div>
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Información</p>
-                    <div class="space-y-1.5">
-                        <div class="flex items-center text-xs text-gray-600">
-                            <i class="fas fa-calendar text-gray-400 mr-2 text-xs w-4"></i>
-                            <span>Registrado: {{ $customer->created_at->format('d/m/Y') }}</span>
-                        </div>
-                        @if($customer->requires_electronic_invoice && $customer->taxProfile)
-                            <div class="flex items-center text-xs text-blue-600">
-                                <i class="fas fa-file-invoice text-blue-400 mr-2 text-xs w-4"></i>
-                                <span>Facturación Electrónica</span>
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Información y Actividad</p>
+                    <div class="space-y-2">
+                        <div class="flex items-center space-x-2">
+                            <div class="flex items-center text-xs text-gray-600">
+                                <i class="fas fa-calendar text-gray-400 mr-2 text-xs w-4"></i>
+                                <span>Registrado: {{ $customer->created_at->format('d/m/Y') }}</span>
                             </div>
-                        @endif
+                            @if($customer->requires_electronic_invoice && $customer->taxProfile)
+                                <div class="flex items-center text-xs text-blue-600">
+                                    <i class="fas fa-file-invoice text-blue-400 mr-2 text-xs w-4"></i>
+                                    <span>Facturación Electrónica</span>
+                                </div>
+                            @endif
+                        </div>
+                        <div class="flex items-center p-2 bg-gray-50 rounded-lg">
+                            <div class="p-1.5 rounded-lg bg-white border border-gray-200 text-gray-400 mr-2">
+                                <i class="fas fa-history text-xs"></i>
+                            </div>
+                            <span class="text-xs text-gray-500 italic">Próximamente: Reservas</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -505,7 +521,7 @@
                         </div>
                         <div class="flex-1 min-w-0">
                             <div class="text-sm font-semibold text-gray-900 mb-1" id="delete-customer-name"></div>
-                            <div class="text-xs text-gray-500">Las ventas y reparaciones asociadas no se eliminarán</div>
+                            <div class="text-xs text-gray-500">La información del cliente será eliminada permanentemente</div>
                         </div>
                     </div>
                 </div>
