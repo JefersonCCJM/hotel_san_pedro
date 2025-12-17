@@ -184,27 +184,70 @@
             
             <!-- Page Content -->
             <main class="flex-1 p-4 sm:p-6">
-                @if(session('success'))
-                    <div class="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
-                        {{ session('success') }}
-                    </div>
-                @endif
-                
-                @if(session('error'))
-                    <div class="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-                        {{ session('error') }}
-                    </div>
-                @endif
-                
-                @if($errors->any())
-                    <div class="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-                        <ul class="list-disc list-inside">
-                            @foreach($errors->all() as $error)
-                                <li>{{ $error }}</li>
-                            @endforeach
-                        </ul>
-                    </div>
-                @endif
+                <!-- Session Messages -->
+                <div class="max-w-7xl mx-auto">
+                    @if(session('success'))
+                        <div x-data="{ show: true }" 
+                             x-show="show" 
+                             x-init="setTimeout(() => show = false, 5000)"
+                             x-transition:enter="transition ease-out duration-300"
+                             x-transition:enter-start="opacity-0 transform -translate-y-2"
+                             x-transition:enter-end="opacity-100 transform translate-y-0"
+                             x-transition:leave="transition ease-in duration-200"
+                             x-transition:leave-start="opacity-100 transform translate-y-0"
+                             x-transition:leave-end="opacity-0 transform -translate-y-2"
+                             class="mb-6 flex items-center p-4 text-emerald-800 rounded-2xl bg-emerald-50 border border-emerald-100 shadow-sm">
+                            <div class="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 mr-4">
+                                <i class="fas fa-check-circle text-lg"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-sm font-bold">{{ session('success') }}</p>
+                            </div>
+                            <button @click="show = false" class="ml-auto text-emerald-400 hover:text-emerald-600 transition-colors">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    @endif
+                    
+                    @if(session('error'))
+                        <div x-data="{ show: true }" 
+                             x-show="show"
+                             class="mb-6 flex items-center p-4 text-red-800 rounded-2xl bg-red-50 border border-red-100 shadow-sm">
+                            <div class="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl bg-red-100 text-red-600 mr-4">
+                                <i class="fas fa-exclamation-circle text-lg"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-sm font-bold">{{ session('error') }}</p>
+                            </div>
+                            <button @click="show = false" class="ml-auto text-red-400 hover:text-red-600 transition-colors">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    @endif
+                    
+                    @if($errors->any())
+                        <div x-data="{ show: true }" 
+                             x-show="show"
+                             class="mb-6 p-4 text-red-800 rounded-2xl bg-red-50 border border-red-100 shadow-sm">
+                            <div class="flex items-center mb-3">
+                                <div class="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl bg-red-100 text-red-600 mr-4">
+                                    <i class="fas fa-exclamation-triangle text-lg"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="text-sm font-bold">Por favor corrige los siguientes errores:</p>
+                                </div>
+                                <button @click="show = false" class="ml-auto text-red-400 hover:text-red-600 transition-colors">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <ul class="ml-14 list-disc list-inside text-sm space-y-1">
+                                @foreach($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+                </div>
                 
                 @yield('content')
             </main>

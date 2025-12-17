@@ -94,7 +94,7 @@ class CustomerController extends Controller
             ]);
         }
 
-        return Redirect::route('customers.index')
+        return Redirect::route('customers.show', $customer)
             ->with('success', 'Cliente creado exitosamente.');
     }
 
