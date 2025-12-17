@@ -2,26 +2,30 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\View\View;
 use App\Models\Customer;
 use App\Models\CustomerTaxProfile;
+use App\Http\Requests\SaveCustomerTaxProfileRequest;
 use App\Http\Requests\StoreCustomerRequest;
 use App\Http\Requests\UpdateCustomerRequest;
 use App\Models\DianCustomerTribute;
 use App\Models\DianIdentificationDocument;
 use App\Models\DianLegalOrganization;
 use App\Models\DianMunicipality;
+use Illuminate\Contracts\View\View as ViewContract;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Facades\View;
 
 class CustomerController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request): View
+    public function index(Request $request): ViewContract
     {
         $query = Customer::query();
 
@@ -38,16 +42,16 @@ class CustomerController extends Controller
 
         $customers = $query->orderBy('name')->paginate(15);
 
-        return view('customers.index', compact('customers'));
+        return View::make('customers.index', compact('customers'));
     }
 
     /**
      * Show the form for creating a new resource.
      * Loads all necessary catalogs for electronic invoice configuration.
      */
-    public function create(): View
+    public function create(): ViewContract
     {
-        return view('customers.create', $this->getTaxCatalogs());
+        return View::make('customers.create', $this->getTaxCatalogs());
     }
 
     /**
@@ -61,11 +65,13 @@ class CustomerController extends Controller
 
         $customer = Customer::create($data);
 
-        $this->syncTaxProfile($customer, $request->validated(), $data['requires_electronic_invoice']);
+        $this->syncTaxProfile($customer, $data, $data['requires_electronic_invoice']);
 
         // Si es una petición AJAX, devolver JSON
         if ($request->ajax()) {
             $customer->load('taxProfile.identificationDocument');
+            /** @var \App\Models\CustomerTaxProfile|null $taxProfile */
+            $taxProfile = $customer->taxProfile;
             $customerData = [
                 'id' => $customer->id,
                 'name' => $customer->name,
@@ -73,43 +79,43 @@ class CustomerController extends Controller
             ];
             
             // Include tax profile data if exists
-            if ($customer->taxProfile) {
+            if ($taxProfile) {
                 $customerData['tax_profile'] = [
-                    'identification' => $customer->taxProfile->identification,
-                    'dv' => $customer->taxProfile->dv,
-                    'document_type' => $customer->taxProfile->identificationDocument?->code,
+                    'identification' => $taxProfile->identification,
+                    'dv' => $taxProfile->dv,
+                    'document_type' => $taxProfile->identificationDocument?->code,
                 ];
             }
             
-            return response()->json([
+            return Response::json([
                 'success' => true,
                 'customer' => $customerData,
                 'message' => 'Cliente creado exitosamente.'
             ]);
         }
 
-        return redirect()->route('customers.index')
+        return Redirect::route('customers.index')
             ->with('success', 'Cliente creado exitosamente.');
     }
 
     /**
      * Display the specified resource.
      */
-    public function show(Customer $customer): View
+    public function show(Customer $customer): ViewContract
     {
         $customer->load('taxProfile');
 
-        return view('customers.show', compact('customer'));
+        return View::make('customers.show', compact('customer'));
     }
 
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Customer $customer): View
+    public function edit(Customer $customer): ViewContract
     {
         $customer->load(['taxProfile.municipality', 'taxProfile.identificationDocument']);
 
-        return view('customers.edit', array_merge(
+        return View::make('customers.edit', array_merge(
             ['customer' => $customer],
             $this->getTaxCatalogs()
         ));
@@ -127,9 +133,9 @@ class CustomerController extends Controller
         // Update customer
         $customer->update($data);
 
-        $this->syncTaxProfile($customer, $request->validated(), $data['requires_electronic_invoice']);
+        $this->syncTaxProfile($customer, $data, $data['requires_electronic_invoice']);
 
-        return redirect()->route('customers.index')
+        return Redirect::route('customers.index')
             ->with('success', 'Cliente actualizado exitosamente.');
     }
 
@@ -140,7 +146,7 @@ class CustomerController extends Controller
     {
         $customer->delete();
 
-        return redirect()->route('customers.index')
+        return Redirect::route('customers.index')
             ->with('success', 'Cliente eliminado exitosamente.');
     }
 
@@ -151,27 +157,29 @@ class CustomerController extends Controller
     {
         try {
             $customer->load('taxProfile.identificationDocument');
+            /** @var \App\Models\CustomerTaxProfile|null $taxProfile */
+            $taxProfile = $customer->taxProfile;
 
             $catalogs = $this->getTaxCatalogs();
 
-            return response()->json([
+            return Response::json([
                 'customer' => [
                     'id' => $customer->id,
                     'name' => $customer->name,
                     'requires_electronic_invoice' => (bool) $customer->requires_electronic_invoice,
-                    'tax_profile' => $customer->taxProfile ? [
-                        'identification_document_id' => $customer->taxProfile->identification_document_id,
-                        'identification' => $customer->taxProfile->identification,
-                        'dv' => $customer->taxProfile->dv,
-                        'legal_organization_id' => $customer->taxProfile->legal_organization_id,
-                        'company' => $customer->taxProfile->company,
-                        'trade_name' => $customer->taxProfile->trade_name,
-                        'names' => $customer->taxProfile->names,
-                        'address' => $customer->taxProfile->address,
-                        'email' => $customer->taxProfile->email,
-                        'phone' => $customer->taxProfile->phone,
-                        'tribute_id' => $customer->taxProfile->tribute_id,
-                        'municipality_id' => $customer->taxProfile->municipality_id,
+                    'tax_profile' => $taxProfile ? [
+                        'identification_document_id' => $taxProfile->identification_document_id,
+                        'identification' => $taxProfile->identification,
+                        'dv' => $taxProfile->dv,
+                        'legal_organization_id' => $taxProfile->legal_organization_id,
+                        'company' => $taxProfile->company,
+                        'trade_name' => $taxProfile->trade_name,
+                        'names' => $taxProfile->names,
+                        'address' => $taxProfile->address,
+                        'email' => $taxProfile->email,
+                        'phone' => $taxProfile->phone,
+                        'tribute_id' => $taxProfile->tribute_id,
+                        'municipality_id' => $taxProfile->municipality_id,
                     ] : null,
                 ],
                 'catalogs' => [
@@ -206,9 +214,9 @@ class CustomerController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return response()->json([
+            return Response::json([
                 'error' => true,
-                'message' => 'Error al cargar los datos del cliente: ' . $e->getMessage(),
+                'message' => 'No se pudieron cargar los datos del cliente.',
             ], 500, [], JSON_UNESCAPED_UNICODE);
         }
     }
@@ -216,32 +224,10 @@ class CustomerController extends Controller
     /**
      * Save tax profile for a customer (API endpoint)
      */
-    public function saveTaxProfile(Request $request, Customer $customer): JsonResponse
+    public function saveTaxProfile(SaveCustomerTaxProfileRequest $request, Customer $customer): JsonResponse
     {
-        $validated = $request->validate([
-            'requires_electronic_invoice' => 'required|boolean',
-            'identification_document_id' => 'required_if:requires_electronic_invoice,true|exists:dian_identification_documents,id',
-            'identification' => 'required_if:requires_electronic_invoice,true|string|max:20',
-            'dv' => 'nullable|string|max:1',
-            'legal_organization_id' => 'nullable|exists:dian_legal_organizations,id',
-            'company' => 'nullable|string|max:255',
-            'trade_name' => 'nullable|string|max:255',
-            'names' => 'nullable|string|max:255',
-            'address' => 'nullable|string|max:500',
-            'email' => 'nullable|email|max:255',
-            'phone' => 'nullable|string|max:20',
-            'tribute_id' => 'nullable|exists:dian_customer_tributes,id',
-            'municipality_id' => [
-                'required_if:requires_electronic_invoice,true',
-                function ($attribute, $value, $fail) {
-                    if ($value && !\App\Models\DianMunicipality::where('factus_id', $value)->exists()) {
-                        $fail('El municipio seleccionado no es válido.');
-                    }
-                },
-            ],
-        ]);
+        $validated = $request->validated();
 
-        // Update customer
         $customer->update([
             'requires_electronic_invoice' => (bool) $validated['requires_electronic_invoice'],
         ]);
@@ -254,7 +240,7 @@ class CustomerController extends Controller
 
         $customer->load('taxProfile');
 
-        return response()->json([
+        return Response::json([
             'success' => true,
             'message' => 'Configuración fiscal actualizada correctamente',
             'customer' => [
@@ -267,10 +253,11 @@ class CustomerController extends Controller
     private function getTaxCatalogs(): array
     {
         return [
-            'identificationDocuments' => DianIdentificationDocument::orderBy('id')->get(),
-            'legalOrganizations' => DianLegalOrganization::orderBy('id')->get(),
-            'tributes' => DianCustomerTribute::orderBy('id')->get(),
-            'municipalities' => DianMunicipality::orderBy('department')
+            'identificationDocuments' => DianIdentificationDocument::query()->orderBy('id')->get(),
+            'legalOrganizations' => DianLegalOrganization::query()->orderBy('id')->get(),
+            'tributes' => DianCustomerTribute::query()->orderBy('id')->get(),
+            'municipalities' => DianMunicipality::query()
+                ->orderBy('department')
                 ->orderBy('name')
                 ->get(),
         ];

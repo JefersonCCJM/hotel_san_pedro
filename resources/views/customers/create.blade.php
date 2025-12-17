@@ -20,6 +20,7 @@
 
     <form method="POST" action="{{ route('customers.store') }}" id="customer-form" 
           x-data="customerForm()" 
+          x-init="init()" 
           @submit="loading = true">
         @csrf
 
@@ -276,15 +277,14 @@
                         <span class="ml-3 text-sm font-medium text-gray-700">Cliente activo</span>
                     </label>
                     <p class="mt-2 text-xs text-gray-500">
-                        Los clientes inactivos no aparecerán en los formularios de ventas
+                        Los clientes inactivos no aparecerán en los listados internos
                     </p>
                 </div>
             </div>
         </div>
 
         <!-- Facturación Electrónica DIAN -->
-        <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6"
-             x-data="{ requiresElectronicInvoice: {{ old('requires_electronic_invoice', false) ? 'true' : 'false' }} }">
+        <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
             <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center space-x-3">
                     <div class="p-2 rounded-xl bg-blue-50 text-blue-600">
@@ -342,11 +342,18 @@
                             @foreach($identificationDocuments as $doc)
                                 <option value="{{ $doc->id }}" 
                                         data-code="{{ $doc->code }}"
-                                        data-requires-dv="{{ $doc->requires_dv ? 'true' : 'false' }}">
+                                        data-requires-dv="{{ $doc->requires_dv ? 'true' : 'false' }}"
+                                        {{ (string)old('identification_document_id') === (string)$doc->id ? 'selected' : '' }}>
                                     {{ $doc->name }}@if($doc->code) ({{ $doc->code }})@endif
                                 </option>
                             @endforeach
                         </select>
+                        @error('identification_document_id')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
 
                     <!-- Identificación -->
@@ -360,6 +367,12 @@
                                @input="calculateDV()"
                                class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
                                :required="requiresElectronicInvoice">
+                        @error('identification')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
                 </div>
 
@@ -378,6 +391,12 @@
                         <p class="mt-1 text-xs text-gray-500">
                             Se calcula automáticamente para NIT
                         </p>
+                        @error('dv')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
                 </div>
 
@@ -390,7 +409,14 @@
                         <input type="text"
                                name="company"
                                :required="requiresElectronicInvoice && isJuridicalPerson"
+                               value="{{ old('company') }}"
                                class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+                        @error('company')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-gray-700 mb-2">
@@ -398,7 +424,14 @@
                         </label>
                         <input type="text"
                                name="trade_name"
+                               value="{{ old('trade_name') }}"
                                class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+                        @error('trade_name')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
                 </div>
 
@@ -410,11 +443,18 @@
                         </label>
                         <input type="text"
                                name="names"
+                               value="{{ old('names') }}"
                                class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
                                placeholder="Nombres completos de la persona natural">
                         <p class="mt-1 text-xs text-gray-500">
                             Solo aplica para personas naturales
                         </p>
+                        @error('names')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
                 </div>
 
@@ -427,9 +467,17 @@
                             class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
                         <option value="">Seleccione...</option>
                         @foreach($legalOrganizations as $org)
-                            <option value="{{ $org->id }}">{{ $org->name }}</option>
+                            <option value="{{ $org->id }}" {{ (string)old('legal_organization_id') === (string)$org->id ? 'selected' : '' }}>
+                                {{ $org->name }}
+                            </option>
                         @endforeach
                     </select>
+                    @error('legal_organization_id')
+                        <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                            <i class="fas fa-exclamation-circle mr-1.5"></i>
+                            {{ $message }}
+                        </p>
+                    @enderror
                 </div>
 
                 <!-- Municipio -->
@@ -479,6 +527,12 @@
                         <p class="mt-1 text-xs text-gray-500">
                             Seleccione el municipio según el departamento
                         </p>
+                        @error('municipality_id')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     @endif
                 </div>
 
@@ -491,9 +545,17 @@
                             class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
                         <option value="">Seleccione...</option>
                         @foreach($tributes as $tribute)
-                            <option value="{{ $tribute->id }}">{{ $tribute->name }} ({{ $tribute->code }})</option>
+                            <option value="{{ $tribute->id }}" {{ (string)old('tribute_id') === (string)$tribute->id ? 'selected' : '' }}>
+                                {{ $tribute->name }} ({{ $tribute->code }})
+                            </option>
                         @endforeach
                     </select>
+                    @error('tribute_id')
+                        <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                            <i class="fas fa-exclamation-circle mr-1.5"></i>
+                            {{ $message }}
+                        </p>
+                    @enderror
                 </div>
 
                 <!-- Información de Contacto Adicional -->
@@ -510,6 +572,12 @@
                         <p class="mt-1 text-xs text-gray-500">
                             Si no se especifica, se usará la dirección principal del cliente
                         </p>
+                        @error('tax_address')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
 
                     <div>
@@ -524,6 +592,12 @@
                         <p class="mt-1 text-xs text-gray-500">
                             Email para envío de facturas electrónicas. Si no se especifica, se usará el email principal.
                         </p>
+                        @error('tax_email')
+                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                                <i class="fas fa-exclamation-circle mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
                     </div>
                 </div>
 
@@ -539,6 +613,12 @@
                     <p class="mt-1 text-xs text-gray-500">
                         Si no se especifica, se usará el teléfono principal del cliente
                     </p>
+                    @error('tax_phone')
+                        <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                            <i class="fas fa-exclamation-circle mr-1.5"></i>
+                            {{ $message }}
+                        </p>
+                    @enderror
                 </div>
             </div>
         </div>
@@ -578,36 +658,38 @@
 function customerForm() {
     return {
         loading: false,
-        identificationDocumentId: null,
-        identification: '',
-        dv: '',
+        requiresElectronicInvoice: @json((bool) old('requires_electronic_invoice')),
+        identificationDocumentId: @json(old('identification_document_id')),
+        identification: @json(old('identification')),
+        dv: @json(old('dv')),
         requiresDV: false,
         isJuridicalPerson: false,
-        
+
+        init() {
+            this.updateRequiredFields();
+        },
+
         updateRequiredFields() {
             const select = document.querySelector('select[name="identification_document_id"]');
-            const selectedOption = select.options[select.selectedIndex];
-            
+            if (select && this.identificationDocumentId) {
+                select.value = this.identificationDocumentId;
+            }
+
+            const selectedOption = select?.options[select?.selectedIndex];
+
             if (selectedOption) {
                 this.requiresDV = selectedOption.dataset.requiresDv === 'true';
                 this.isJuridicalPerson = selectedOption.dataset.code === 'NIT';
-                
-                // Si requiere DV y es NIT, calcular DV
+
                 if (this.requiresDV && this.isJuridicalPerson && this.identification) {
                     this.calculateDV();
                 }
             }
         },
-        
+
         calculateDV() {
             if (this.requiresDV && this.identification && this.identification.length >= 9) {
-                // Algoritmo básico para calcular DV de NIT (simplificado)
-                // En producción, usar algoritmo completo de DIAN
-                const nit = this.identification.replace(/\D/g, '');
-                if (nit.length >= 9) {
-                    // Aquí iría el algoritmo completo de cálculo de DV
-                    // Por ahora se deja que el usuario lo ingrese manualmente
-                }
+                // DV calculation intentionally manual for now
             }
         }
     }
@@ -615,15 +697,12 @@ function customerForm() {
 
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('customer-form');
-    const inputs = form.querySelectorAll('input, textarea');
 
-    // Remove required attribute from hidden fields before submit
-    form.addEventListener('submit', function(e) {
+    form.addEventListener('submit', function() {
         const requiresElectronicInvoice = form.querySelector('input[name="requires_electronic_invoice"]');
         const isChecked = requiresElectronicInvoice && requiresElectronicInvoice.checked;
-        
+
         if (!isChecked) {
-            // Remove required from all electronic invoice fields
             const electronicInvoiceFields = form.querySelectorAll('[name="identification_document_id"], [name="identification"], [name="municipality_id"], [name="dv"], [name="company"]');
             electronicInvoiceFields.forEach(function(field) {
                 field.removeAttribute('required');
@@ -631,7 +710,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Validación en tiempo real para email
     const emailInput = document.getElementById('email');
     if (emailInput) {
         emailInput.addEventListener('blur', function() {
@@ -644,7 +722,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Validación en tiempo real para teléfono
     const phoneInput = document.getElementById('phone');
     if (phoneInput) {
         phoneInput.addEventListener('input', function() {

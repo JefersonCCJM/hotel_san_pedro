@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreCustomerRequest extends FormRequest
 {
@@ -15,7 +16,7 @@ class StoreCustomerRequest extends FormRequest
     {
         $rules = [
             'name' => 'required|string|max:255',
-            'email' => 'nullable|email|unique:customers|max:255',
+            'email' => 'nullable|email|unique:customers,email|max:255',
             'phone' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:255',
             'city' => 'nullable|string|max:100',
@@ -25,11 +26,17 @@ class StoreCustomerRequest extends FormRequest
             'is_active' => 'boolean',
             'requires_electronic_invoice' => 'boolean',
             'identification_document_id' => 'required_if:requires_electronic_invoice,1|nullable|exists:dian_identification_documents,id',
-            'identification' => 'required_if:requires_electronic_invoice,1|nullable|string|max:20',
+            'identification' => [
+                'required_if:requires_electronic_invoice,1',
+                'nullable',
+                'string',
+                'max:20',
+                Rule::unique('customer_tax_profiles', 'identification'),
+            ],
             'municipality_id' => [
                 'required_if:requires_electronic_invoice,1',
                 'nullable',
-                function ($attribute, $value, $fail) {
+                function (string $attribute, $value, $fail): void {
                     if ($value && !\App\Models\DianMunicipality::where('factus_id', $value)->exists()) {
                         $fail('El municipio seleccionado no es válido.');
                     }
