@@ -16,12 +16,12 @@
                 <p class="text-sm text-gray-500">Configura la estancia y pagos del huésped</p>
             </div>
         </div>
-        
+
         <div class="flex items-center space-x-3">
             <a href="{{ route('reservations.index') }}" class="px-4 py-2 text-sm font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all">
                 Cancelar
             </a>
-            <button type="submit" form="reservation-form" 
+            <button type="submit" form="reservation-form"
                     :disabled="!isValid || loading"
                     class="px-6 py-2 text-sm font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all flex items-center">
                 <i class="fas fa-save mr-2" x-show="!loading"></i>
@@ -33,12 +33,12 @@
 
     <form id="reservation-form" method="POST" action="{{ route('reservations.store') }}" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         @csrf
-        
+
         <!-- Columna Principal (2/3) -->
         <div class="lg:col-span-2 space-y-6">
-            
+
             <!-- SECCIÓN 1: CLIENTE -->
-            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm">
                 <div class="p-5 border-b border-gray-50 flex items-center justify-between bg-gray-50/50">
                     <div class="flex items-center space-x-2">
                         <i class="fas fa-user-circle text-blue-500"></i>
@@ -54,16 +54,9 @@
                             <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Seleccionar Huésped</label>
                             <select name="customer_id" id="customer_id" x-model="customerId" required class="w-full">
                                 <option value="">Buscar por nombre o identificación...</option>
-                                @foreach($customers as $customer)
-                                    <option value="{{ $customer->id }}" 
-                                            data-phone="{{ $customer->phone }}" 
-                                            data-id="{{ $customer->taxProfile->identification ?? 'N/A' }}">
-                                        {{ $customer->name }} ({{ $customer->taxProfile->identification ?? 'S/N' }})
-                                    </option>
-                                @endforeach
                             </select>
                         </div>
-                        
+
                         <!-- Info Preview del Cliente Seleccionado -->
                         <template x-if="selectedCustomerInfo">
                             <div class="mt-2 p-3 bg-blue-50 rounded-xl flex items-center justify-between border border-blue-100 transition-all animate-fadeIn">
@@ -103,7 +96,7 @@
                                     </option>
                                 @endforeach
                             </select>
-                            
+
                             <!-- Status de Disponibilidad -->
                             <div x-show="roomId" class="mt-3">
                                 <template x-if="isChecking">
@@ -112,7 +105,7 @@
                                     </span>
                                 </template>
                                 <template x-if="!isChecking && availability !== null">
-                                    <div :class="availability ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'" 
+                                    <div :class="availability ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'"
                                          class="p-2.5 rounded-xl border text-xs font-bold flex items-center">
                                         <i :class="availability ? 'fas fa-check-circle' : 'fas fa-times-circle'" class="mr-2"></i>
                                         <span x-text="availability ? 'HABITACIÓN DISPONIBLE' : 'NO DISPONIBLE PARA ESTAS FECHAS'"></span>
@@ -200,7 +193,7 @@
                         <i class="fas fa-wallet text-gray-400"></i>
                     </div>
                 </div>
-                
+
                 <div class="p-6 space-y-6">
                     <!-- Valor Total -->
                     <div class="space-y-2">
@@ -247,7 +240,7 @@
                                 </template>
                             </div>
                         </div>
-                        
+
                         <!-- Alertas de Pago -->
                         <template x-if="balance < 0">
                             <div class="p-3 bg-red-500/20 border border-red-500/30 rounded-xl text-[10px] font-bold text-red-400 text-center animate-bounce uppercase tracking-tighter">
@@ -263,7 +256,7 @@
                     <p class="text-[10px] text-gray-500 font-medium">Fecha de Registro: <span class="font-bold">{{ date('d/m/Y') }}</span></p>
                 </div>
             </div>
-            
+
             <!-- Widget de Ayuda -->
             <div class="bg-blue-50 border border-blue-100 rounded-2xl p-5 shadow-sm">
                 <div class="flex items-start space-x-3">
@@ -283,8 +276,33 @@
 @push('styles')
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
 <style>
-    .ts-control { border-radius: 0.75rem !important; padding: 0.625rem 0.75rem !important; border: 1px solid #d1d5db !important; }
-    .ts-dropdown { border-radius: 0.75rem !important; margin-top: 0.5rem !important; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important; border: 1px solid #f3f4f6 !important; }
+    /* UX/IX Improvements for TomSelect */
+    .ts-wrapper.single .ts-control {
+        border-radius: 0.85rem !important;
+        padding: 0.75rem 1rem !important;
+        border: 1px solid #e2e8f0 !important;
+        background-color: #f8fafc !important;
+        transition: all 0.2s ease;
+    }
+    .ts-wrapper.single.focus .ts-control {
+        border-color: #10b981 !important;
+        background-color: #fff !important;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1) !important;
+    }
+    .ts-dropdown {
+        border-radius: 1rem !important;
+        margin-top: 0.5rem !important;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1) !important;
+        border: 1px solid #f1f5f9 !important;
+        z-index: 9999 !important; /* Ensure it's above everything when appended to body */
+    }
+    .ts-dropdown-content {
+        max-height: 400px !important;
+    }
+    .ts-dropdown .active {
+        background-color: #f0fdf4 !important;
+        color: #064e3b !important;
+    }
     .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 </style>
@@ -298,21 +316,21 @@ function reservationForm() {
         loading: false,
         isChecking: false,
         availability: null,
-        
+
         customerId: '',
         roomId: '',
         checkIn: '',
         checkOut: '',
         total: 0,
         deposit: 0,
-        
+
         rooms: @json($roomsData),
         customerSelect: null,
         roomSelect: null,
 
         init() {
             this.initSelectors();
-            
+
             // Re-calcular disponibilidad cuando cambien los datos clave
             this.$watch('roomId', () => this.checkAvailability());
             this.$watch('checkIn', () => {
@@ -327,13 +345,58 @@ function reservationForm() {
 
         initSelectors() {
             this.customerSelect = new TomSelect('#customer_id', {
-                create: false,
-                maxOptions: 100,
+                valueField: 'id',
+                labelField: 'name',
+                searchField: ['name', 'identification', 'phone'],
+                loadThrottle: 400,
+                maxOptions: 10,
+                placeholder: 'Buscar por nombre, identificación o teléfono...',
+                dropdownParent: 'body',
+                load: function(query, callback) {
+                    if (!query.length) return callback();
+                    const url = `/api/customers/search?q=${encodeURIComponent(query)}`;
+                    fetch(url)
+                        .then(response => response.json())
+                        .then(json => {
+                            callback(json.results);
+                        }).catch(() => {
+                            callback();
+                        });
+                },
+                render: {
+                    option: function(item, escape) {
+                        return `
+                            <div class="px-4 py-3 border-b border-gray-50 hover:bg-emerald-50 transition-colors">
+                                <div class="flex flex-col">
+                                    <span class="font-bold text-gray-900 text-sm mb-1">${escape(item.name)}</span>
+                                    <div class="flex items-center space-x-3">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
+                                            <i class="fas fa-id-card mr-1 opacity-50"></i> ID: ${escape(item.identification || 'S/N')}
+                                        </span>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-600">
+                                            <i class="fas fa-phone mr-1 opacity-50"></i> ${escape(item.phone || 'S/N')}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>`;
+                    },
+                    item: function(item, escape) {
+                        return `<div class="font-bold text-gray-800">${escape(item.name)} <span class="text-gray-400 font-normal ml-1">(${escape(item.identification || 'S/N')})</span></div>`;
+                    },
+                    no_results: (data) => `<div class="px-4 py-3 text-sm text-gray-500 italic">No se encontraron resultados para "${data.input}"</div>`,
+                    loading: () => `<div class="px-4 py-3 text-sm text-gray-500 flex items-center"><i class="fas fa-spinner fa-spin mr-2"></i> Buscando...</div>`
+                },
                 onChange: (val) => this.customerId = val
             });
 
             this.roomSelect = new TomSelect('#room_id', {
                 create: false,
+                dropdownParent: 'body',
+                render: {
+                    option: function(data, escape) {
+                        return `<div class="px-4 py-2 hover:bg-emerald-50 transition-colors"><strong>${escape(data.text)}</strong></div>`;
+                    }
+                },
                 onChange: (val) => this.roomId = val
             });
         },
@@ -347,8 +410,8 @@ function reservationForm() {
             const option = this.customerSelect.options[this.customerId];
             if (!option) return null;
             return {
-                id: option.dataset.id,
-                phone: option.dataset.phone
+                id: option.identification || 'S/N',
+                phone: option.phone || 'S/N'
             };
         },
 
@@ -370,11 +433,11 @@ function reservationForm() {
         },
 
         get isValid() {
-            return this.customerId && 
-                   this.roomId && 
-                   this.checkIn && 
-                   this.checkOut && 
-                   this.nights > 0 && 
+            return this.customerId &&
+                   this.roomId &&
+                   this.checkIn &&
+                   this.checkOut &&
+                   this.nights > 0 &&
                    this.availability === true &&
                    this.balance >= 0;
         },
