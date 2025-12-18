@@ -3,113 +3,167 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Iniciar Sesión - MovilTech</title>
+    <title>Iniciar Sesión - Hotel San Pedro</title>
     
     <!-- TailwindCSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
         }
-        .animate-fade-in {
-            animation: fadeIn 0.5s ease-out;
+        .login-bg {
+            background-image: url('{{ asset('assets/img/backgrounds/login-bg.jpeg') }}');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        .login-overlay {
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(8px);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-slide-up {
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
         }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-md w-full space-y-8 animate-fade-in">
-        <!-- Logo and Branding -->
-        <div class="text-center">
-            <div class="mx-auto h-20 w-20 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg transform transition-transform hover:scale-105">
-                <i class="fas fa-mobile-alt text-white text-3xl"></i>
+<body class="min-h-screen flex items-center justify-center login-bg relative overflow-hidden">
+    <div class="absolute inset-0 login-overlay"></div>
+
+    <div class="max-w-lg w-full px-4 z-10 animate-slide-up">
+        <div class="relative">
+            <!-- Badge -->
+            <div class="absolute -top-6 left-1/2 -translate-x-1/2 z-20">
+                <div class="bg-slate-900/90 text-white px-5 py-2.5 rounded-2xl flex items-center shadow-2xl text-xs font-bold whitespace-nowrap border border-white/10 backdrop-blur-md tracking-wider">
+                    <i class="fas fa-hotel mr-2 text-sm text-slate-300"></i>
+                    SISTEMA DE GESTIÓN HOTELERA
+                </div>
             </div>
-            <h1 class="mt-6 text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                MovilTech
-            </h1>
-            <p class="mt-2 text-sm text-gray-500 font-medium">
-                Sistema de Gestión de Reparaciones y Ventas
-            </p>
-        </div>
-        
-        <!-- Login Card -->
-        <div class="bg-white/80 backdrop-blur-sm py-10 px-8 shadow-xl rounded-2xl border border-gray-100">
-            <div class="mb-6">
-                <h2 class="text-2xl font-bold text-gray-900">Bienvenido</h2>
-                <p class="mt-1 text-sm text-gray-500">Ingresa tus credenciales para continuar</p>
+
+            <!-- Login Card -->
+            <div class="glass-card pt-14 pb-10 px-8 sm:px-12 rounded-[2.5rem] shadow-2xl overflow-hidden">
+                <!-- Logo -->
+                <div class="text-center mb-8">
+                    <div class="inline-flex items-center justify-center w-16 h-16 bg-slate-100 rounded-2xl mb-4">
+                        <i class="fas fa-hotel text-slate-800 text-3xl"></i>
+                    </div>
+                    <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Iniciar Sesión</h1>
+                    <p class="mt-2 text-slate-500 font-medium italic">Hotel San Pedro</p>
+                </div>
+
+                <form class="space-y-6" method="POST" action="{{ route('login') }}">
+                    @csrf
+                    
+                    <!-- Email Field -->
+                    <div>
+                        <label for="email" class="flex items-center text-sm font-semibold text-slate-700 mb-2 ml-1">
+                            <i class="fas fa-envelope-open mr-2 text-slate-400"></i>
+                            Email o Usuario
+                        </label>
+                        <div class="relative group">
+                            <input id="email" name="email" type="email" required autocomplete="email"
+                                   class="block w-full pl-4 pr-12 py-4 bg-slate-50/50 border border-slate-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all duration-200 text-base"
+                                   placeholder="admin@hotel.com"
+                                   value="{{ old('email') }}">
+                            <div class="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                                <i class="fas fa-check text-slate-400 opacity-0 group-focus-within:opacity-100 transition-opacity"></i>
+                            </div>
+                        </div>
+                        @error('email')
+                            <p class="mt-2 text-xs text-red-500 flex items-center font-medium">
+                                <i class="fas fa-circle-exclamation mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
+                    </div>
+                    
+                    <!-- Password Field -->
+                    <div>
+                        <div class="flex items-center justify-between mb-2 ml-1">
+                            <label for="password" class="flex items-center text-sm font-semibold text-slate-700">
+                                <i class="fas fa-shield-alt mr-2 text-slate-400"></i>
+                                Contraseña
+                            </label>
+                        </div>
+                        <div class="relative group">
+                            <input id="password" name="password" type="password" required autocomplete="current-password"
+                                   class="block w-full pl-4 pr-12 py-4 bg-slate-50/50 border border-slate-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all duration-200 text-base"
+                                   placeholder="••••••••">
+                            <div class="absolute inset-y-0 right-0 pr-4 flex items-center cursor-pointer text-slate-400 hover:text-slate-900">
+                                <i class="fas fa-eye-slash"></i>
+                            </div>
+                        </div>
+                        @error('password')
+                            <p class="mt-2 text-xs text-red-500 flex items-center font-medium">
+                                <i class="fas fa-circle-exclamation mr-1.5"></i>
+                                {{ $message }}
+                            </p>
+                        @enderror
+                    </div>
+
+                    <div class="flex items-center justify-between px-1">
+                        <label class="flex items-center cursor-pointer">
+                            <input type="checkbox" name="remember" class="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900 transition-all">
+                            <span class="ml-2 text-sm text-slate-600 font-medium select-none">Recordar sesión</span>
+                        </label>
+                        @if (Route::has('password.request'))
+                            <a href="{{ route('password.request') }}" class="text-sm font-bold text-slate-700 hover:text-slate-900 transition-colors flex items-center">
+                                ¿Recuperar acceso?
+                                <i class="fas fa-chevron-right ml-1.5 text-[10px]"></i>
+                            </a>
+                        @endif
+                    </div>
+                    
+                    <!-- Submit Button -->
+                    <div class="pt-2">
+                        <button type="submit" 
+                                class="w-full flex justify-center items-center py-4 px-4 border border-transparent text-base font-bold rounded-2xl text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-slate-900/10 shadow-xl shadow-slate-900/20 transition-all duration-200 active:scale-[0.98]">
+                            <i class="fas fa-sign-in-alt mr-2"></i>
+                            Entrar al Sistema
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Divider -->
+                <div class="relative my-8">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-slate-100"></div>
+                    </div>
+                    <div class="relative flex justify-center text-sm">
+                        <span class="px-4 bg-white/50 text-slate-400 font-medium backdrop-blur-sm">Otras opciones</span>
+                    </div>
+                </div>
+
+                <div class="text-center">
+                    <a href="{{ route('register') }}" class="inline-flex items-center justify-center px-6 py-2.5 text-sm font-bold text-slate-700 bg-slate-100 rounded-xl border border-slate-200 hover:bg-slate-200 transition-all duration-200 w-full sm:w-auto">
+                        <i class="fas fa-user-plus mr-2 text-xs"></i>
+                        Registrar nuevo usuario
+                    </a>
+                </div>
             </div>
-            
-            <form class="space-y-5" method="POST" action="{{ route('login') }}">
-                @csrf
-                
-                <!-- Email Field -->
-                <div>
-                    <label for="email" class="block text-sm font-semibold text-gray-700 mb-2">
-                        Correo Electrónico
-                    </label>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <i class="fas fa-envelope text-gray-400"></i>
-                        </div>
-                        <input id="email" name="email" type="email" required autocomplete="email"
-                               class="block w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 sm:text-sm"
-                               placeholder="correo@ejemplo.com"
-                               value="{{ old('email') }}">
-                    </div>
-                    @error('email')
-                        <p class="mt-2 text-sm text-red-600 flex items-center">
-                            <i class="fas fa-exclamation-circle mr-1"></i>
-                            {{ $message }}
-                        </p>
-                    @enderror
-                </div>
-                
-                <!-- Password Field -->
-                <div>
-                    <label for="password" class="block text-sm font-semibold text-gray-700 mb-2">
-                        Contraseña
-                    </label>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <i class="fas fa-lock text-gray-400"></i>
-                        </div>
-                        <input id="password" name="password" type="password" required autocomplete="current-password"
-                               class="block w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 sm:text-sm"
-                               placeholder="••••••••">
-                    </div>
-                    @error('password')
-                        <p class="mt-2 text-sm text-red-600 flex items-center">
-                            <i class="fas fa-exclamation-circle mr-1"></i>
-                            {{ $message }}
-                        </p>
-                    @enderror
-                </div>
-                
-                <!-- Submit Button -->
-                <div class="pt-2">
-                    <button type="submit" 
-                            class="group relative w-full flex justify-center items-center py-3.5 px-4 border border-transparent text-base font-semibold rounded-xl text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-lg hover:shadow-xl transform transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]">
-                        <i class="fas fa-sign-in-alt mr-2"></i>
-                        Iniciar Sesión
-                    </button>
-                </div>
-            </form>
         </div>
         
         <!-- Footer -->
-        <p class="text-center text-xs text-gray-500">
-            © {{ date('Y') }} MovilTech. Todos los derechos reservados.
-        </p>
+        <div class="mt-8 text-center">
+            <p class="text-white/60 text-xs font-semibold tracking-widest uppercase">
+                &copy; {{ date('Y') }} HOTEL SAN PEDRO &bull; GESTIÓN INTEGRAL
+            </p>
+        </div>
     </div>
 </body>
 </html>
