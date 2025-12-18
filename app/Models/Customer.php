@@ -40,6 +40,17 @@ class Customer extends Model
         'requires_electronic_invoice',
     ];
 
+    /**
+     * Always store and retrieve the name in uppercase.
+     */
+    protected function name(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: fn (?string $value) => $value ? mb_strtoupper($value) : null,
+            set: fn (?string $value) => $value ? mb_strtoupper($value) : null,
+        );
+    }
+
     protected $casts = [
         'is_active' => 'boolean',
         'requires_electronic_invoice' => 'boolean',

@@ -17,22 +17,23 @@ class UpdateCustomerRequest extends FormRequest
         $customer = $this->route('customer');
         $customerId = $customer?->id;
         $taxProfileId = $customer?->taxProfile?->id;
-        $identificationDocumentId = $this->input('identification_document_id');
 
-        $rules = [
+        return [
             'name' => ['required', 'string', 'max:255'],
+            'identification' => [
+                'required',
+                'string',
+                'max:20',
+                Rule::unique('customer_tax_profiles', 'identification')->ignore($taxProfileId),
+            ],
+            'phone' => ['required', 'string', 'max:20'],
             'email' => [
                 'nullable',
                 'email',
                 'max:255',
                 Rule::unique('customers', 'email')->ignore($customerId),
             ],
-            'phone' => ['nullable', 'string', 'max:20'],
             'address' => ['nullable', 'string', 'max:500'],
-            'city' => ['nullable', 'string', 'max:150'],
-            'state' => ['nullable', 'string', 'max:150'],
-            'zip_code' => ['nullable', 'string', 'max:20'],
-            'notes' => ['nullable', 'string', 'max:1000'],
             'is_active' => ['sometimes', 'boolean'],
             'requires_electronic_invoice' => ['sometimes', 'boolean'],
 
@@ -42,46 +43,16 @@ class UpdateCustomerRequest extends FormRequest
                 'nullable',
                 'exists:dian_identification_documents,id',
             ],
-            'identification' => [
-                'required_if:requires_electronic_invoice,1',
-                'nullable',
-                'string',
-                'max:20',
-                Rule::unique('customer_tax_profiles', 'identification')
-                    ->where(fn ($query) => $query->where('identification_document_id', $identificationDocumentId))
-                    ->ignore($taxProfileId),
-            ],
             'dv' => ['nullable', 'string', 'max:1'],
             'legal_organization_id' => ['nullable', 'exists:dian_legal_organizations,id'],
             'company' => ['nullable', 'string', 'max:255'],
             'trade_name' => ['nullable', 'string', 'max:255'],
-            'names' => ['nullable', 'string', 'max:255'],
             'municipality_id' => [
                 'required_if:requires_electronic_invoice,1',
                 'nullable',
                 Rule::exists('dian_municipalities', 'factus_id'),
             ],
             'tribute_id' => ['nullable', 'exists:dian_customer_tributes,id'],
-            'tax_address' => ['nullable', 'string', 'max:500'],
-            'tax_email' => ['nullable', 'email', 'max:255'],
-            'tax_phone' => ['nullable', 'string', 'max:20'],
         ];
-
-        // Reglas dinámicas basadas en el tipo de documento
-        if ($this->boolean('requires_electronic_invoice') && $this->has('identification_document_id')) {
-            $identificationDocument = \App\Models\DianIdentificationDocument::find(
-                $this->input('identification_document_id')
-            );
-
-            if ($identificationDocument && $identificationDocument->requires_dv) {
-                $rules['dv'] = ['required_if:requires_electronic_invoice,1', 'string', 'size:1'];
-            }
-
-            if ($identificationDocument && $identificationDocument->code === 'NIT') {
-                $rules['company'] = ['required_if:requires_electronic_invoice,1', 'string', 'max:255'];
-            }
-        }
-
-        return $rules;
     }
 }

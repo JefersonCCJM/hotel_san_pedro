@@ -60,7 +60,8 @@ class CustomerController extends Controller
     public function store(StoreCustomerRequest $request): RedirectResponse|JsonResponse
     {
         $data = $request->validated();
-        $data['is_active'] = $request->boolean('is_active');
+        $data['name'] = mb_strtoupper($data['name']);
+        $data['is_active'] = $request->boolean('is_active', true);
         $data['requires_electronic_invoice'] = $request->boolean('requires_electronic_invoice');
 
         $customer = Customer::create($data);
@@ -132,7 +133,8 @@ class CustomerController extends Controller
     public function update(UpdateCustomerRequest $request, Customer $customer): RedirectResponse
     {
         $data = $request->validated();
-        $data['is_active'] = $request->boolean('is_active');
+        $data['name'] = mb_strtoupper($data['name']);
+        $data['is_active'] = $request->boolean('is_active', true);
         $data['requires_electronic_invoice'] = $request->boolean('requires_electronic_invoice');
 
         // Update customer
@@ -281,19 +283,27 @@ class CustomerController extends Controller
 
     private function buildTaxProfileData(array $input): array
     {
+        // Fallback for municipality: use company setting, first available, or Bogotá (149) as last resort
+        $municipalityId = $input['municipality_id'] ?? null;
+        if (!$municipalityId) {
+            $municipalityId = \App\Models\CompanyTaxSetting::first()?->municipality_id 
+                ?? \App\Models\DianMunicipality::first()?->factus_id
+                ?? 149; // Bogotá Factus ID
+        }
+
         return [
-            'identification_document_id' => $input['identification_document_id'] ?? null,
+            'identification_document_id' => $input['identification_document_id'] ?? 3, // Default to CC
             'identification' => $input['identification'] ?? null,
-            'municipality_id' => $input['municipality_id'] ?? null,
+            'municipality_id' => $municipalityId,
             'dv' => $input['dv'] ?? null,
-            'legal_organization_id' => $input['legal_organization_id'] ?? null,
+            'legal_organization_id' => $input['legal_organization_id'] ?? 2, // Default to Persona Natural
             'company' => $input['company'] ?? null,
             'trade_name' => $input['trade_name'] ?? null,
-            'names' => $input['names'] ?? null,
-            'address' => $input['tax_address'] ?? $input['address'] ?? null,
-            'email' => $input['tax_email'] ?? $input['email'] ?? null,
+            'names' => $input['names'] ?? $input['name'] ?? null,
+            'address' => $input['tax_address'] ?? $input['address'] ?? 'Calle 1 #1-1', // Default address if missing
+            'email' => $input['tax_email'] ?? $input['email'] ?? 'cliente@hotel.com', // Default email if missing
             'phone' => $input['tax_phone'] ?? $input['phone'] ?? null,
-            'tribute_id' => $input['tribute_id'] ?? null,
+            'tribute_id' => $input['tribute_id'] ?? 21, // Default to No responsable de IVA
         ];
     }
 }

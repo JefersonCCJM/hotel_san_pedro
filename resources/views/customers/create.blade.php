@@ -20,17 +20,16 @@
 
     <form method="POST" action="{{ route('customers.store') }}" id="customer-form"
           x-data="customerForm()"
-          x-init="init()"
           @submit.prevent="submitForm">
         @csrf
 
-        <!-- Información Personal -->
+        <!-- Información del Cliente -->
         <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
             <div class="flex items-center space-x-2 sm:space-x-3 mb-4 sm:mb-6">
                 <div class="p-2 rounded-xl bg-blue-50 text-blue-600">
                     <i class="fas fa-user text-sm"></i>
                 </div>
-                <h2 class="text-base sm:text-lg font-semibold text-gray-900">Información Personal</h2>
+                <h2 class="text-base sm:text-lg font-semibold text-gray-900">Información del Cliente</h2>
             </div>
 
             <div class="space-y-5 sm:space-y-6">
@@ -41,22 +40,17 @@
                     </label>
                     <div class="relative">
                         <div class="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
-                            <i class="fas fa-id-card text-gray-400 text-sm"></i>
+                            <i class="fas fa-user text-gray-400 text-sm"></i>
                         </div>
                         <input type="text"
                                id="name"
                                name="name"
                                x-model="formData.name"
-                               @blur="validateField('name')"
-                               class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('name') border-red-300 focus:ring-red-500 @enderror"
-                               :class="errors.name ? 'border-red-300 focus:ring-red-500' : ''"
-                               placeholder="Ej: Juan Pérez García">
+                               oninput="this.value = this.value.toUpperCase()"
+                               style="text-transform: uppercase !important;"
+                               class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all uppercase @error('name') border-red-300 focus:ring-red-500 @enderror"
+                               placeholder="EJ: JUAN PÉREZ GARCÍA">
                     </div>
-                    <p x-show="!errors.name" class="mt-1.5 text-xs text-gray-500 flex items-start">
-                        <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
-                        <span>Nombre completo del cliente para identificación y facturación</span>
-                    </p>
-                    <p x-show="errors.name" x-text="errors.name" class="mt-1.5 text-xs text-red-600 flex items-center" x-cloak></p>
                     @error('name')
                         <p class="mt-1.5 text-xs text-red-600 flex items-center">
                             <i class="fas fa-exclamation-circle mr-1.5"></i>
@@ -66,30 +60,23 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
-                    <!-- Email -->
+                    <!-- Identificación -->
                     <div>
-                        <label for="email" class="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
-                            Correo electrónico
+                        <label for="identification" class="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
+                            Número de identificación <span class="text-red-500">*</span>
                         </label>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
-                                <i class="fas fa-envelope text-gray-400 text-sm"></i>
+                                <i class="fas fa-id-card text-gray-400 text-sm"></i>
                             </div>
-                            <input type="email"
-                                   id="email"
-                                   name="email"
-                                   x-model="formData.email"
-                                   @blur="validateField('email')"
-                                   class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('email') border-red-300 focus:ring-red-500 @enderror"
-                                   :class="errors.email ? 'border-red-300 focus:ring-red-500' : ''"
-                                   placeholder="juan.perez@email.com">
+                            <input type="text"
+                                   id="identification"
+                                   name="identification"
+                                   x-model="formData.identification"
+                                   class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('identification') border-red-300 focus:ring-red-500 @enderror"
+                                   placeholder="Ej: 12345678">
                         </div>
-                        <p x-show="!errors.email" class="mt-1.5 text-xs text-gray-500 flex items-start">
-                            <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
-                            <span>Email para comunicaciones y envío de facturas electrónicas (opcional)</span>
-                        </p>
-                        <p x-show="errors.email" x-text="errors.email" class="mt-1.5 text-xs text-red-600 flex items-center" x-cloak></p>
-                        @error('email')
+                        @error('identification')
                             <p class="mt-1.5 text-xs text-red-600 flex items-center">
                                 <i class="fas fa-exclamation-circle mr-1.5"></i>
                                 {{ $message }}
@@ -100,7 +87,7 @@
                     <!-- Teléfono -->
                     <div>
                         <label for="phone" class="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
-                            Teléfono
+                            Teléfono <span class="text-red-500">*</span>
                         </label>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
@@ -110,17 +97,9 @@
                                    id="phone"
                                    name="phone"
                                    x-model="formData.phone"
-                                   @input="formatPhone()"
-                                   @blur="validateField('phone')"
                                    class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('phone') border-red-300 focus:ring-red-500 @enderror"
-                                   :class="errors.phone ? 'border-red-300 focus:ring-red-500' : ''"
-                                   placeholder="+1 (555) 123-4567">
+                                   placeholder="Ej: 3001234567">
                         </div>
-                        <p x-show="!errors.phone" class="mt-1.5 text-xs text-gray-500 flex items-start">
-                            <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
-                            <span>Número de contacto principal. Puede incluir código de país (opcional)</span>
-                        </p>
-                        <p x-show="errors.phone" x-text="errors.phone" class="mt-1.5 text-xs text-red-600 flex items-center" x-cloak></p>
                         @error('phone')
                             <p class="mt-1.5 text-xs text-red-600 flex items-center">
                                 <i class="fas fa-exclamation-circle mr-1.5"></i>
@@ -129,170 +108,44 @@
                         @enderror
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Información de Dirección -->
-        <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
-            <div class="flex items-center space-x-2 sm:space-x-3 mb-4 sm:mb-6">
-                <div class="p-2 rounded-xl bg-emerald-50 text-emerald-600">
-                    <i class="fas fa-map-marker-alt text-sm"></i>
-                </div>
-                <h2 class="text-base sm:text-lg font-semibold text-gray-900">Información de Dirección</h2>
-            </div>
-
-            <div class="space-y-5 sm:space-y-6">
-                <!-- Dirección -->
-                <div>
-                    <label for="address" class="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
-                        Dirección
-                    </label>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
-                            <i class="fas fa-home text-gray-400 text-sm"></i>
-                        </div>
-                        <input type="text"
-                               id="address"
-                               name="address"
-                               value="{{ old('address') }}"
-                               class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('address') border-red-300 focus:ring-red-500 @enderror"
-                               placeholder="Calle, número, colonia">
-                    </div>
-                    <p class="mt-1.5 text-xs text-gray-500 flex items-start">
-                        <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
-                        <span>Dirección completa para envíos y facturación (opcional)</span>
-                    </p>
-                    @error('address')
-                        <p class="mt-1.5 text-xs text-red-600 flex items-center">
-                            <i class="fas fa-exclamation-circle mr-1.5"></i>
-                            {{ $message }}
-                        </p>
-                    @enderror
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5 md:gap-6">
-                    <!-- Ciudad -->
+                <!-- Campos opcionales ocultos o secundarios si se desea, pero el usuario pidió solo 3 visibles -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
+                    <!-- Email (opcional) -->
                     <div>
-                        <label for="city" class="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
-                            Ciudad
+                        <label for="email" class="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
+                            Correo electrónico (opcional)
                         </label>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
-                                <i class="fas fa-city text-gray-400 text-sm"></i>
+                                <i class="fas fa-envelope text-gray-400 text-sm"></i>
                             </div>
-                            <input type="text"
-                                   id="city"
-                                   name="city"
-                                   value="{{ old('city') }}"
-                                   class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('city') border-red-300 focus:ring-red-500 @enderror"
-                                   placeholder="Ciudad">
+                            <input type="email"
+                                   id="email"
+                                   name="email"
+                                   x-model="formData.email"
+                                   class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('email') border-red-300 focus:ring-red-500 @enderror"
+                                   placeholder="juan.perez@email.com">
                         </div>
-                        @error('city')
-                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
-                                <i class="fas fa-exclamation-circle mr-1.5"></i>
-                                {{ $message }}
-                            </p>
-                        @enderror
                     </div>
 
-                    <!-- Estado -->
+                    <!-- Dirección (opcional) -->
                     <div>
-                        <label for="state" class="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
-                            Estado
+                        <label for="address" class="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
+                            Dirección (opcional)
                         </label>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
-                                <i class="fas fa-flag text-gray-400 text-sm"></i>
+                                <i class="fas fa-map-marker-alt text-gray-400 text-sm"></i>
                             </div>
                             <input type="text"
-                                   id="state"
-                                   name="state"
-                                   value="{{ old('state') }}"
-                                   class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('state') border-red-300 focus:ring-red-500 @enderror"
-                                   placeholder="Estado">
+                                   id="address"
+                                   name="address"
+                                   x-model="formData.address"
+                                   class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('address') border-red-300 focus:ring-red-500 @enderror"
+                                   placeholder="Calle 123 #45-67">
                         </div>
-                        @error('state')
-                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
-                                <i class="fas fa-exclamation-circle mr-1.5"></i>
-                                {{ $message }}
-                            </p>
-                        @enderror
                     </div>
-
-                    <!-- Código postal -->
-                    <div>
-                        <label for="zip_code" class="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
-                            Código postal
-                        </label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
-                                <i class="fas fa-mail-bulk text-gray-400 text-sm"></i>
-                            </div>
-                            <input type="text"
-                                   id="zip_code"
-                                   name="zip_code"
-                                   value="{{ old('zip_code') }}"
-                                   class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('zip_code') border-red-300 focus:ring-red-500 @enderror"
-                                   placeholder="12345">
-                        </div>
-                        @error('zip_code')
-                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
-                                <i class="fas fa-exclamation-circle mr-1.5"></i>
-                                {{ $message }}
-                            </p>
-                        @enderror
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Información Adicional -->
-        <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
-            <div class="flex items-center space-x-2 sm:space-x-3 mb-4 sm:mb-6">
-                <div class="p-2 rounded-xl bg-violet-50 text-violet-600">
-                    <i class="fas fa-sticky-note text-sm"></i>
-                </div>
-                <h2 class="text-base sm:text-lg font-semibold text-gray-900">Información Adicional</h2>
-            </div>
-
-            <div class="space-y-5 sm:space-y-6">
-                <!-- Notas -->
-                <div>
-                    <label for="notes" class="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
-                        Notas adicionales
-                    </label>
-                    <div class="relative">
-                        <textarea id="notes"
-                                  name="notes"
-                                  rows="3"
-                                  class="block w-full px-3 sm:px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all resize-none @error('notes') border-red-300 focus:ring-red-500 @enderror"
-                                  placeholder="Información adicional sobre el cliente...">{{ old('notes') }}</textarea>
-                    </div>
-                    <p class="mt-1.5 text-xs text-gray-500">
-                        Información relevante sobre preferencias o historial del cliente
-                    </p>
-                    @error('notes')
-                        <p class="mt-1.5 text-xs text-red-600 flex items-center">
-                            <i class="fas fa-exclamation-circle mr-1.5"></i>
-                            {{ $message }}
-                        </p>
-                    @enderror
-                </div>
-
-                <!-- Estado -->
-                <div class="bg-gray-50 rounded-xl p-4 sm:p-5 border border-gray-200">
-                    <label class="inline-flex items-center cursor-pointer">
-                        <input type="checkbox"
-                               name="is_active"
-                               value="1"
-                               {{ old('is_active', true) ? 'checked' : '' }}
-                               class="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 focus:ring-2 transition-colors">
-                        <span class="ml-3 text-sm font-medium text-gray-700">Cliente activo</span>
-                    </label>
-                    <p class="mt-2 text-xs text-gray-500 flex items-start">
-                        <i class="fas fa-info-circle mr-1.5 mt-0.5 text-gray-400"></i>
-                        <span>Los clientes inactivos no aparecerán en los formularios de reservas y facturación</span>
-                    </p>
                 </div>
             </div>
         </div>
@@ -372,27 +225,9 @@
                         @enderror
                     </div>
 
-                    <!-- Identificación -->
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-700 mb-2">
-                            Número de Identificación <span class="text-red-500">*</span>
-                        </label>
-                        <input type="text"
-                               name="identification"
-                               x-model="identification"
-                               @input="calculateDV()"
-                               @blur="validateField('identification')"
-                               class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
-                               :required="requiresElectronicInvoice"
-                               :class="errors.identification ? 'border-red-300 focus:ring-red-500' : ''">
-                        <p x-show="errors.identification" x-text="errors.identification" class="mt-1.5 text-xs text-red-600 flex items-center" x-cloak></p>
-                        @error('identification')
-                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
-                                <i class="fas fa-exclamation-circle mr-1.5"></i>
-                                {{ $message }}
-                            </p>
-                        @enderror
-                    </div>
+                    <!-- Identificación (Ya está arriba, pero lo mantenemos para coherencia si se desea, o podemos vincularlo) -->
+                    <!-- NOTA: En el flujo anterior, el numero de identificación estaba dentro de esta sección. 
+                         Ahora que está arriba, vamos a asegurarnos de que el valor se sincronice o usar el mismo ID. -->
                 </div>
 
                 <!-- Dígito Verificador (solo si el documento lo requiere) -->
@@ -457,51 +292,6 @@
                     </div>
                 </div>
 
-                <!-- Nombres (solo para personas naturales) -->
-                <div x-show="!isJuridicalPerson" class="grid grid-cols-1 sm:grid-cols-2 gap-5" x-cloak>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-700 mb-2">
-                            Nombres
-                        </label>
-                        <input type="text"
-                               name="names"
-                               value="{{ old('names') }}"
-                               class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
-                               placeholder="Nombres completos de la persona natural">
-                        <p class="mt-1 text-xs text-gray-500">
-                            Solo aplica para personas naturales
-                        </p>
-                        @error('names')
-                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
-                                <i class="fas fa-exclamation-circle mr-1.5"></i>
-                                {{ $message }}
-                            </p>
-                        @enderror
-                    </div>
-                </div>
-
-                <!-- Tipo de Organización Legal (opcional) -->
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 mb-2">
-                        Tipo de Organización Legal
-                    </label>
-                    <select name="legal_organization_id"
-                            class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
-                        <option value="">Seleccione...</option>
-                        @foreach($legalOrganizations as $org)
-                            <option value="{{ $org->id }}" {{ (string)old('legal_organization_id') === (string)$org->id ? 'selected' : '' }}>
-                                {{ $org->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                    @error('legal_organization_id')
-                        <p class="mt-1.5 text-xs text-red-600 flex items-center">
-                            <i class="fas fa-exclamation-circle mr-1.5"></i>
-                            {{ $message }}
-                        </p>
-                    @enderror
-                </div>
-
                 <!-- Municipio -->
                 <div>
                     <label for="municipality_id" class="block text-xs font-semibold text-gray-700 mb-2">
@@ -562,7 +352,23 @@
                     @endif
                 </div>
 
-                <!-- Régimen Tributario (opcional) -->
+                <!-- Tipo de Organización Legal -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-2">
+                        Tipo de Organización Legal
+                    </label>
+                    <select name="legal_organization_id"
+                            class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+                        <option value="">Seleccione...</option>
+                        @foreach($legalOrganizations as $org)
+                            <option value="{{ $org->id }}" {{ (string)old('legal_organization_id') === (string)$org->id ? 'selected' : '' }}>
+                                {{ $org->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <!-- Régimen Tributario -->
                 <div>
                     <label class="block text-xs font-semibold text-gray-700 mb-2">
                         Régimen Tributario
@@ -576,75 +382,6 @@
                             </option>
                         @endforeach
                     </select>
-                    @error('tribute_id')
-                        <p class="mt-1.5 text-xs text-red-600 flex items-center">
-                            <i class="fas fa-exclamation-circle mr-1.5"></i>
-                            {{ $message }}
-                        </p>
-                    @enderror
-                </div>
-
-                <!-- Información de Contacto Adicional -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-700 mb-2">
-                            Dirección Fiscal
-                        </label>
-                        <input type="text"
-                               name="tax_address"
-                               value="{{ old('tax_address') }}"
-                               class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
-                               placeholder="Dirección para facturación">
-                        <p class="mt-1 text-xs text-gray-500">
-                            Si no se especifica, se usará la dirección principal del cliente
-                        </p>
-                        @error('tax_address')
-                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
-                                <i class="fas fa-exclamation-circle mr-1.5"></i>
-                                {{ $message }}
-                            </p>
-                        @enderror
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-700 mb-2">
-                            Email Fiscal
-                        </label>
-                        <input type="email"
-                               name="tax_email"
-                               value="{{ old('tax_email') }}"
-                               class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
-                               placeholder="email@ejemplo.com">
-                        <p class="mt-1 text-xs text-gray-500">
-                            Email para envío de facturas electrónicas. Si no se especifica, se usará el email principal.
-                        </p>
-                        @error('tax_email')
-                            <p class="mt-1.5 text-xs text-red-600 flex items-center">
-                                <i class="fas fa-exclamation-circle mr-1.5"></i>
-                                {{ $message }}
-                            </p>
-                        @enderror
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 mb-2">
-                        Teléfono Fiscal
-                    </label>
-                    <input type="text"
-                           name="tax_phone"
-                           value="{{ old('tax_phone') }}"
-                           class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
-                           placeholder="Número de teléfono">
-                    <p class="mt-1 text-xs text-gray-500">
-                        Si no se especifica, se usará el teléfono principal del cliente
-                    </p>
-                    @error('tax_phone')
-                        <p class="mt-1.5 text-xs text-red-600 flex items-center">
-                            <i class="fas fa-exclamation-circle mr-1.5"></i>
-                            {{ $message }}
-                        </p>
-                    @enderror
                 </div>
             </div>
         </div>
@@ -665,8 +402,7 @@
 
                 <button type="submit"
                         class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                        :disabled="loading"
-                        x-bind:class="loading ? 'opacity-50 cursor-not-allowed' : ''">
+                        :disabled="loading">
                     <template x-if="!loading">
                         <span>
                             <i class="fas fa-user-plus mr-2"></i>
@@ -690,17 +426,18 @@
 function customerForm() {
     return {
         loading: false,
-        requiresElectronicInvoice: @json((bool) old('requires_electronic_invoice')),
+        requiresElectronicInvoice: @json((bool) old('requires_electronic_invoice', false)),
         identificationDocumentId: @json(old('identification_document_id')),
-        identification: @json(old('identification')),
         dv: @json(old('dv')),
         requiresDV: false,
         isJuridicalPerson: false,
 
         formData: {
             name: @json(old('name', '')),
-            email: @json(old('email', '')),
+            identification: @json(old('identification', '')),
             phone: @json(old('phone', '')),
+            email: @json(old('email', '')),
+            address: @json(old('address', '')),
             company: @json(old('company', '')),
             municipality_id: @json(old('municipality_id', ''))
         },
@@ -722,52 +459,17 @@ function customerForm() {
             if (selectedOption) {
                 this.requiresDV = selectedOption.dataset.requiresDv === 'true';
                 this.isJuridicalPerson = selectedOption.dataset.code === 'NIT';
-
-                if (this.requiresDV && this.isJuridicalPerson && this.identification) {
-                    this.calculateDV();
-                }
-            }
-        },
-
-        calculateDV() {
-            if (this.requiresDV && this.identification && this.identification.length >= 5) {
-                // DV calculation logic can be implemented here if needed client-side
-                // For now, it's handled by specific business logic or on backend
-            }
-        },
-
-        formatPhone() {
-            let value = this.formData.phone.replace(/\D/g, '');
-            if (value.length > 0 && !this.formData.phone.startsWith('+')) {
-                this.formData.phone = '+' + value;
             }
         },
 
         validateField(field) {
             this.errors[field] = null;
 
-            if (field === 'name') {
-                if (!this.formData.name || this.formData.name.trim() === '') {
-                    this.errors.name = 'El nombre es obligatorio.';
-                }
-            }
-
-            if (field === 'email') {
-                if (this.formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.formData.email)) {
-                    this.errors.email = 'Ingrese un correo electrónico válido.';
-                }
-            }
-
-            if (field === 'phone') {
-                if (this.formData.phone && !/^[\+]?[1-9][\d\s\-\(\)]{7,15}$/.test(this.formData.phone)) {
-                    this.errors.phone = 'Ingrese un número de teléfono válido.';
-                }
+            if (field === 'name' && !this.formData.name) {
+                this.errors.name = 'El nombre es obligatorio.';
             }
 
             if (this.requiresElectronicInvoice) {
-                if (field === 'identification' && !this.identification) {
-                    this.errors.identification = 'La identificación es obligatoria para facturación electrónica.';
-                }
                 if (field === 'identification_document_id' && !this.identificationDocumentId) {
                     this.errors.identification_document_id = 'El tipo de documento es obligatorio.';
                 }
@@ -782,14 +484,9 @@ function customerForm() {
 
         submitForm() {
             this.errors = {};
-
-            // Validate all necessary fields
             this.validateField('name');
-            this.validateField('email');
-            this.validateField('phone');
 
             if (this.requiresElectronicInvoice) {
-                this.validateField('identification');
                 this.validateField('identification_document_id');
                 this.validateField('municipality_id');
                 if (this.isJuridicalPerson) {
@@ -800,13 +497,6 @@ function customerForm() {
             const hasErrors = Object.values(this.errors).some(error => error !== null);
 
             if (hasErrors) {
-                // Scroll to first error
-                const firstError = Object.keys(this.errors).find(key => this.errors[key] !== null);
-                const element = document.getElementsByName(firstError)[0] || document.getElementById(firstError);
-                if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    element.focus();
-                }
                 return;
             }
 
@@ -815,89 +505,6 @@ function customerForm() {
         }
     }
 }
-
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('customer-form');
-    const inputs = form.querySelectorAll('input, textarea');
-    const identificationInput = form.querySelector('input[name="identification"]');
-
-    // Remove required attribute from hidden fields before submit
-    form.addEventListener('submit', function(e) {
-        const requiresElectronicInvoice = form.querySelector('input[name="requires_electronic_invoice"]');
-        const isChecked = requiresElectronicInvoice && requiresElectronicInvoice.checked;
-        
-        if (!isChecked) {
-            // Remove required from all electronic invoice fields
-            const electronicInvoiceFields = form.querySelectorAll('[name="identification_document_id"], [name="identification"], [name="municipality_id"], [name="dv"], [name="company"]');
-            electronicInvoiceFields.forEach(function(field) {
-                field.removeAttribute('required');
-            });
-        }
-    });
-
-    // Validación en tiempo real para email
-    const emailInput = document.getElementById('email');
-    if (emailInput) {
-        emailInput.addEventListener('blur', function() {
-            const value = this.value.trim();
-            if (value && !isValidEmail(value)) {
-                this.classList.add('border-red-300');
-            } else {
-                this.classList.remove('border-red-300');
-            }
-        });
-    }
-
-    // Validación en tiempo real para teléfono
-    const phoneInput = document.getElementById('phone');
-    if (phoneInput) {
-        phoneInput.addEventListener('input', function() {
-            let value = this.value.replace(/\D/g, '');
-            if (value.length > 0 && !value.startsWith('+')) {
-                value = '+' + value;
-            }
-        });
-
-        phoneInput.addEventListener('blur', function() {
-            const value = this.value.trim();
-            if (value && !isValidPhone(value)) {
-                this.classList.add('border-red-300');
-            } else {
-                this.classList.remove('border-red-300');
-            }
-        });
-    }
-
-    // Validación en tiempo real para identificación (solo números, 5-20 chars)
-    if (identificationInput) {
-        identificationInput.addEventListener('input', function() {
-            this.value = this.value.replace(/\D/g, '').slice(0, 20);
-        });
-        identificationInput.addEventListener('blur', function() {
-            const value = this.value.trim();
-            if (value && !isValidIdentification(value)) {
-                this.classList.add('border-red-300');
-            } else {
-                this.classList.remove('border-red-300');
-            }
-        });
-    }
-
-    function isValidEmail(email) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email);
-    }
-
-    function isValidPhone(phone) {
-        const phoneRegex = /^[\+]?[1-9][\d\s\-\(\)]{7,15}$/;
-        return phoneRegex.test(phone);
-    }
-
-    function isValidIdentification(value) {
-        const idRegex = /^[0-9]{5,20}$/;
-        return idRegex.test(value);
-    }
-});
 </script>
 @endpush
 @endsection
