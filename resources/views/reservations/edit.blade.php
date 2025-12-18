@@ -46,6 +46,7 @@
                             </option>
                         @endforeach
                     </select>
+                    <div id="availability-status" class="mt-2 text-xs hidden"></div>
                     @error('room_id') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
             </div>
@@ -110,5 +111,37 @@
         </div>
     </form>
 </div>
+
+@push('scripts')
+<script>
+    const roomSelect = document.getElementById('room_id');
+    const checkIn = document.getElementById('check_in_date');
+    const checkOut = document.getElementById('check_out_date');
+    const statusDiv = document.getElementById('availability-status');
+    const reservationId = {{ $reservation->id }};
+
+    function checkAvailability() {
+        if (roomSelect.value && checkIn.value && checkOut.value) {
+            fetch(`{{ route('api.check-availability') }}?room_id=${roomSelect.value}&check_in_date=${checkIn.value}&check_out_date=${checkOut.value}&reservation_id=${reservationId}`)
+                .then(response => response.json())
+                .then(data => {
+                    statusDiv.classList.remove('hidden');
+                    if (data.available) {
+                        statusDiv.innerHTML = '<span class="text-emerald-600 font-bold"><i class="fas fa-check-circle mr-1"></i> Habitación disponible</span>';
+                    } else {
+                        statusDiv.innerHTML = '<span class="text-red-600 font-bold"><i class="fas fa-times-circle mr-1"></i> NO DISPONIBLE para estas fechas</span>';
+                    }
+                });
+        } else {
+            statusDiv.classList.add('hidden');
+        }
+    }
+
+    [roomSelect, checkIn, checkOut].forEach(el => el.addEventListener('change', checkAvailability));
+    
+    // Check initial availability
+    checkAvailability();
+</script>
+@endpush
 @endsection
 

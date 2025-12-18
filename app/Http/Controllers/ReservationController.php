@@ -26,7 +26,7 @@ class ReservationController extends Controller
     public function create()
     {
         $customers = Customer::all();
-        $rooms = Room::where('status', 'available')->get();
+        $rooms = Room::where('status', '!=', 'maintenance')->get();
         return view('reservations.create', compact('customers', 'rooms'));
     }
 
@@ -35,6 +35,17 @@ class ReservationController extends Controller
      */
     public function store(StoreReservationRequest $request)
     {
+        $exists = Reservation::where('room_id', $request->room_id)
+            ->where(function ($query) use ($request) {
+                $query->where('check_in_date', '<', $request->check_out_date)
+                      ->where('check_out_date', '>', $request->check_in_date);
+            })
+            ->exists();
+
+        if ($exists) {
+            return back()->withInput()->withErrors(['room_id' => 'La habitación ya está reservada para las fechas seleccionadas.']);
+        }
+
         Reservation::create($request->validated());
         return redirect()->route('reservations.index')->with('success', 'Reserva creada correctamente.');
     }
@@ -62,6 +73,18 @@ class ReservationController extends Controller
      */
     public function update(StoreReservationRequest $request, Reservation $reservation)
     {
+        $exists = Reservation::where('room_id', $request->room_id)
+            ->where('id', '!=', $reservation->id)
+            ->where(function ($query) use ($request) {
+                $query->where('check_in_date', '<', $request->check_out_date)
+                      ->where('check_out_date', '>', $request->check_in_date);
+            })
+            ->exists();
+
+        if ($exists) {
+            return back()->withInput()->withErrors(['room_id' => 'La habitación ya está reservada para las fechas seleccionadas.']);
+        }
+
         $reservation->update($request->validated());
         return redirect()->route('reservations.index')->with('success', 'Reserva actualizada correctamente.');
     }
@@ -83,5 +106,23 @@ class ReservationController extends Controller
         $reservation->load(['customer', 'room']);
         $pdf = Pdf::loadView('reservations.pdf', compact('reservation'));
         return $pdf->download("Soporte_Reserva_{$reservation->id}.pdf");
+    }
+
+    /**
+     * Check if a room is available for a given date range.
+     */
+    public function checkAvailability(Request $request)
+    {
+        $exists = Reservation::where('room_id', $request->room_id)
+            ->where(function ($query) use ($request) {
+                $query->where('check_in_date', '<', $request->check_out_date)
+                      ->where('check_out_date', '>', $request->check_in_date);
+            })
+            ->when($request->reservation_id, function($q) use ($request) {
+                $q->where('id', '!=', $request->reservation_id);
+            })
+            ->exists();
+
+        return response()->json(['available' => !$exists]);
     }
 }
