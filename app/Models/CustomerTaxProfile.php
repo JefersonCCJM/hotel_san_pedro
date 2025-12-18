@@ -47,6 +47,30 @@ class CustomerTaxProfile extends Model
         'municipality_id',
     ];
 
+    /**
+     * Sanitize identification and other fields.
+     */
+    protected function identification(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            set: fn (?string $value) => $value ? trim($value) : null,
+        );
+    }
+
+    protected function company(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            set: fn (?string $value) => $value ? trim(mb_strtoupper($value)) : null,
+        );
+    }
+
+    protected function names(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            set: fn (?string $value) => $value ? trim(mb_strtoupper($value)) : null,
+        );
+    }
+
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);

@@ -57,6 +57,7 @@ Route::middleware('auth')->group(function () {
     // Clientes - con middleware de permisos
     Route::middleware('permission:view_customers')->group(function () {
         Route::get('/customers', [CustomerController::class, 'index'])->name('customers.index');
+        Route::get('/api/customers/check-identification', [CustomerController::class, 'checkIdentification'])->name('api.customers.check-identification');
     });
 
     Route::middleware('permission:create_customers')->group(function () {
@@ -67,10 +68,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:edit_customers')->group(function () {
         Route::get('/customers/{customer}/edit', [CustomerController::class, 'edit'])->name('customers.edit');
         Route::put('/customers/{customer}', [CustomerController::class, 'update'])->name('customers.update');
-    });
-
-    Route::middleware('permission:delete_customers')->group(function () {
-        Route::delete('/customers/{customer}', [CustomerController::class, 'destroy'])->name('customers.destroy');
+        Route::patch('/customers/{customer}/toggle-status', [CustomerController::class, 'toggleStatus'])->name('customers.toggle-status');
     });
 
     // Show debe ir al final para evitar conflictos con create y edit

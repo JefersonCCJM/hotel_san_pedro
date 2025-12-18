@@ -75,9 +75,16 @@
                                    id="identification"
                                    name="identification"
                                    x-model="formData.identification"
+                                   @blur="checkIdentification()"
                                    class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all @error('identification') border-red-300 focus:ring-red-500 @enderror"
                                    placeholder="Ej: 12345678">
                         </div>
+                        <p x-show="identificationMessage" 
+                           :class="identificationExists ? 'text-red-600' : 'text-emerald-600'"
+                           class="mt-1.5 text-xs flex items-center" x-cloak>
+                            <i :class="identificationExists ? 'fas fa-exclamation-circle' : 'fas fa-check-circle'" class="mr-1.5"></i>
+                            <span x-text="identificationMessage"></span>
+                        </p>
                         @error('identification')
                             <p class="mt-1.5 text-xs text-red-600 flex items-center">
                                 <i class="fas fa-exclamation-circle mr-1.5"></i>
@@ -237,10 +244,12 @@
                                name="dv"
                                x-model="dv"
                                maxlength="1"
+                               readonly
                                :required="requiresElectronicInvoice && requiresDV"
-                               class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
-                        <p class="mt-1 text-xs text-gray-500">
-                            Se calcula automáticamente para NIT
+                               class="block w-full px-3 py-2.5 border border-gray-200 bg-gray-50 rounded-lg text-sm text-gray-600 cursor-not-allowed font-bold"
+                               placeholder="Automático">
+                        <p class="mt-1 text-xs text-blue-600">
+                            <i class="fas fa-magic mr-1"></i> Calculado automáticamente por el sistema
                         </p>
                         @error('dv')
                             <p class="mt-1.5 text-xs text-red-600 flex items-center">
@@ -330,7 +339,7 @@
                                 @endif
                                 <option value="{{ $municipality->factus_id }}"
                                         {{ $selectedMunicipalityId == $municipality->factus_id ? 'selected' : '' }}>
-                                    {{ $municipality->name }}
+                                    {{ $municipality->department }} - {{ $municipality->name }}
                                 </option>
                                 @if($loop->last)
                                     </optgroup>
@@ -338,7 +347,7 @@
                             @endforeach
                         </select>
                         <p x-show="!errors.municipality_id" class="mt-1 text-xs text-gray-500">
-                            Seleccione el municipio según el departamento
+                            Búsqueda rápida por nombre o departamento
                         </p>
                         <p x-show="errors.municipality_id" x-text="errors.municipality_id" class="mt-1.5 text-xs text-red-600 flex items-center" x-cloak></p>
                         @error('municipality_id')
@@ -419,7 +428,16 @@
     </form>
 </div>
 
+@push('styles')
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+<style>
+    .ts-control { border-radius: 0.75rem !important; padding: 0.625rem 0.75rem !important; }
+    .ts-dropdown { border-radius: 0.75rem !important; margin-top: 0.5rem !important; }
+</style>
+@endpush
+
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script>
 function customerForm() {
     return {
@@ -429,8 +447,12 @@ function customerForm() {
         dv: @json(old('dv', $customer->taxProfile->dv ?? '')),
         requiresDV: false,
         isJuridicalPerson: false,
+        identificationMessage: '',
+        identificationExists: false,
+        municipalitySelect: null,
         
         formData: {
+            id: @json($customer->id),
             name: @json(old('name', $customer->name)),
             identification: @json(old('identification', $customer->taxProfile->identification ?? '')),
             phone: @json(old('phone', $customer->phone)),
@@ -444,6 +466,34 @@ function customerForm() {
 
         init() {
             this.updateRequiredFields();
+            
+            this.$nextTick(() => {
+                this.municipalitySelect = new TomSelect('#municipality_id', {
+                    create: false,
+                    maxOptions: 1200,
+                    placeholder: 'Buscar municipio...',
+                    render: {
+                        optgroup_header: function(data, escape) {
+                            return '<div class="optgroup-header font-bold text-gray-900 bg-gray-50 px-2 py-1">' + escape(data.label) + '</div>';
+                        }
+                    }
+                });
+                
+                if (this.formData.municipality_id) {
+                    this.municipalitySelect.setValue(this.formData.municipality_id);
+                }
+                
+                this.municipalitySelect.on('change', (value) => {
+                    this.formData.municipality_id = value;
+                    this.validateField('municipality_id');
+                });
+            });
+
+            this.$watch('formData.identification', (value) => {
+                if (this.isJuridicalPerson) {
+                    this.calculateDV(value);
+                }
+            });
         },
 
         updateRequiredFields() {
@@ -457,6 +507,56 @@ function customerForm() {
             if (selectedOption) {
                 this.requiresDV = selectedOption.dataset.requiresDv === 'true';
                 this.isJuridicalPerson = selectedOption.dataset.code === 'NIT';
+                
+                if (this.isJuridicalPerson) {
+                    this.calculateDV(this.formData.identification);
+                } else {
+                    this.dv = '';
+                }
+            }
+        },
+
+        calculateDV(nit) {
+            if (!nit || !this.isJuridicalPerson) {
+                this.dv = '';
+                return;
+            }
+
+            const weights = [3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71];
+            let sum = 0;
+            const nitStr = nit.toString().replace(/\D/g, '');
+            
+            for (let i = 0; i < nitStr.length; i++) {
+                sum += parseInt(nitStr.charAt(nitStr.length - 1 - i)) * weights[i];
+            }
+            
+            const remainder = sum % 11;
+            this.dv = remainder < 2 ? remainder : 11 - remainder;
+        },
+
+        async checkIdentification() {
+            if (!this.formData.identification || this.formData.identification.length < 5) return;
+            
+            this.identificationMessage = 'Verificando...';
+            this.identificationExists = false;
+            
+            try {
+                const response = await fetch(`{{ route('api.customers.check-identification') }}?identification=${this.formData.identification}&exclude_id=${this.formData.id}`);
+                if (!response.ok) throw new Error('Error en la validación');
+                
+                const data = await response.json();
+                
+                if (data.exists) {
+                    this.identificationExists = true;
+                    this.identificationMessage = `Este cliente ya está registrado como: ${data.name}`;
+                } else {
+                    this.identificationExists = false;
+                    this.identificationMessage = 'Documento disponible';
+                }
+            } catch (error) {
+                console.error('Error checking identification:', error);
+                this.identificationMessage = 'No se pudo verificar el documento';
+                this.identificationExists = false;
             }
         },
         
@@ -494,7 +594,15 @@ function customerForm() {
             
             const hasErrors = Object.values(this.errors).some(error => error !== null);
             
-            if (hasErrors) {
+            if (hasErrors || this.identificationExists) {
+                if (this.identificationExists) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Documento Duplicado',
+                        text: this.identificationMessage,
+                        confirmButtonColor: '#059669',
+                    });
+                }
                 return;
             }
             

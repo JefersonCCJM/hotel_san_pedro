@@ -147,14 +147,18 @@ class CustomerController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Toggle customer status (active/inactive).
      */
-    public function destroy(Customer $customer): RedirectResponse
+    public function toggleStatus(Customer $customer): RedirectResponse
     {
-        $customer->delete();
+        $customer->update([
+            'is_active' => !$customer->is_active
+        ]);
 
-        return Redirect::route('customers.index')
-            ->with('success', 'Cliente eliminado exitosamente.');
+        $status = $customer->is_active ? 'activado' : 'desactivado';
+        
+        return Redirect::back()
+            ->with('success', "Cliente {$status} correctamente.");
     }
 
     /**
@@ -163,56 +167,40 @@ class CustomerController extends Controller
     public function getTaxProfile(Customer $customer): JsonResponse
     {
         $customer->load('taxProfile.identificationDocument');
-        /** @var \App\Models\CustomerTaxProfile|null $taxProfile */
-        $taxProfile = $customer->taxProfile;
+        // ...
+    }
 
-        $catalogs = $this->getTaxCatalogs();
+    /**
+     * Check if a document number already exists.
+     */
+    public function checkIdentification(Request $request): JsonResponse
+    {
+        $identification = $request->query('identification');
+        $excludeId = $request->query('exclude_id');
 
-        return Response::json([
-            'customer' => [
-                'id' => $customer->id,
-                'name' => $customer->name,
-                'requires_electronic_invoice' => (bool) $customer->requires_electronic_invoice,
-                'tax_profile' => $taxProfile ? [
-                    'identification_document_id' => $taxProfile->identification_document_id,
-                    'identification' => $taxProfile->identification,
-                    'dv' => $taxProfile->dv,
-                    'legal_organization_id' => $taxProfile->legal_organization_id,
-                    'company' => $taxProfile->company,
-                    'trade_name' => $taxProfile->trade_name,
-                    'names' => $taxProfile->names,
-                    'address' => $taxProfile->address,
-                    'email' => $taxProfile->email,
-                    'phone' => $taxProfile->phone,
-                    'tribute_id' => $taxProfile->tribute_id,
-                    'municipality_id' => $taxProfile->municipality_id,
-                ] : null,
-            ],
-            'catalogs' => [
-                'identification_documents' => $catalogs['identificationDocuments']->map(fn($doc) => [
-                    'id' => $doc->id,
-                    'code' => $doc->code,
-                    'name' => $doc->name,
-                    'requires_dv' => (bool) $doc->requires_dv,
-                ])->values(),
-                'legal_organizations' => $catalogs['legalOrganizations']->map(fn($org) => [
-                    'id' => $org->id,
-                    'name' => $org->name,
-                ])->values(),
-                'tributes' => $catalogs['tributes']->map(fn($t) => [
-                    'id' => $t->id,
-                    'code' => $t->code,
-                    'name' => $t->name,
-                ])->values(),
-                'municipalities' => $catalogs['municipalities']->groupBy('department')->map(function ($municipalities) {
-                    return $municipalities->map(fn($m) => [
-                        'factus_id' => $m->factus_id,
-                        'name' => $m->name,
-                        'department' => $m->department,
-                    ])->values();
-                }),
-            ],
-        ], 200, [], JSON_UNESCAPED_UNICODE);
+        if (!$identification) {
+            return Response::json(['exists' => false]);
+        }
+
+        // Buscamos el perfil fiscal por identificación
+        $profile = CustomerTaxProfile::where('identification', $identification)
+            ->when($excludeId, function ($q) use ($excludeId) {
+                $q->where('customer_id', '!=', $excludeId);
+            })
+            ->first();
+
+        if ($profile) {
+            $customer = Customer::withTrashed()->find($profile->customer_id);
+            if ($customer) {
+                return Response::json([
+                    'exists' => true,
+                    'name' => $customer->name,
+                    'id' => $customer->id,
+                ]);
+            }
+        }
+
+        return Response::json(['exists' => false]);
     }
 
     /**
@@ -259,14 +247,8 @@ class CustomerController extends Controller
 
     private function syncTaxProfile(Customer $customer, array $input, bool $requiresElectronicInvoice): void
     {
-        if (!$requiresElectronicInvoice) {
-            if ($customer->taxProfile) {
-                $customer->taxProfile->delete();
-            }
-
-            return;
-        }
-
+        // Siempre sincronizamos el perfil fiscal porque ahí reside la identificación del cliente,
+        // independientemente de si requiere factura electrónica o no.
         $attributes = $this->buildTaxProfileData($input);
 
         if ($customer->taxProfile) {

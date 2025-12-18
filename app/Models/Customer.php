@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * @property int $id
@@ -19,13 +20,14 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string|null $notes
  * @property bool $is_active
  * @property bool $requires_electronic_invoice
+ * @property \Illuminate\Support\Carbon|null $deleted_at
  * @property-read CustomerTaxProfile|null $taxProfile
  *
  * @mixin Builder
  */
 class Customer extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -41,13 +43,33 @@ class Customer extends Model
     ];
 
     /**
-     * Always store and retrieve the name in uppercase.
+     * Always store and retrieve the name in uppercase and trimmed.
      */
     protected function name(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
             get: fn (?string $value) => $value ? mb_strtoupper($value) : null,
-            set: fn (?string $value) => $value ? mb_strtoupper($value) : null,
+            set: fn (?string $value) => $value ? trim(mb_strtoupper($value)) : null,
+        );
+    }
+
+    /**
+     * Sanitize phone.
+     */
+    protected function phone(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            set: fn (?string $value) => $value ? trim($value) : null,
+        );
+    }
+
+    /**
+     * Sanitize email.
+     */
+    protected function email(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            set: fn (?string $value) => $value ? trim(mb_strtolower($value)) : null,
         );
     }
 

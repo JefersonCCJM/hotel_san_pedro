@@ -12,6 +12,17 @@ class StoreCustomerRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'name' => $this->name ? trim(mb_strtoupper($this->name)) : null,
+            'identification' => $this->identification ? trim($this->identification) : null,
+            'phone' => $this->phone ? trim($this->phone) : null,
+            'email' => $this->email ? trim(mb_strtolower($this->email)) : null,
+            'company' => $this->company ? trim(mb_strtoupper($this->company)) : null,
+        ]);
+    }
+
     public function rules(): array
     {
         return [

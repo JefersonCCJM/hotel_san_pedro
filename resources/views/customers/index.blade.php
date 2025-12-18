@@ -249,12 +249,15 @@
                                     <i class="fas fa-edit text-sm sm:text-base"></i>
                                 </a>
                                 
-                                <button type="button"
-                                        onclick="openDeleteModal({{ $customer->id }}, {{ json_encode($customer->name) }})"
-                                        class="p-2 sm:p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
-                                        title="Eliminar">
-                                    <i class="fas fa-trash text-sm sm:text-base"></i>
-                                </button>
+                                <form action="{{ route('customers.toggle-status', $customer) }}" method="POST" class="inline">
+                                    @csrf
+                                    @method('PATCH')
+                                    <button type="submit"
+                                            class="p-2 sm:p-1.5 {{ $customer->is_active ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50' : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50' }} rounded-lg transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
+                                            title="{{ $customer->is_active ? 'Desactivar Cliente' : 'Activar Cliente' }}">
+                                        <i class="fas {{ $customer->is_active ? 'fa-user-slash' : 'fa-user-check' }} text-sm sm:text-base"></i>
+                                    </button>
+                                </form>
                             </div>
                         </td>
                     </tr>
@@ -432,12 +435,15 @@
                     <i class="fas fa-edit text-base sm:text-sm"></i>
                 </a>
                 
-                <button type="button"
-                        onclick="openDeleteModal({{ $customer->id }}, {{ json_encode($customer->name) }})"
-                        class="p-3 sm:p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
-                        title="Eliminar">
-                    <i class="fas fa-trash text-base sm:text-sm"></i>
-                </button>
+                <form action="{{ route('customers.toggle-status', $customer) }}" method="POST" class="inline">
+                    @csrf
+                    @method('PATCH')
+                    <button type="submit"
+                            class="p-3 sm:p-2 {{ $customer->is_active ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50' }} rounded-lg transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
+                            title="{{ $customer->is_active ? 'Desactivar' : 'Activar' }}">
+                        <i class="fas {{ $customer->is_active ? 'fa-user-slash' : 'fa-user-check' }} text-base sm:text-sm"></i>
+                    </button>
+                </form>
             </div>
         </div>
         @empty
@@ -490,107 +496,4 @@
     </div>
 </div>
 
-<!-- Modal de Confirmación de Eliminación -->
-<div id="delete-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50" style="display: none;">
-    <div class="relative top-10 sm:top-20 mx-auto p-4 sm:p-6 border w-11/12 sm:w-96 shadow-xl rounded-xl bg-white max-h-[90vh] overflow-y-auto">
-        <div class="mt-3">
-            <!-- Header del modal -->
-            <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
-                <div class="flex items-center space-x-3">
-                    <div class="p-2.5 rounded-xl bg-red-50 text-red-600">
-                        <i class="fas fa-exclamation-triangle text-lg"></i>
-                    </div>
-                    <h3 class="text-lg sm:text-xl font-bold text-gray-900">Eliminar Cliente</h3>
-                </div>
-                <button type="button" onclick="closeDeleteModal()"
-                        class="text-gray-400 hover:text-gray-600 focus:outline-none transition-colors">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
-            </div>
-
-            <!-- Contenido del modal -->
-            <div class="mb-6">
-                <p class="text-sm text-gray-600 mb-4">
-                    ¿Estás seguro de que deseas eliminar este cliente? Esta acción no se puede deshacer.
-                </p>
-                
-                <div class="bg-red-50 border border-red-200 rounded-xl p-4">
-                    <div class="flex items-start space-x-3">
-                        <div class="p-2 rounded-lg bg-red-100 text-red-600 flex-shrink-0">
-                            <i class="fas fa-user text-sm"></i>
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="text-sm font-semibold text-gray-900 mb-1" id="delete-customer-name"></div>
-                            <div class="text-xs text-gray-500">La información del cliente será eliminada permanentemente</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Footer del modal -->
-            <form id="delete-form" method="POST" class="inline">
-                @csrf
-                @method('DELETE')
-                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-4 border-t border-gray-200">
-                    <button type="button" onclick="closeDeleteModal()"
-                            class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
-                        <i class="fas fa-times mr-2"></i>
-                        Cancelar
-                    </button>
-
-                    <button type="submit"
-                            class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-red-600 bg-red-600 text-white text-sm font-semibold hover:bg-red-700 hover:border-red-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-sm hover:shadow-md">
-                        <i class="fas fa-trash mr-2"></i>
-                        Eliminar Cliente
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-@push('scripts')
-<script>
-function openDeleteModal(customerId, customerName) {
-    const modal = document.getElementById('delete-modal');
-    const form = document.getElementById('delete-form');
-    const nameElement = document.getElementById('delete-customer-name');
-    
-    // Establecer la acción del formulario
-    form.action = '{{ route("customers.destroy", ":id") }}'.replace(':id', customerId);
-    
-    // Establecer el nombre del cliente
-    nameElement.textContent = customerName;
-    
-    // Mostrar el modal
-    modal.classList.remove('hidden');
-    modal.style.display = 'block';
-    document.body.style.overflow = 'hidden';
-}
-
-function closeDeleteModal() {
-    const modal = document.getElementById('delete-modal');
-    modal.classList.add('hidden');
-    modal.style.display = 'none';
-    document.body.style.overflow = 'auto';
-}
-
-// Cerrar modal al hacer clic fuera
-document.getElementById('delete-modal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        closeDeleteModal();
-    }
-});
-
-// Cerrar modal con ESC
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        const modal = document.getElementById('delete-modal');
-        if (!modal.classList.contains('hidden')) {
-            closeDeleteModal();
-        }
-    }
-});
-</script>
-@endpush
 @endsection
