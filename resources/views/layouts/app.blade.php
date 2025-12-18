@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@yield('title', 'MovilTech') - Sistema de Gestión</title>
+    <title>@yield('title', 'Hotel San Pedro') - Sistema de Gestión</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     
     <!-- TailwindCSS -->
@@ -42,7 +42,7 @@
                class="fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 text-white transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex-shrink-0 flex flex-col">
             <div class="flex items-center justify-between p-4 lg:justify-center">
                 <div>
-                    <h1 class="text-xl lg:text-2xl font-bold text-center">MovilTech</h1>
+                    <h1 class="text-xl lg:text-2xl font-bold text-center">Hotel San Pedro</h1>
                     <p class="text-gray-400 text-xs lg:text-sm text-center">Sistema de Gestión</p>
                 </div>
                 <button @click="sidebarOpen = false" class="lg:hidden text-gray-400 hover:text-white">
