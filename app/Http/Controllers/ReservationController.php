@@ -8,16 +8,46 @@ use App\Models\Room;
 use App\Http\Requests\StoreReservationRequest;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 
 class ReservationController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
+        Carbon::setLocale('es');
+        $view = $request->get('view', 'calendar');
+        $dateStr = $request->get('month', now()->format('Y-m'));
+        $date = Carbon::createFromFormat('Y-m', $dateStr);
+
+        $startOfMonth = $date->copy()->startOfMonth();
+        $endOfMonth = $date->copy()->endOfMonth();
+
+        $daysInMonth = [];
+        $tempDate = $startOfMonth->copy();
+        while ($tempDate <= $endOfMonth) {
+            $daysInMonth[] = $tempDate->copy();
+            $tempDate->addDay();
+        }
+
+        $rooms = Room::with(['reservations' => function($query) use ($startOfMonth, $endOfMonth) {
+            $query->where(function($q) use ($startOfMonth, $endOfMonth) {
+                $q->where('check_in_date', '<=', $endOfMonth)
+                  ->where('check_out_date', '>=', $startOfMonth);
+            });
+        }, 'reservations.customer'])->orderBy('room_number')->get();
+
         $reservations = Reservation::with(['customer', 'room'])->latest()->paginate(10);
-        return view('reservations.index', compact('reservations'));
+
+        return view('reservations.index', compact(
+            'reservations',
+            'rooms',
+            'daysInMonth',
+            'view',
+            'date'
+        ));
     }
 
     /**
@@ -25,9 +55,9 @@ class ReservationController extends Controller
      */
     public function create()
     {
-        $customers = Customer::active()->get();
+        $customers = Customer::with('taxProfile')->orderBy('name')->get();
         $rooms = Room::where('status', '!=', 'maintenance')->get();
-        
+
         // Preparar datos de habitaciones para Alpine.js
         $roomsData = $rooms->map(function($room) {
             return [
@@ -76,7 +106,7 @@ class ReservationController extends Controller
      */
     public function edit(Reservation $reservation)
     {
-        $customers = Customer::all();
+        $customers = Customer::with('taxProfile')->orderBy('name')->get();
         $rooms = Room::all(); // Show all rooms for edit
         return view('reservations.edit', compact('reservation', 'customers', 'rooms'));
     }
@@ -109,7 +139,7 @@ class ReservationController extends Controller
     {
         $reservationId = $reservation->id;
         $customerName = $reservation->customer->name;
-        
+
         $reservation->delete();
 
         \App\Models\AuditLog::create([

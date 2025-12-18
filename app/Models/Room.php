@@ -13,6 +13,11 @@ class Room extends Model
         'price_per_night',
     ];
 
+    const STATUS_AVAILABLE = 'available';
+    const STATUS_OCCUPIED = 'occupied';
+    const STATUS_MAINTENANCE = 'maintenance';
+    const STATUS_CLEANING = 'cleaning';
+
     protected $casts = [
         'price_per_night' => 'decimal:2',
     ];
