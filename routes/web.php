@@ -202,6 +202,21 @@ Route::middleware('auth')->group(function () {
 
 /*
 |--------------------------------------------------------------------------
+| PUBLIC ROOM STATUS MODULE - NO AUTHENTICATION REQUIRED
+|--------------------------------------------------------------------------
+|
+| External module for cleaning staff to view room status.
+| Designed for tablets/screens in cleaning area.
+| POST endpoint moved to routes/api.php (no CSRF required).
+|
+*/
+Route::prefix('panel-aseo')->group(function () {
+    Route::get('/rooms/status', [\App\Http\Controllers\PublicRoomStatusController::class, 'index'])
+        ->name('public.rooms.status');
+});
+
+/*
+|--------------------------------------------------------------------------
 | TEMPORARY DEPLOYMENT ROUTES - REMOVE AFTER DEPLOYMENT
 |--------------------------------------------------------------------------
 |

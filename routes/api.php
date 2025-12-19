@@ -115,3 +115,18 @@ Route::get('/products/search', function (Request $request) {
 
     return response()->json(['results' => $products]);
 });
+
+/*
+|--------------------------------------------------------------------------
+| PUBLIC CLEANING MODULE API - NO AUTHENTICATION REQUIRED
+|--------------------------------------------------------------------------
+|
+| API endpoint for cleaning staff to mark rooms as clean.
+| Protected by business rules and rate limiting only.
+| No CSRF protection (API routes don't use CSRF).
+|
+*/
+Route::prefix('panel-aseo')->middleware('throttle:10,1')->group(function () {
+    Route::post('/rooms/{room}/clean', [\App\Http\Controllers\PublicRoomStatusController::class, 'markClean'])
+        ->name('api.public.rooms.mark-clean');
+});
