@@ -385,7 +385,15 @@ class RoomManager extends Component
             'rentForm.total' => 'required|numeric|min:0',
             'rentForm.deposit' => 'required|numeric|min:0',
             'rentForm.payment_method' => 'required|in:efectivo,transferencia',
+        ], [], [
+            'rentForm.check_out' => 'fecha de salida',
         ]);
+
+        $checkInDate = Carbon::parse($this->date);
+        if ($checkInDate->isBefore(now()->startOfDay())) {
+            $this->addError('rentForm.check_in_date', 'No se puede ingresar una reserva antes del día actual.');
+            return;
+        }
 
         Reservation::create([
             'room_id' => $this->rentForm['room_id'],

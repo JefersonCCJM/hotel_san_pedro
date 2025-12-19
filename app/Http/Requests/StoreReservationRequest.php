@@ -28,10 +28,22 @@ class StoreReservationRequest extends FormRequest
             'total_amount'     => 'required|numeric|min:0',
             'deposit'          => 'required|numeric|min:0',
             'reservation_date' => 'required|date',
-            'check_in_date'    => 'required|date',
+            'check_in_date'    => 'required|date|after_or_equal:today',
             'check_out_date'   => 'required|date|after:check_in_date',
             'notes'            => 'nullable|string',
             'payment_method'   => 'nullable|string|in:efectivo,transferencia',
+        ];
+    }
+
+    /**
+     * Get custom messages for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'check_in_date.after_or_equal' => 'No se puede ingresar una reserva antes del día actual.',
         ];
     }
 }
