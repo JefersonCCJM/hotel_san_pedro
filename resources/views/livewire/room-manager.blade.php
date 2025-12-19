@@ -214,7 +214,7 @@
                                     <i class="fas fa-edit"></i>
                                 </a>
                                 @if($room->display_status->value !== 'libre')
-                                    <button @click="confirmRelease({{ $room->id }}, '{{ $room->room_number }}', {{ $room->total_debt ?? 0 }}, {{ $room->current_reservation->id ?? 'null' }})" 
+                                    <button @click="confirmRelease({{ $room->id }}, '{{ $room->room_number }}')" 
                                         class="text-red-600 hover:text-red-700 transition-colors" title="Liberar">
                                         <i class="fas fa-sign-out-alt"></i>
                                     </button>
@@ -387,34 +387,6 @@
                                     </table>
                                 </div>
                             </div>
-
-                            <!-- Historial de Estancias del Cliente -->
-                            @if(isset($detailData['customer_history']) && count($detailData['customer_history']) > 0)
-                            <div class="space-y-4 pt-4 border-t border-gray-100">
-                                <div class="flex items-center space-x-2">
-                                    <i class="fas fa-history text-blue-500 text-xs"></i>
-                                    <h4 class="text-xs font-bold text-gray-900 uppercase tracking-widest">Otras estancias de {{ explode(' ', $detailData['customer']['name'])[0] }}</h4>
-                                </div>
-                                <div class="grid grid-cols-1 gap-2">
-                                    @foreach($detailData['customer_history'] as $history)
-                                        <div class="p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between group hover:border-blue-200 transition-colors">
-                                            <div class="flex flex-col">
-                                                <span class="text-[10px] font-black text-gray-400 uppercase tracking-tighter leading-none mb-1">Habitación #{{ $history['room']['room_number'] }}</span>
-                                                <span class="text-xs font-bold text-gray-900">
-                                                    {{ \Carbon\Carbon::parse($history['check_in_date'])->format('d/m/y') }} - {{ \Carbon\Carbon::parse($history['check_out_date'])->format('d/m/y') }}
-                                                </span>
-                                            </div>
-                                            <div class="text-right">
-                                                <div class="text-xs font-black text-gray-900">${{ number_format($history['total_amount'], 0, ',', '.') }}</div>
-                                                <span class="text-[9px] font-bold uppercase {{ $history['is_paid'] ? 'text-emerald-600' : 'text-red-600' }}">
-                                                    {{ $history['is_paid'] ? 'Saldado' : 'Con deuda' }}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                            @endif
                         </div>
                     @else
                         <div class="text-center py-12">
@@ -547,13 +519,21 @@
             });
         });
 
-        function confirmRelease(roomId, roomNumber, totalDebt, reservationId) {
-            const hasDebt = totalDebt > 0;
+        function confirmRelease(roomId, roomNumber) {
+            // Obtener los datos de la habitación directamente desde Livewire
+            const room = @this.rooms.data.find(r => r.id === roomId);
+            if (!room) {
+                console.error("No se encontró la habitación en los datos locales");
+                return;
+            }
+
+            const hasDebt = room.total_debt > 0;
+            const reservationId = room.current_reservation ? room.current_reservation.id : null;
 
             if (hasDebt && reservationId) {
                 Swal.fire({
                     title: '¡Habitación con Deuda!',
-                    html: `La habitación #${roomNumber} tiene una deuda pendiente de <b>${new Intl.NumberFormat('es-CO', {style:'currency', currency:'COP', minimumFractionDigits:0}).format(totalDebt)}</b>.<br><br>¿Desea marcar todo como pagado antes de liberar?`,
+                    html: `La habitación #${roomNumber} tiene una deuda pendiente de <b>${new Intl.NumberFormat('es-CO', {style:'currency', currency:'COP', minimumFractionDigits:0}).format(room.total_debt)}</b>.<br><br>¿Desea marcar todo como pagado antes de liberar?`,
                     icon: 'warning',
                     showDenyButton: true,
                     showCancelButton: true,
@@ -580,16 +560,16 @@
                             if (payResult.isConfirmed || payResult.isDenied) {
                                 const method = payResult.isConfirmed ? 'efectivo' : 'transferencia';
                                 @this.payEverything(reservationId, method).then(() => {
-                                    showReleaseOptions(roomId, roomNumber);
+                                    this.showReleaseOptions(roomId, roomNumber);
                                 });
                             }
                         });
                     } else if (result.isDenied) {
-                        showReleaseOptions(roomId, roomNumber);
+                        this.showReleaseOptions(roomId, roomNumber);
                     }
                 });
             } else {
-                showReleaseOptions(roomId, roomNumber);
+                this.showReleaseOptions(roomId, roomNumber);
             }
         }
 

@@ -80,25 +80,13 @@ class RoomManager extends Component
 
     private function loadRoomDetail()
     {
-        if (!$this->selectedRoomId) {
-            return;
-        }
-
         $room = Room::find($this->selectedRoomId);
-        if (!$room) {
-            $this->detailData = null;
-            return;
-        }
-
         $date = Carbon::parse($this->date);
 
-        // Buscar reserva activa en la fecha seleccionada
-        // O si no hay, la reserva que terminó hoy (para poder ver la cuenta al salir)
         $reservation = $room->reservations()
             ->where('check_in_date', '<=', $date)
-            ->where('check_out_date', '>=', $date) // Cambiado a >= para incluir el día de salida
+            ->where('check_out_date', '>', $date)
             ->with(['customer.taxProfile', 'sales.product'])
-            ->orderBy('check_out_date', 'desc')
             ->first();
 
         if (!$reservation) {
@@ -111,25 +99,18 @@ class RoomManager extends Component
                 'status_color' => $room->status->color()
             ];
         } else {
-            $total_hospedaje_completo = (float) $reservation->total_amount;
+            $total_hospedaje = (float) $reservation->total_amount;
             $abono = (float) $reservation->deposit;
             $consumos_pagados = (float) $reservation->sales->where('is_paid', true)->sum('total');
             $consumos_pendientes = (float) $reservation->sales->where('is_paid', false)->sum('total');
+            $total_debt = ($total_hospedaje - $abono) + $consumos_pendientes;
 
             $stay_history = [];
             $checkIn = Carbon::parse($reservation->check_in_date);
             $checkOut = Carbon::parse($reservation->check_out_date);
             $daysTotal = max(1, $checkIn->diffInDays($checkOut));
-            $dailyPrice = $total_hospedaje_completo / $daysTotal;
+            $dailyPrice = $total_hospedaje / $daysTotal;
             
-            // Calcular hospedaje consumido hasta hoy (o la fecha seleccionada)
-            $selectedDate = Carbon::parse($this->date);
-            $daysConsumed = $checkIn->diffInDays($selectedDate) + 1;
-            $daysConsumed = max(1, min($daysTotal, $daysConsumed));
-            $total_hospedaje = $dailyPrice * $daysConsumed;
-
-            $total_debt = ($total_hospedaje - $abono) + $consumos_pendientes;
-
             $paidAmount = $abono;
             for ($i = 0; $i < $daysTotal; $i++) {
                 $currentDate = $checkIn->copy()->addDays($i);
@@ -154,13 +135,6 @@ class RoomManager extends Component
                 'total_debt' => $total_debt,
                 'sales' => $reservation->sales->toArray(),
                 'stay_history' => $stay_history,
-                'customer_history' => Reservation::where('customer_id', $reservation->customer_id)
-                    ->where('id', '!=', $reservation->id)
-                    ->with('room')
-                    ->orderBy('check_in_date', 'desc')
-                    ->take(5)
-                    ->get()
-                    ->toArray(),
                 'status_label' => RoomStatus::OCUPADA->label(),
                 'status_color' => RoomStatus::OCUPADA->color()
             ];
@@ -170,7 +144,6 @@ class RoomManager extends Component
     public function payEverything($reservationId, $method)
     {
         $reservation = Reservation::with('sales')->findOrFail($reservationId);
-        $this->selectedRoomId = $reservation->room_id;
         
         // 1. Marcar todos los consumos como pagados
         $reservation->sales()->where('is_paid', false)->update([
@@ -385,15 +358,7 @@ class RoomManager extends Component
             'rentForm.total' => 'required|numeric|min:0',
             'rentForm.deposit' => 'required|numeric|min:0',
             'rentForm.payment_method' => 'required|in:efectivo,transferencia',
-        ], [], [
-            'rentForm.check_out' => 'fecha de salida',
         ]);
-
-        $checkInDate = Carbon::parse($this->date);
-        if ($checkInDate->isBefore(now()->startOfDay())) {
-            $this->addError('rentForm.check_in_date', 'No se puede ingresar una reserva antes del día actual.');
-            return;
-        }
 
         Reservation::create([
             'room_id' => $this->rentForm['room_id'],
@@ -472,11 +437,9 @@ class RoomManager extends Component
                 
                 $daysUntilSelected = $checkIn->diffInDays($date);
                 $costUntilSelected = $dailyPrice * ($daysUntilSelected + 1);
-                $costUntilSelected = min((float)$reservation->total_amount, $costUntilSelected);
-                
                 $room->is_night_paid = ($reservation->deposit >= $costUntilSelected);
 
-                $stay_debt = (float)($costUntilSelected - $reservation->deposit);
+                $stay_debt = (float)($reservation->total_amount - $reservation->deposit);
                 $sales_debt = (float)$reservation->sales->where('is_paid', false)->sum('total');
                 $room->total_debt = $stay_debt + $sales_debt;
             } else {
