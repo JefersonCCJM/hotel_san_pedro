@@ -39,6 +39,9 @@ class ReservationController extends Controller
             });
         }, 'reservations.customer'])->orderBy('room_number')->get();
 
+        // Asegurarse de que el status se maneje como string para la vista si es necesario, 
+        // aunque Blade puede manejar el enum.
+        
         $reservations = Reservation::with(['customer', 'room'])->latest()->paginate(10);
 
         return view('reservations.index', compact(
@@ -56,17 +59,17 @@ class ReservationController extends Controller
     public function create()
     {
         $customers = Customer::with('taxProfile')->orderBy('name')->get();
-        $rooms = Room::where('status', '!=', 'maintenance')->get();
+        $rooms = Room::where('status', '!=', \App\Enums\RoomStatus::MANTENIMIENTO)->get();
 
         // Preparar datos de habitaciones para Alpine.js
         $roomsData = $rooms->map(function($room) {
             return [
                 'id' => $room->id,
                 'number' => $room->room_number,
-                'type' => $room->room_type,
+                'beds' => $room->beds_count,
                 'price' => (float)$room->price_per_night,
                 'capacity' => 2, // Asumiendo capacidad por defecto si no existe en BD
-                'status' => $room->status
+                'status' => $room->status->value
             ];
         });
 
@@ -89,8 +92,20 @@ class ReservationController extends Controller
             return back()->withInput()->withErrors(['room_id' => 'La habitación ya está reservada para las fechas seleccionadas.']);
         }
 
-        Reservation::create($request->validated());
-        return redirect()->route('reservations.index')->with('success', 'Reserva creada correctamente.');
+        $data = $request->validated();
+        if ($request->has('payment_method')) {
+            $data['payment_method'] = $request->payment_method;
+        }
+
+        $reservation = Reservation::create($data);
+
+        // Si el arrendamiento comienza hoy, marcamos la habitación físicamente como OCUPADA
+        $checkInDate = \Carbon\Carbon::parse($request->check_in_date);
+        if ($checkInDate->isToday()) {
+            $reservation->room->update(['status' => \App\Enums\RoomStatus::OCUPADA]);
+        }
+
+        return redirect()->route('rooms.index')->with('success', 'Arrendamiento registrado exitosamente.');
     }
 
     /**

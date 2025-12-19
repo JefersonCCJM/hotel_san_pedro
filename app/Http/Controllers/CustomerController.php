@@ -171,6 +171,33 @@ class CustomerController extends Controller
     }
 
     /**
+     * Search customers for TomSelect.
+     */
+    public function search(Request $request): JsonResponse
+    {
+        $query = $request->query('q');
+        
+        $customers = Customer::where('name', 'like', "%{$query}%")
+            ->orWhere('email', 'like', "%{$query}%")
+            ->orWhereHas('taxProfile', function($q) use ($query) {
+                $q->where('identification', 'like', "%{$query}%");
+            })
+            ->limit(10)
+            ->get();
+
+        $results = $customers->map(function($customer) {
+            return [
+                'id' => $customer->id,
+                'name' => $customer->name,
+                'identification' => $customer->taxProfile?->identification ?? 'S/N',
+                'phone' => $customer->phone ?? 'S/N'
+            ];
+        });
+
+        return Response::json(['results' => $results]);
+    }
+
+    /**
      * Check if a document number already exists.
      */
     public function checkIdentification(Request $request): JsonResponse

@@ -46,7 +46,7 @@
     <table class="info-grid">
         <tr>
             <td class="label">Habitación:</td>
-            <td>{{ $reservation->room->room_number }} ({{ $reservation->room->room_type }})</td>
+            <td>{{ $reservation->room->room_number }} ({{ $reservation->room->beds_count }} {{ $reservation->room->beds_count == 1 ? 'Cama' : 'Camas' }})</td>
         </tr>
     </table>
 

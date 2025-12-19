@@ -24,12 +24,14 @@ class StoreReservationRequest extends FormRequest
         return [
             'customer_id'      => 'required|exists:customers,id',
             'room_id'          => 'required|exists:rooms,id',
+            'guests_count'     => 'required|integer|min:1',
             'total_amount'     => 'required|numeric|min:0',
             'deposit'          => 'required|numeric|min:0',
             'reservation_date' => 'required|date',
             'check_in_date'    => 'required|date',
             'check_out_date'   => 'required|date|after:check_in_date',
             'notes'            => 'nullable|string',
+            'payment_method'   => 'nullable|string|in:efectivo,transferencia',
         ];
     }
 }

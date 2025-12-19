@@ -9,9 +9,6 @@
     <!-- TailwindCSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Alpine.js -->
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -24,6 +21,7 @@
     </style>
     
     @stack('styles')
+    @livewireStyles
 </head>
 <body class="bg-gray-100" x-data="{ sidebarOpen: false }" x-cloak>
     <div class="min-h-screen flex">
@@ -77,6 +75,11 @@
                 <a href="{{ route('dashboard') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('dashboard') ? 'bg-gray-700 text-white' : '' }}">
                     <i class="fas fa-tachometer-alt w-5"></i>
                     <span class="ml-3">Dashboard</span>
+                </a>
+
+                <a href="{{ route('rooms.index') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('rooms.*') ? 'bg-gray-700 text-white' : '' }}">
+                    <i class="fas fa-door-open w-5"></i>
+                    <span class="ml-3">Habitaciones</span>
                 </a>
                 
                 @can('view_products')
@@ -282,6 +285,7 @@
     </div>
     
     @stack('scripts')
+    @livewireScripts
 
     <!-- Modal de Verificación de PIN -->
     <div x-data="pinVerification()" 

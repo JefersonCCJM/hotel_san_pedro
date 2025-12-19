@@ -20,7 +20,7 @@ class UserSeeder extends Seeder
         // Usuario administrador (safe - won't duplicate if exists)
         $adminData = [
             'name' => 'Administrador',
-            'password' => Hash::make('Brandon-Administrador-2025#'),
+            'password' => Hash::make('Hotel-San-Pedro-Administracion-2025#'),
             'security_pin' => '1234',
         ];
 
@@ -28,8 +28,8 @@ class UserSeeder extends Seeder
             $adminData['username'] = 'admin';
         }
 
-        $admin = User::firstOrCreate(
-            ['email' => 'admin@moviltech.com'],
+        $admin = User::updateOrCreate(
+            ['email' => 'admin@hotel-san-pedro.com'],
             $adminData
         );
         
@@ -39,7 +39,7 @@ class UserSeeder extends Seeder
 
         // Usuario recepcionista día (alineado al dominio hotelero)
         $receptionistData = [
-            'name' => 'Recepcionista Día',
+            'name' => 'RecepcionistaDia',
             'password' => Hash::make('Recepcionista2025#'),
             'security_pin' => '0000',
             'working_hours' => ['start' => '06:00', 'end' => '14:00'],
@@ -60,7 +60,7 @@ class UserSeeder extends Seeder
 
         // Usuario recepcionista noche
         $nightData = [
-            'name' => 'Recepcionista Noche',
+            'name' => 'RecepcionistaNocturno',
             'password' => Hash::make('Noche2025#'),
             'security_pin' => '1111',
             'working_hours' => ['start' => '22:00', 'end' => '06:00'],

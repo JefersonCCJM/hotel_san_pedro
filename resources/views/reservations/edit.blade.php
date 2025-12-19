@@ -42,7 +42,7 @@
                     <select name="room_id" id="room_id" class="block w-full border-gray-300 rounded-xl text-sm focus:ring-emerald-500 focus:border-emerald-500" required>
                         @foreach($rooms as $room)
                             <option value="{{ $room->id }}" {{ old('room_id', $reservation->room_id) == $room->id ? 'selected' : '' }}>
-                                {{ $room->room_number }} - {{ $room->room_type }}
+                                Hab. {{ $room->room_number }} - {{ $room->beds_count }} {{ $room->beds_count == 1 ? 'Cama' : 'Camas' }}
                             </option>
                         @endforeach
                     </select>

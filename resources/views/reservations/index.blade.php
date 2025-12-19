@@ -112,7 +112,7 @@
                         <td class="sticky left-0 z-20 bg-white px-4 py-3 border-r shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] min-w-[100px]">
                             <div class="flex flex-col leading-tight">
                                 <span class="text-sm font-black text-gray-900 tracking-tighter">{{ $room->room_number }}</span>
-                                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{{ $room->room_type }}</span>
+                                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{{ $room->beds_count }} {{ $room->beds_count == 1 ? 'Cama' : 'Camas' }}</span>
                             </div>
                         </td>
                         @foreach($daysInMonth as $day)
@@ -123,10 +123,11 @@
                                 });
 
                                 if ($reservation) {
-                                    $status = ($room->status === 'occupied' && ($day->isToday() || $day->isPast())) ? 'occupied' : 'reserved';
-                                } elseif ($room->status === 'maintenance') {
+                                    // Cualquier día con reserva se muestra como OCUPADO (Rojo) para control total
+                                    $status = 'occupied';
+                                } elseif ($room->status->value === 'mantenimiento') {
                                     $status = 'maintenance';
-                                } elseif ($room->status === 'cleaning') {
+                                } elseif ($room->status->value === 'limpieza') {
                                     $status = 'cleaning';
                                 }
                                 
@@ -145,7 +146,7 @@
                                          'id' => $reservation->id,
                                          'customer_name' => $reservation->customer->name,
                                          'room_number' => $room->room_number,
-                                         'room_type' => $room->room_type,
+                                         'beds_count' => $room->beds_count . ($room->beds_count == 1 ? ' Cama' : ' Camas'),
                                          'check_in' => $reservation->check_in_date->format('d/m/Y'),
                                          'check_out' => $reservation->check_out_date->format('d/m/Y'),
                                          'total' => number_format($reservation->total_amount, 0, ',', '.'),
@@ -199,7 +200,7 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                             <span class="font-semibold">{{ $reservation->room->room_number }}</span>
-                            <span class="text-xs text-gray-500 block">{{ $reservation->room->room_type }}</span>
+                            <span class="text-xs text-gray-500 block">{{ $reservation->room->beds_count }} {{ $reservation->room->beds_count == 1 ? 'Cama' : 'Camas' }}</span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                             <div><i class="fas fa-sign-in-alt text-emerald-500 mr-2"></i>{{ $reservation->check_in_date->format('d/m/Y') }}</div>
@@ -377,7 +378,7 @@ function openReservationDetail(data) {
     
     document.getElementById('modal-customer-name').innerText = data.customer_name;
     document.getElementById('modal-reservation-id').innerText = 'Reserva #' + data.id;
-    document.getElementById('modal-room-info').innerText = data.room_number + ' (' + data.room_type + ')';
+    document.getElementById('modal-room-info').innerText = 'Hab. ' + data.room_number + ' (' + data.beds_count + ')';
     document.getElementById('modal-dates').innerText = data.check_in + ' - ' + data.check_out;
     document.getElementById('modal-total').innerText = '$' + data.total;
     document.getElementById('modal-deposit').innerText = '$' + data.deposit;

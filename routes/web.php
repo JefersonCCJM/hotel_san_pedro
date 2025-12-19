@@ -51,12 +51,27 @@ Route::middleware('auth')->group(function () {
     // Logout
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
+    // Habitaciones
+    Route::resource('rooms', \App\Http\Controllers\RoomController::class);
+    Route::get('/api/rooms/{room}/detail', [\App\Http\Controllers\RoomController::class, 'getDetail'])->name('api.rooms.detail');
+    Route::post('/rooms/{room}/add-sale', [\App\Http\Controllers\RoomController::class, 'addSale'])->name('rooms.add-sale');
+    Route::post('/sales/{sale}/pay', [\App\Http\Controllers\RoomController::class, 'paySale'])->name('sales.pay');
+    Route::post('/reservations/{reservation}/pay-night', [\App\Http\Controllers\RoomController::class, 'payNight'])->name('reservations.pay-night');
+    Route::put('/reservations/{reservation}/update-deposit', [\App\Http\Controllers\RoomController::class, 'updateDeposit'])->name('reservations.update-deposit');
+    Route::patch('/rooms/{room}/status', [\App\Http\Controllers\RoomController::class, 'updateStatus'])->name('rooms.update-status');
+    Route::post('/rooms/{room}/release', [\App\Http\Controllers\RoomController::class, 'release'])->name('rooms.release');
+    Route::post('/rooms/{room}/continue', [\App\Http\Controllers\RoomController::class, 'continueStay'])->name('rooms.continue');
+    Route::post('/rooms/{room}/rates', [\App\Http\Controllers\RoomController::class, 'storeRate'])->name('rooms.rates.store');
+    Route::delete('/rooms/{room}/rates/{rate}', [\App\Http\Controllers\RoomController::class, 'destroyRate'])->name('rooms.rates.destroy');
+
     // Productos (Inventario) - Resource route with rate limiting
+    Route::get('/api/products/search', [\App\Http\Controllers\ProductController::class, 'search'])->name('api.products.search');
     Route::resource('products', ProductController::class)->middleware('throttle:60,1');
 
     // Clientes - con middleware de permisos
     Route::middleware('permission:view_customers')->group(function () {
         Route::get('/customers', [CustomerController::class, 'index'])->name('customers.index');
+        Route::get('/api/customers/search', [CustomerController::class, 'search'])->name('api.customers.search');
         Route::get('/api/customers/check-identification', [CustomerController::class, 'checkIdentification'])->name('api.customers.check-identification');
     });
 

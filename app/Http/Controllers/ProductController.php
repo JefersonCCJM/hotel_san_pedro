@@ -15,6 +15,38 @@ class ProductController extends Controller
     ) {}
 
     /**
+     * Search products for TomSelect in sales modal.
+     */
+    public function search(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $query = $request->query('q');
+        
+        $products = \App\Models\Product::where('status', 'active')
+            ->when($query, function($q) use ($query) {
+                $q->where(function($sub) use ($query) {
+                    $sub->where('name', 'like', "%{$query}%")
+                        ->orWhere('sku', 'like', "%{$query}%");
+                });
+            })
+            ->where('quantity', '>', 0) // Usar 'quantity' en lugar de 'stock'
+            ->limit(20)
+            ->get();
+
+        $results = $products->map(function($product) {
+            return [
+                'id' => $product->id,
+                'name' => $product->name,
+                'price' => (float)$product->price,
+                'quantity' => $product->quantity, // Mapear 'quantity' explícitamente
+                'stock' => $product->quantity, // Mantener stock para compatibilidad
+                'sku' => $product->sku ?? 'N/A'
+            ];
+        });
+
+        return response()->json(['results' => $results]);
+    }
+
+    /**
      * Display a listing of the resource.
      */
     public function index(): View

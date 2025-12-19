@@ -9,8 +9,10 @@ class Reservation extends Model
     protected $fillable = [
         'customer_id',
         'room_id',
+        'guests_count',
         'total_amount',
         'deposit',
+        'payment_method',
         'reservation_date',
         'check_in_date',
         'check_out_date',
@@ -39,5 +41,13 @@ class Reservation extends Model
     public function room()
     {
         return $this->belongsTo(Room::class);
+    }
+
+    /**
+     * Get the sales/consumptions for this reservation.
+     */
+    public function sales()
+    {
+        return $this->hasMany(ReservationSale::class);
     }
 }

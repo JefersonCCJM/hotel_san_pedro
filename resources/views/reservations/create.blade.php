@@ -92,7 +92,7 @@
                                 <option value="">Seleccionar número...</option>
                                 @foreach($rooms as $room)
                                     <option value="{{ $room->id }}">
-                                        Habitación {{ $room->room_number }} ({{ $room->room_type }})
+                                        Habitación {{ $room->room_number }} ({{ $room->beds_count }} {{ $room->beds_count == 1 ? 'Cama' : 'Camas' }})
                                     </option>
                                 @endforeach
                             </select>
@@ -122,7 +122,7 @@
                                     <span class="font-bold text-gray-900" x-text="formatCurrency(selectedRoom.price)"></span>
                                 </div>
                                 <div class="flex justify-between items-center">
-                                    <span class="px-2 py-1 bg-white border border-gray-200 rounded-lg text-[10px] font-bold text-gray-600 uppercase" x-text="selectedRoom.type"></span>
+                                    <span class="px-2 py-1 bg-white border border-gray-200 rounded-lg text-[10px] font-bold text-gray-600 uppercase" x-text="selectedRoom.beds + (selectedRoom.beds == 1 ? ' Cama' : ' Camas')"></span>
                                     <div class="flex items-center text-xs text-gray-600">
                                         <i class="fas fa-users mr-1.5 opacity-60"></i>
                                         <span x-text="'Capacidad: ' + selectedRoom.capacity + ' pers.'"></span>
@@ -218,6 +218,15 @@
                             <input type="number" name="deposit" x-model="deposit" step="1" required
                                    class="block w-full pl-8 pr-4 py-3 bg-gray-700 border-none rounded-xl text-lg font-bold text-white focus:ring-2 focus:ring-blue-500 transition-all">
                         </div>
+                    </div>
+
+                    <!-- Método de Pago -->
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Método de Pago del Abono</label>
+                        <select name="payment_method" required class="block w-full px-4 py-3 bg-gray-700 border-none rounded-xl text-sm font-bold text-white focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none">
+                            <option value="efectivo">Efectivo</option>
+                            <option value="transferencia">Transferencia</option>
+                        </select>
                     </div>
 
                     <!-- Saldo Pendiente -->
