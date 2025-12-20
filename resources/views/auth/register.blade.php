@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Registro - Hotel San Pedro</title>
     
+    @include('partials.seo', [
+        'title' => 'Registro',
+        'description' => 'Crea tu cuenta en el sistema de gestión hotelera de Hotel San Pedro. Accede a funcionalidades de reservaciones y administración.'
+    ])
+    
     <!-- TailwindCSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     

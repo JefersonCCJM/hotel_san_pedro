@@ -50,4 +50,14 @@ class Reservation extends Model
     {
         return $this->hasMany(ReservationSale::class);
     }
+
+    /**
+     * Get the guests assigned to this reservation.
+     */
+    public function guests()
+    {
+        return $this->belongsToMany(Customer::class, 'reservation_guests')
+                    ->withTimestamps()
+                    ->withTrashed();
+    }
 }

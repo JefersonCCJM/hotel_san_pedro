@@ -63,12 +63,35 @@ class ReservationController extends Controller
 
         // Preparar datos de habitaciones para Alpine.js
         $roomsData = $rooms->map(function($room) {
+            $occupancyPrices = $room->occupancy_prices ?? [];
+            
+            // Fallback to legacy prices if occupancy_prices is empty
+            if (empty($occupancyPrices)) {
+                $occupancyPrices = [
+                    1 => (float)$room->price_1_person ?: (float)$room->price_per_night,
+                    2 => (float)$room->price_2_persons ?: (float)$room->price_per_night,
+                ];
+                // Calculate additional person prices
+                $additionalPrice = (float)$room->price_additional_person ?: 0;
+                for ($i = 3; $i <= ($room->max_capacity ?? 2); $i++) {
+                    $occupancyPrices[$i] = $occupancyPrices[2] + ($additionalPrice * ($i - 2));
+                }
+            } else {
+                // Ensure keys are integers (JSON may return string keys)
+                $normalizedPrices = [];
+                foreach ($occupancyPrices as $key => $value) {
+                    $normalizedPrices[(int)$key] = (float)$value;
+                }
+                $occupancyPrices = $normalizedPrices;
+            }
+            
             return [
                 'id' => $room->id,
                 'number' => $room->room_number,
                 'beds' => $room->beds_count,
-                'price' => (float)$room->price_per_night,
-                'capacity' => 2, // Asumiendo capacidad por defecto si no existe en BD
+                'price' => (float)$room->price_per_night, // Keep for backward compatibility
+                'occupancyPrices' => $occupancyPrices, // Prices by number of guests
+                'capacity' => $room->max_capacity ?? 2,
                 'status' => $room->status->value
             ];
         });
@@ -81,31 +104,80 @@ class ReservationController extends Controller
      */
     public function store(StoreReservationRequest $request)
     {
-        $exists = Reservation::where('room_id', $request->room_id)
-            ->where(function ($query) use ($request) {
-                $query->where('check_in_date', '<', $request->check_out_date)
-                      ->where('check_out_date', '>', $request->check_in_date);
-            })
-            ->exists();
+        try {
+            $exists = Reservation::where('room_id', $request->room_id)
+                ->where(function ($query) use ($request) {
+                    $query->where('check_in_date', '<', $request->check_out_date)
+                          ->where('check_out_date', '>', $request->check_in_date);
+                })
+                ->exists();
 
-        if ($exists) {
-            return back()->withInput()->withErrors(['room_id' => 'La habitación ya está reservada para las fechas seleccionadas.']);
+            if ($exists) {
+                return back()->withInput()->withErrors(['room_id' => 'La habitación ya está reservada para las fechas seleccionadas.']);
+            }
+
+            $data = $request->validated();
+            
+            // Remove payment_method from data if not provided (it's optional)
+            if (!isset($data['payment_method']) || empty($data['payment_method'])) {
+                unset($data['payment_method']);
+            }
+
+            $reservation = Reservation::create($data);
+
+            // Assign guests if provided
+            if ($request->has('guest_ids') && is_array($request->guest_ids)) {
+                $guestIds = array_filter($request->guest_ids, function($id) {
+                    return !empty($id) && is_numeric($id) && $id > 0;
+                });
+                
+                // Re-index array to ensure sequential keys
+                $guestIds = array_values($guestIds);
+                
+                if (!empty($guestIds)) {
+                    // Validate that all guest IDs exist in customers table
+                    $validGuestIds = Customer::whereIn('id', $guestIds)->pluck('id')->toArray();
+                    
+                    if (count($validGuestIds) > 0) {
+                        // Prevent duplicate assignments (customer_id should not be in guest_ids)
+                        $validGuestIds = array_filter($validGuestIds, function($id) use ($reservation) {
+                            return $id != $reservation->customer_id;
+                        });
+                        
+                        if (count($validGuestIds) > 0) {
+                            try {
+                                $reservation->guests()->attach($validGuestIds);
+                            } catch (\Exception $e) {
+                                \Log::error('Error attaching guests to reservation: ' . $e->getMessage(), [
+                                    'reservation_id' => $reservation->id,
+                                    'guest_ids' => $validGuestIds,
+                                    'exception' => $e
+                                ]);
+                                // Continue without failing the reservation creation
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Si el arrendamiento comienza hoy, marcamos la habitación físicamente como OCUPADA
+            $checkInDate = \Carbon\Carbon::parse($request->check_in_date);
+            if ($checkInDate->isToday()) {
+                $reservation->room->update(['status' => \App\Enums\RoomStatus::OCUPADA]);
+            }
+
+            // Redirect to reservations index with calendar view for the check-in month
+            $month = $checkInDate->format('Y-m');
+            return redirect()->route('reservations.index', ['view' => 'calendar', 'month' => $month])
+                ->with('success', 'Reserva registrada exitosamente.');
+        } catch (\Exception $e) {
+            \Log::error('Error creating reservation: ' . $e->getMessage(), [
+                'request_data' => $request->all(),
+                'exception' => $e
+            ]);
+            
+            return back()->withInput()->withErrors(['error' => 'Error al crear la reserva: ' . $e->getMessage()]);
         }
-
-        $data = $request->validated();
-        if ($request->has('payment_method')) {
-            $data['payment_method'] = $request->payment_method;
-        }
-
-        $reservation = Reservation::create($data);
-
-        // Si el arrendamiento comienza hoy, marcamos la habitación físicamente como OCUPADA
-        $checkInDate = \Carbon\Carbon::parse($request->check_in_date);
-        if ($checkInDate->isToday()) {
-            $reservation->room->update(['status' => \App\Enums\RoomStatus::OCUPADA]);
-        }
-
-        return redirect()->route('rooms.index')->with('success', 'Arrendamiento registrado exitosamente.');
     }
 
     /**
