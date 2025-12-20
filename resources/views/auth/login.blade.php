@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iniciar Sesión - Hotel San Pedro</title>
+    <link rel="icon" type="image/png" href="{{ asset('assets/img/backgrounds/logo-Photoroom.png') }}">
     
     <!-- TailwindCSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -59,8 +60,8 @@
             <div class="glass-card pt-14 pb-10 px-8 sm:px-12 rounded-[2.5rem] shadow-2xl overflow-hidden">
                 <!-- Logo -->
                 <div class="text-center mb-8">
-                    <div class="inline-flex items-center justify-center w-16 h-16 bg-slate-100 rounded-2xl mb-4">
-                        <i class="fas fa-hotel text-slate-800 text-3xl"></i>
+                    <div class="inline-flex items-center justify-center mb-4">
+                        <img src="{{ asset('assets/img/backgrounds/logo-Photoroom.png') }}" alt="Hotel San Pedro" class="h-20 w-auto object-contain">
                     </div>
                     <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Iniciar Sesión</h1>
                     <p class="mt-2 text-slate-500 font-medium italic">Hotel San Pedro</p>
