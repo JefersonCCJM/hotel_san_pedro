@@ -28,7 +28,7 @@ class StoreProductRequest extends FormRequest
             'name'              => 'required|string',
             'slug'              => 'required|unique:products',
             'category_id'       => 'required|integer',
-            'quantity'          => 'required|integer',
+            'quantity'          => 'required|integer|min:1',
             'buying_price'      => 'required|integer',
             'selling_price'     => 'required|integer',
             'quantity_alert'    => 'required|integer',
