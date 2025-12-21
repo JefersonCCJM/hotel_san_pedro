@@ -70,6 +70,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('products', ProductController::class)->middleware('throttle:60,1');
 
     // Ventas - Rutas específicas primero para evitar conflictos con parámetros
+    // Arquitectura híbrida: Livewire maneja UI, Controlador maneja lógica de negocio
     Route::middleware('permission:create_sales')->group(function () {
         Route::get('/sales/create', [SaleController::class, 'create'])->name('sales.create');
         Route::post('/sales', [SaleController::class, 'store'])->name('sales.store');
