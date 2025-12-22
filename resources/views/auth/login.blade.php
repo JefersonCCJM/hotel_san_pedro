@@ -6,10 +6,12 @@
     <title>Iniciar Sesión - Hotel San Pedro</title>
     <link rel="icon" type="image/png" href="{{ asset('assets/img/backgrounds/logo-Photoroom.png') }}">
     
-    @include('partials.seo', [
-        'title' => 'Iniciar Sesión',
-        'description' => 'Accede al sistema de gestión hotelera de Hotel San Pedro. Administra reservaciones, habitaciones, inventario y facturación electrónica.'
-    ])
+    {{-- SEO Meta Tags --}}
+    <meta name="title" content="Iniciar Sesión - Hotel San Pedro">
+    <meta name="description" content="Accede al sistema de gestión hotelera de Hotel San Pedro. Administra reservaciones, habitaciones, inventario y facturación electrónica.">
+    <meta name="keywords" content="hotel, gestión hotelera, reservaciones, sistema hotelero, Hotel San Pedro">
+    <meta name="author" content="Hotel San Pedro">
+    <meta name="robots" content="index, follow">
     
     <!-- TailwindCSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -48,22 +50,6 @@
         }
     </style>
     
-    {{-- JSON-LD Structured Data --}}
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": "Hotel San Pedro",
-        "url": "{{ url('/') }}",
-        "logo": "{{ asset('favicon.ico') }}",
-        "description": "Sistema integral de gestión hotelera",
-        "address": {
-            "@type": "PostalAddress",
-            "addressCountry": "CR"
-        },
-        "sameAs": []
-    }
-    </script>
 </head>
 <body class="min-h-screen flex items-center justify-center login-bg relative overflow-hidden">
     <div class="absolute inset-0 login-overlay"></div>
