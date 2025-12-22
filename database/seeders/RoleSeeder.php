@@ -38,6 +38,12 @@ class RoleSeeder extends Seeder
             'edit_reservations',
             'delete_reservations',
             
+            // Ventas
+            'view_sales',
+            'create_sales',
+            'edit_sales',
+            'delete_sales',
+            
             // Facturación
             'generate_invoices',
             'download_invoices',
@@ -86,6 +92,9 @@ class RoleSeeder extends Seeder
             'view_reservations',
             'create_reservations',
             'edit_reservations',
+            'view_sales',
+            'create_sales',
+            'edit_sales',
             'generate_invoices',
             'download_invoices',
             'view_shifts',
@@ -103,6 +112,9 @@ class RoleSeeder extends Seeder
             'view_reservations',
             'create_reservations',
             'edit_reservations',
+            'view_sales',
+            'create_sales',
+            'edit_sales',
             'generate_invoices',
             'download_invoices',
             'view_shifts',

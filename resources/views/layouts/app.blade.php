@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Hotel San Pedro') - Sistema de Gestión</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <link rel="icon" type="image/png" href="{{ asset('assets/img/backgrounds/logo-Photoroom.png') }}">
+    
+    @include('partials.seo', [
+        'title' => View::yieldContent('title', 'Dashboard'),
+        'description' => 'Sistema de gestión hotelera de Hotel San Pedro. Administra reservaciones, habitaciones, inventario y facturación electrónica de manera eficiente.'
+    ])
     
     <!-- TailwindCSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -58,7 +64,8 @@
         <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
                class="fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 text-white transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex-shrink-0 flex flex-col">
             <div class="flex items-center justify-between p-4 lg:justify-center">
-                <div>
+                <div class="flex flex-col items-center">
+                    <img src="{{ asset('assets/img/backgrounds/logo-Photoroom.png') }}" alt="Hotel San Pedro" class="h-12 w-auto object-contain mb-2">
                     <h1 class="text-xl lg:text-2xl font-bold text-center">Hotel San Pedro</h1>
                     <p class="text-gray-400 text-xs lg:text-sm text-center">Sistema de Gestión</p>
                 </div>
@@ -86,6 +93,13 @@
                 <a href="{{ route('products.index') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('products.*') ? 'bg-gray-700 text-white' : '' }}">
                     <i class="fas fa-boxes w-5"></i>
                     <span class="ml-3">Inventario</span>
+                </a>
+                @endcan
+
+                @can('view_sales')
+                <a href="{{ route('sales.index') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('sales.*') ? 'bg-gray-700 text-white' : '' }}">
+                    <i class="fas fa-shopping-cart w-5"></i>
+                    <span class="ml-3">Ventas</span>
                 </a>
                 @endcan
 

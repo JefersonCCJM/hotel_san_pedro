@@ -11,6 +11,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\DeploymentController;
 use App\Http\Controllers\ElectronicInvoiceController;
 use App\Http\Controllers\CompanyTaxSettingController;
+use App\Http\Controllers\SaleController;
 use App\Http\Middleware\VerifyCsrfToken;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\NewPasswordController;
@@ -67,6 +68,32 @@ Route::middleware('auth')->group(function () {
     // Productos (Inventario) - Resource route with rate limiting
     Route::get('/api/products/search', [\App\Http\Controllers\ProductController::class, 'search'])->name('api.products.search');
     Route::resource('products', ProductController::class)->middleware('throttle:60,1');
+
+    // Ventas - Rutas específicas primero para evitar conflictos con parámetros
+    // Arquitectura híbrida: Livewire maneja UI, Controlador maneja lógica de negocio
+    Route::middleware('permission:create_sales')->group(function () {
+        Route::get('/sales/create', [SaleController::class, 'create'])->name('sales.create');
+        Route::post('/sales', [SaleController::class, 'store'])->name('sales.store');
+    });
+
+    Route::middleware('permission:view_sales')->group(function () {
+        Route::get('/sales', [SaleController::class, 'index'])->name('sales.index');
+        Route::get('/sales/by-room', [SaleController::class, 'byRoom'])->name('sales.byRoom');
+        Route::get('/sales/reports', [SaleController::class, 'dailyReport'])->name('sales.reports');
+    });
+
+    Route::middleware('permission:edit_sales')->group(function () {
+        Route::get('/sales/{sale}/edit', [SaleController::class, 'edit'])->name('sales.edit');
+        Route::put('/sales/{sale}', [SaleController::class, 'update'])->name('sales.update');
+    });
+
+    Route::middleware('permission:view_sales')->group(function () {
+        Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
+    });
+
+    Route::middleware('permission:delete_sales')->group(function () {
+        Route::delete('/sales/{sale}', [SaleController::class, 'destroy'])->name('sales.destroy');
+    });
 
     // Clientes - con middleware de permisos
     Route::middleware('permission:view_customers')->group(function () {

@@ -68,16 +68,8 @@ class RoomController extends Controller
                 $room->display_status = RoomStatus::OCUPADA;
                 $room->current_reservation = $reservation;
 
-                // Calcular deuda total (solo hasta hoy)
-                $checkIn = \Carbon\Carbon::parse($reservation->check_in_date);
-                $checkOut = \Carbon\Carbon::parse($reservation->check_out_date);
-                $daysTotal = max(1, $checkIn->diffInDays($checkOut));
-                $dailyPrice = (float)$reservation->total_amount / $daysTotal;
-                
-                $daysUntilSelected = $checkIn->diffInDays($date);
-                $costUntilSelected = min((float)$reservation->total_amount, $dailyPrice * ($daysUntilSelected + 1));
-
-                $stay_debt = (float)($costUntilSelected - $reservation->deposit);
+                // Calcular deuda total
+                $stay_debt = (float)($reservation->total_amount - $reservation->deposit);
                 $sales_debt = (float)$reservation->sales->where('is_paid', false)->sum('total');
                 $room->total_debt = $stay_debt + $sales_debt;
             } else {
@@ -89,14 +81,7 @@ class RoomController extends Controller
                 if ($newReservation) {
                     $room->display_status = RoomStatus::OCUPADA;
                     $room->current_reservation = $newReservation;
-                    
-                    // Calcular deuda inicial (solo la primera noche)
-                    $checkIn = \Carbon\Carbon::parse($newReservation->check_in_date);
-                    $checkOut = \Carbon\Carbon::parse($newReservation->check_out_date);
-                    $daysTotal = max(1, $checkIn->diffInDays($checkOut));
-                    $dailyPrice = (float)$newReservation->total_amount / $daysTotal;
-                    
-                    $room->total_debt = (float)($dailyPrice - $newReservation->deposit) + (float)$newReservation->sales->where('is_paid', false)->sum('total');
+                    $room->total_debt = (float)($newReservation->total_amount - $newReservation->deposit) + (float)$newReservation->sales->sum('total');
                 } else {
                     // Si no hay nada, mostramos el estado físico de la habitación (solo para hoy)
                     if ($date->isToday()) {
@@ -279,9 +264,8 @@ class RoomController extends Controller
 
         $reservation = $room->reservations()
             ->where('check_in_date', '<=', $date)
-            ->where('check_out_date', '>=', $date) // Incluir día de salida para ver la cuenta final
+            ->where('check_out_date', '>', $date)
             ->with(['customer.taxProfile', 'sales.product'])
-            ->orderBy('check_out_date', 'desc')
             ->first();
 
         if (!$reservation) {
@@ -296,26 +280,21 @@ class RoomController extends Controller
         }
 
         // Asegurar valores numéricos para evitar errores en JS
-        $total_hospedaje_completo = (float) $reservation->total_amount;
+        $total_hospedaje = (float) $reservation->total_amount;
         $abono = (float) $reservation->deposit;
         $consumos_pagados = (float) $reservation->sales->where('is_paid', true)->sum('total');
         $consumos_pendientes = (float) $reservation->sales->where('is_paid', false)->sum('total');
         
-        $checkIn = \Carbon\Carbon::parse($reservation->check_in_date);
-        $checkOut = \Carbon\Carbon::parse($reservation->check_out_date);
-        $daysTotal = max(1, $checkIn->diffInDays($checkOut));
-        $dailyPrice = $total_hospedaje_completo / $daysTotal;
-
-        // Calcular hospedaje consumido hasta hoy (o la fecha seleccionada)
-        $daysConsumed = $checkIn->diffInDays($date) + 1;
-        $daysConsumed = max(1, min($daysTotal, $daysConsumed));
-        $total_hospedaje = $dailyPrice * $daysConsumed;
-
-        // Deuda = (Hospedaje Consumido - Abono) + Consumos Pendientes
+        // Deuda = (Hospedaje - Abono) + Consumos Pendientes
         $total_debt = ($total_hospedaje - $abono) + $consumos_pendientes;
 
         // Calcular historial de días (Stay History)
         $stay_history = [];
+        $checkIn = \Carbon\Carbon::parse($reservation->check_in_date);
+        $checkOut = \Carbon\Carbon::parse($reservation->check_out_date);
+        $daysTotal = $checkIn->diffInDays($checkOut);
+        $dailyPrice = $daysTotal > 0 ? ($total_hospedaje / $daysTotal) : $total_hospedaje;
+        
         $paidAmount = $abono;
         for ($i = 0; $i < $daysTotal; $i++) {
             $currentDate = $checkIn->copy()->addDays($i);

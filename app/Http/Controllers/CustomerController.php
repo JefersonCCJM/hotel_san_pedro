@@ -78,7 +78,7 @@ class CustomerController extends Controller
                 'name' => $customer->name,
                 'email' => $customer->email,
             ];
-            
+
             // Include tax profile data if exists
             if ($taxProfile) {
                 $customerData['tax_profile'] = [
@@ -87,7 +87,7 @@ class CustomerController extends Controller
                     'document_type' => $taxProfile->identificationDocument?->code,
                 ];
             }
-            
+
             return Response::json([
                 'success' => true,
                 'customer' => $customerData,
@@ -156,7 +156,7 @@ class CustomerController extends Controller
         ]);
 
         $status = $customer->is_active ? 'activado' : 'desactivado';
-        
+
         return Redirect::back()
             ->with('success', "Cliente {$status} correctamente.");
     }
@@ -175,15 +175,35 @@ class CustomerController extends Controller
      */
     public function search(Request $request): JsonResponse
     {
-        $query = $request->query('q');
-        
-        $customers = Customer::where('name', 'like', "%{$query}%")
-            ->orWhere('email', 'like', "%{$query}%")
-            ->orWhereHas('taxProfile', function($q) use ($query) {
-                $q->where('identification', 'like', "%{$query}%");
-            })
-            ->limit(10)
-            ->get();
+        $query = $request->query('q', '');
+
+        $customersQuery = Customer::where('is_active', true);
+
+        if (!empty($query) && strlen($query) >= 1) {
+            $customersQuery->where(function($q) use ($query) {
+                $q->where('name', 'like', "%{$query}%")
+                  ->orWhere('email', 'like', "%{$query}%")
+                  ->orWhere('phone', 'like', "%{$query}%")
+                  ->orWhereHas('taxProfile', function($subQ) use ($query) {
+                      $subQ->where('identification', 'like', "%{$query}%");
+                  });
+            });
+        }
+
+        // If no query, return last 5 customers by creation date
+        if (empty($query) || strlen($query) < 1) {
+            $customers = $customersQuery
+                ->orderBy('created_at', 'desc')
+                ->orderBy('id', 'desc')
+                ->limit(5)
+                ->get();
+        } else {
+            // If there's a query, search and order by name
+            $customers = $customersQuery
+                ->orderBy('name')
+                ->limit(5)
+                ->get();
+        }
 
         $results = $customers->map(function($customer) {
             return [
@@ -295,7 +315,7 @@ class CustomerController extends Controller
         // Fallback for municipality: use company setting, first available, or Bogotá (149) as last resort
         $municipalityId = $input['municipality_id'] ?? null;
         if (!$municipalityId) {
-            $municipalityId = \App\Models\CompanyTaxSetting::first()?->municipality_id 
+            $municipalityId = \App\Models\CompanyTaxSetting::first()?->municipality_id
                 ?? \App\Models\DianMunicipality::first()?->factus_id
                 ?? 149; // Bogotá Factus ID
         }

@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iniciar Sesión - Hotel San Pedro</title>
+    <link rel="icon" type="image/png" href="{{ asset('assets/img/backgrounds/logo-Photoroom.png') }}">
+    
+    @include('partials.seo', [
+        'title' => 'Iniciar Sesión',
+        'description' => 'Accede al sistema de gestión hotelera de Hotel San Pedro. Administra reservaciones, habitaciones, inventario y facturación electrónica.'
+    ])
     
     <!-- TailwindCSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -41,6 +47,23 @@
             animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
         }
     </style>
+    
+    {{-- JSON-LD Structured Data --}}
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Hotel San Pedro",
+        "url": "{{ url('/') }}",
+        "logo": "{{ asset('favicon.ico') }}",
+        "description": "Sistema integral de gestión hotelera",
+        "address": {
+            "@type": "PostalAddress",
+            "addressCountry": "CR"
+        },
+        "sameAs": []
+    }
+    </script>
 </head>
 <body class="min-h-screen flex items-center justify-center login-bg relative overflow-hidden">
     <div class="absolute inset-0 login-overlay"></div>
@@ -59,8 +82,8 @@
             <div class="glass-card pt-14 pb-10 px-8 sm:px-12 rounded-[2.5rem] shadow-2xl overflow-hidden">
                 <!-- Logo -->
                 <div class="text-center mb-8">
-                    <div class="inline-flex items-center justify-center w-16 h-16 bg-slate-100 rounded-2xl mb-4">
-                        <i class="fas fa-hotel text-slate-800 text-3xl"></i>
+                    <div class="inline-flex items-center justify-center mb-4">
+                        <img src="{{ asset('assets/img/backgrounds/logo-Photoroom.png') }}" alt="Hotel San Pedro" class="h-20 w-auto object-contain">
                     </div>
                     <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Iniciar Sesión</h1>
                     <p class="mt-2 text-slate-500 font-medium italic">Hotel San Pedro</p>

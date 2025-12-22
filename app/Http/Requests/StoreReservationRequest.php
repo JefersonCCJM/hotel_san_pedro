@@ -32,6 +32,8 @@ class StoreReservationRequest extends FormRequest
             'check_out_date'   => 'required|date|after:check_in_date',
             'notes'            => 'nullable|string',
             'payment_method'   => 'nullable|string|in:efectivo,transferencia',
+            'guest_ids'        => 'nullable|array',
+            'guest_ids.*'      => 'nullable|integer|exists:customers,id',
         ];
     }
 

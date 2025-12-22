@@ -106,8 +106,15 @@
                                    id="quantity"
                                    name="quantity"
                                    value="{{ old('quantity', $product->quantity) }}"
+                                   x-data="{ value: '{{ old('quantity', $product->quantity) }}' }"
+                                   x-model="value"
+                                   @input="value = String(value).replace(/^0+/, ''); if (!value || parseInt(value) < 1) value = ''; $el.value = value;"
+                                   @blur="if (!value || parseInt(value) < 1) { value = ''; $el.value = ''; }"
                                    class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all @error('quantity') border-red-300 focus:ring-red-500 @enderror"
-                                   min="0"
+                                   min="1"
+                                   step="1"
+                                   pattern="[1-9][0-9]*"
+                                   placeholder="Ej: 10, 25, 100"
                                    required>
                         </div>
                         @error('quantity')

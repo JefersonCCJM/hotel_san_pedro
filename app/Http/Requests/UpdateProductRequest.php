@@ -36,7 +36,7 @@ class UpdateProductRequest extends FormRequest
         return [
             'name' => 'required|string|max:255',
             'category_id' => 'required|exists:categories,id',
-            'quantity' => 'required|integer|min:0',
+            'quantity' => 'required|integer|min:1',
             'price' => 'required|numeric|min:0',
             'status' => 'required|in:active,inactive,discontinued',
         ];
@@ -54,7 +54,7 @@ class UpdateProductRequest extends FormRequest
             'category_id.required' => 'La categoría es obligatoria.',
             'category_id.exists' => 'La categoría seleccionada no existe.',
             'quantity.required' => 'La cantidad (stock) es obligatoria.',
-            'quantity.min' => 'La cantidad no puede ser negativa.',
+            'quantity.min' => 'La cantidad debe ser mayor a 0.',
             'price.required' => 'El precio es obligatorio.',
             'price.min' => 'El precio no puede ser negativo.',
         ];

@@ -93,9 +93,16 @@
                             <input type="number"
                                    id="quantity"
                                    name="quantity"
-                                   value="{{ old('quantity', 0) }}"
+                                   value="{{ old('quantity', '') }}"
+                                   x-data="{ value: '{{ old('quantity', '') }}' }"
+                                   x-model="value"
+                                   @input="value = String(value).replace(/^0+/, ''); if (!value || parseInt(value) < 1) value = ''; $el.value = value;"
+                                   @blur="if (!value || parseInt(value) < 1) { value = ''; $el.value = ''; }"
                                    class="block w-full px-3 sm:px-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all @error('quantity') border-red-300 focus:ring-red-500 @enderror"
-                                   min="0"
+                                   min="1"
+                                   step="1"
+                                   pattern="[1-9][0-9]*"
+                                   placeholder="Ej: 10, 25, 100"
                                    required>
                             @error('quantity')
                                 <p class="mt-1.5 text-xs text-red-600 flex items-center">
