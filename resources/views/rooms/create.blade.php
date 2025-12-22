@@ -54,24 +54,12 @@
                             <i class="fas fa-cog mr-2 text-emerald-500"></i> Configuración Base
                         </h3>
                         
-                        <div class="grid grid-cols-2 gap-6">
                             <div class="space-y-2">
                                 <label for="room_number" class="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Número</label>
                                 <input type="text" name="room_number" id="room_number" value="{{ old('room_number') }}" required
                                     class="block w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-bold">
                             </div>
-                            <div class="space-y-2">
-                                <label for="status" class="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Estado</label>
-                                <select name="status" id="status" required
-                                    class="block w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-gray-900 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-bold appearance-none">
-                                    @foreach($statuses as $status)
-                                        <option value="{{ $status->value }}" {{ old('status') == $status->value ? 'selected' : '' }}>
-                                            {{ $status->label() }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
+                        <input type="hidden" name="status" value="{{ \App\Enums\RoomStatus::LIBRE->value }}">
 
                         <div class="grid grid-cols-2 gap-6">
                             <div class="space-y-2">

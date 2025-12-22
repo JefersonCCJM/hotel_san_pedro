@@ -11,6 +11,19 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        then: function () {
+            \Illuminate\Support\Facades\RateLimiter::for('api', function (\Illuminate\Http\Request $request) {
+                return \Illuminate\Cache\RateLimiting\Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+            });
+
+            \Illuminate\Support\Facades\RateLimiter::for('cleaning-panel', function (\Illuminate\Http\Request $request) {
+                return \Illuminate\Cache\RateLimiting\Limit::perMinute(120)->by($request->ip());
+            });
+
+            \Illuminate\Support\Facades\RateLimiter::for('livewire', function (\Illuminate\Http\Request $request) {
+                return \Illuminate\Cache\RateLimiting\Limit::perMinute(600)->by($request->ip());
+            });
+        },
     )
     ->withProviders([
         \App\Providers\PublicPathServiceProvider::class,

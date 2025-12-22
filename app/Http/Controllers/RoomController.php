@@ -127,7 +127,7 @@ class RoomController extends Controller
             'beds_count' => 'required|integer|min:1',
             'max_capacity' => 'required|integer|min:1',
             'occupancy_prices' => 'required|array',
-            'status' => 'required|string',
+            'status' => 'nullable|string',
         ]);
 
         // Asegurar que los precios sean numéricos
@@ -137,6 +137,15 @@ class RoomController extends Controller
         $validated['price_1_person'] = $validated['occupancy_prices'][1] ?? 0;
         $validated['price_2_persons'] = $validated['occupancy_prices'][2] ?? 0;
         $validated['price_per_night'] = $validated['price_2_persons'];
+
+        // Si no se proporciona status, usar LIBRE por defecto
+        if (!isset($validated['status'])) {
+            $validated['status'] = RoomStatus::LIBRE->value;
+        }
+
+        // New rooms start as "Limpia" (clean), not "Pendiente por Aseo"
+        // Set last_cleaned_at to now() so cleaningStatus() returns 'limpia'
+        $validated['last_cleaned_at'] = now();
 
         Room::create($validated);
 
@@ -160,7 +169,11 @@ class RoomController extends Controller
     {
         $statuses = RoomStatus::cases();
         $room->load('rates');
-        return view('rooms.edit', compact('room', 'statuses'));
+        
+        // Check if room is occupied (from reservations, not from status)
+        $isOccupied = $room->isOccupied();
+        
+        return view('rooms.edit', compact('room', 'statuses', 'isOccupied'));
     }
 
     /**
@@ -201,6 +214,17 @@ class RoomController extends Controller
             'occupancy_prices' => 'required|array',
             'status' => 'required|string',
         ]);
+
+        $newStatus = RoomStatus::from($validated['status']);
+        $isOccupied = $room->isOccupied();
+
+        // RESTRICCIÓN: No permitir cambiar a Ocupada/Libre si hay reserva activa
+        // Ocupación se calcula desde reservas, NO se puede cambiar manualmente
+        if ($isOccupied) {
+            if ($newStatus === RoomStatus::OCUPADA || $newStatus === RoomStatus::LIBRE) {
+                return back()->with('error', 'No se puede cambiar el estado a "Ocupada" o "Libre" cuando hay una reserva activa. La ocupación se calcula automáticamente desde las reservas.');
+            }
+        }
 
         // Asegurar que los precios sean numéricos
         $validated['occupancy_prices'] = array_map('intval', $validated['occupancy_prices']);
@@ -347,6 +371,8 @@ class RoomController extends Controller
 
     /**
      * Update room status via AJAX.
+     * RESTRINGIDO: Solo permite cambiar estados de limpieza cuando NO hay reservas activas.
+     * Ocupación se calcula desde reservas, NO se puede cambiar manualmente.
      */
     public function updateStatus(Request $request, Room $room): RedirectResponse
     {
@@ -354,9 +380,29 @@ class RoomController extends Controller
             'status' => 'required|string',
         ]);
 
-        $room->update(['status' => $validated['status']]);
+        $newStatus = RoomStatus::from($validated['status']);
+        $today = \Carbon\Carbon::today();
 
-        return back()->with('success', 'Estado de la habitación actualizado.');
+        // Verificar si hay reserva activa
+        $hasActiveReservation = $room->reservations()
+            ->where('check_in_date', '<=', $today)
+            ->where('check_out_date', '>=', $today)
+            ->exists();
+
+        // Si hay reserva activa, NO permitir cambiar estado (ocupación se calcula desde reservas)
+        if ($hasActiveReservation) {
+            return back()->with('error', 'No se puede cambiar el estado de una habitación ocupada. La ocupación se calcula automáticamente desde las reservas.');
+        }
+
+        // Solo permitir cambiar a estados de limpieza (SUCIA, LIMPIEZA) o LIBRE cuando NO hay reservas
+        $allowedStatuses = [RoomStatus::LIBRE, RoomStatus::SUCIA, RoomStatus::LIMPIEZA];
+        if (!in_array($newStatus, $allowedStatuses)) {
+            return back()->with('error', 'Solo se pueden establecer estados de limpieza (Libre, Sucia, Limpieza) cuando no hay reservas activas.');
+        }
+
+        $room->update(['status' => $newStatus]);
+
+        return back()->with('success', 'Estado de limpieza actualizado correctamente.');
     }
 
     /**
@@ -420,6 +466,7 @@ class RoomController extends Controller
 
     /**
      * Release the room: surgically free only the selected date.
+     * Ocupación se calcula desde reservas, NO se guarda en rooms.status.
      */
     public function release(Request $request, Room $room): RedirectResponse
     {
@@ -461,9 +508,20 @@ class RoomController extends Controller
             }
         }
 
-        // Si estamos viendo el día de HOY, actualizamos el estado físico real
-        if ($date->isToday()) {
-            $room->update(['status' => $targetStatus]);
+        // Si estamos viendo el día de HOY y se marca como SUCIA, actualizar estado físico
+        // (solo para limpieza, NO para ocupación - ocupación se calcula desde reservas)
+        if ($date->isToday() && $targetStatus === RoomStatus::SUCIA->value) {
+            $room->update(['status' => RoomStatus::SUCIA]);
+        } elseif ($date->isToday() && $targetStatus === RoomStatus::LIBRE->value) {
+            // Solo marcar como LIBRE si NO hay reservas activas
+            $hasActiveReservation = $room->reservations()
+                ->where('check_in_date', '<=', $date)
+                ->where('check_out_date', '>=', $date)
+                ->exists();
+            
+            if (!$hasActiveReservation) {
+                $room->update(['status' => RoomStatus::LIBRE]);
+            }
         }
 
         $statusLabel = $targetStatus === RoomStatus::LIBRE->value ? 'Libre' : 'Sucia';
@@ -498,6 +556,12 @@ class RoomController extends Controller
         $reservation->update([
             'check_out_date' => $newCheckOut,
             'total_amount' => $reservation->total_amount + $additionalPrice
+        ]);
+
+        // Dispatch Livewire event globally for cleaning panel
+        \Livewire\Livewire::dispatch('reservation-extended', [
+            'roomId' => $room->id,
+            'roomNumber' => $room->room_number
         ]);
 
         return back()->with('success', "Arrendamiento de la Habitación #{$room->room_number} extendido hasta el {$newCheckOut->format('d/m/Y')}.");

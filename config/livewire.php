@@ -156,4 +156,19 @@ return [
     */
 
     'pagination_theme' => 'bootstrap',
+
+    /*
+    |---------------------------------------------------------------------------
+    | Middleware
+    |---------------------------------------------------------------------------
+    |
+    | Middleware to apply to all Livewire requests (update, upload, etc.)
+    | This ensures rate limiting for polling and component updates.
+    |
+    */
+
+    'middleware' => [
+        'web',
+        'throttle:livewire',
+    ],
 ];

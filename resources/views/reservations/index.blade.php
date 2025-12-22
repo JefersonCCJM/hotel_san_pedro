@@ -413,15 +413,7 @@ function closeDeleteModal() {
 }
 
 function confirmDeleteWithPin(form) {
-    window.dispatchEvent(new CustomEvent('open-pin-modal', {
-        detail: {
-            title: 'Confirmar Eliminación de Reserva',
-            description: 'Para eliminar esta reserva, debe ingresar su PIN administrativo de 4 dígitos.',
-            onSuccess: () => {
-                form.submit();
-            }
-        }
-    }));
+    form.submit();
 }
 </script>
 @endpush

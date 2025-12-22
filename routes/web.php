@@ -229,16 +229,16 @@ Route::middleware('auth')->group(function () {
 
 /*
 |--------------------------------------------------------------------------
-| PUBLIC ROOM STATUS MODULE - NO AUTHENTICATION REQUIRED
+| PUBLIC CLEANING PANEL - NO AUTHENTICATION REQUIRED
 |--------------------------------------------------------------------------
 |
-| External module for cleaning staff to view room status.
+| Livewire component for cleaning staff to view and manage room status.
 | Designed for tablets/screens in cleaning area.
-| POST endpoint moved to routes/api.php (no CSRF required).
+| Uses Livewire for real-time updates and state management.
 |
 */
-Route::prefix('panel-aseo')->group(function () {
-    Route::get('/rooms/status', [\App\Http\Controllers\PublicRoomStatusController::class, 'index'])
+Route::prefix('panel-aseo')->middleware('throttle:cleaning-panel')->group(function () {
+    Route::get('/rooms/status', \App\Livewire\CleaningPanel::class)
         ->name('public.rooms.status');
 });
 

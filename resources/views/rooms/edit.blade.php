@@ -76,11 +76,20 @@
                             </div>
                             <div class="space-y-2">
                                 <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Estado</label>
-                                <select name="status" required class="block w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-bold appearance-none">
+                                <select name="status" required class="block w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-2xl font-bold appearance-none" {{ $isOccupied ? 'disabled' : '' }}>
                                     @foreach($statuses as $status)
+                                        @if($isOccupied && ($status === \App\Enums\RoomStatus::OCUPADA || $status === \App\Enums\RoomStatus::LIBRE))
+                                            @continue
+                                        @endif
                                         <option value="{{ $status->value }}" {{ $room->status == $status ? 'selected' : '' }}>{{ $status->label() }}</option>
                                     @endforeach
                                 </select>
+                                @if($isOccupied)
+                                    <input type="hidden" name="status" value="{{ $room->status->value }}">
+                                    <p class="text-xs text-amber-600 mt-1">
+                                        <i class="fas fa-info-circle"></i> La ocupación se calcula desde reservas. Solo se pueden cambiar estados manuales (Mantenimiento, Limpieza, Sucia).
+                                    </p>
+                                @endif
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-6">

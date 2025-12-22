@@ -118,15 +118,10 @@ Route::get('/products/search', function (Request $request) {
 
 /*
 |--------------------------------------------------------------------------
-| PUBLIC CLEANING MODULE API - NO AUTHENTICATION REQUIRED
+| PUBLIC CLEANING MODULE API - REMOVED
 |--------------------------------------------------------------------------
 |
-| API endpoint for cleaning staff to mark rooms as clean.
-| Protected by business rules and rate limiting only.
-| No CSRF protection (API routes don't use CSRF).
+| This endpoint has been replaced by Livewire component CleaningPanel.
+| All cleaning operations are now handled via Livewire in the web routes.
 |
 */
-Route::prefix('panel-aseo')->middleware('throttle:10,1')->group(function () {
-    Route::post('/rooms/{room}/clean', [\App\Http\Controllers\PublicRoomStatusController::class, 'markClean'])
-        ->name('api.public.rooms.mark-clean');
-});
