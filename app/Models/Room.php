@@ -111,18 +111,31 @@ class Room extends Model
     /**
      * Get the cleaning status of the room.
      * SINGLE SOURCE OF TRUTH for cleaning status.
-     * Derived from last_cleaned_at, NOT from reservations or occupancy.
+     * Derived from last_cleaned_at, NOT from time elapsed (no 24-hour rule).
      * 
      * Rules:
      * - If never cleaned (last_cleaned_at is NULL) → needs cleaning
-     * - If last cleaning was 24+ hours ago → needs cleaning (only applies when last_cleaned_at exists)
-     * - If less than 24 hours since last cleaning → clean
+     * - If last_cleaned_at exists → clean (room was cleaned and hasn't been used since)
+     * 
+     * IMPORTANT: We do NOT use a 24-hour rule because a free room that hasn't been used
+     * doesn't need cleaning just because time has passed. 
+     * 
+     * Cleaning status is managed explicitly:
+     * - When a room is released as "libre" or "limpia" → last_cleaned_at = now() (clean)
+     * - When a room is released as "pendiente_aseo" → last_cleaned_at = null (needs cleaning)
+     * - When a stay is continued → last_cleaned_at = null (will need cleaning when released)
+     * 
+     * A room only needs cleaning if last_cleaned_at is NULL, which happens when:
+     * 1. Room was never cleaned, OR
+     * 2. Room was released/used and marked as needing cleaning, OR
+     * 3. Stay was continued (room will need cleaning when eventually released)
      *
+     * @param \Carbon\Carbon|null $date Date to check. Defaults to today.
      * @return array{code: string, label: string, color: string, icon: string}
      */
-    public function cleaningStatus(): array
+    public function cleaningStatus(?\Carbon\Carbon $date = null): array
     {
-        // If never cleaned, needs cleaning immediately
+        // If never cleaned or explicitly marked as needing cleaning (last_cleaned_at is NULL)
         if (!$this->last_cleaned_at) {
             return [
                 'code' => 'pendiente',
@@ -132,18 +145,9 @@ class Room extends Model
             ];
         }
 
-        // If last cleaning was 24+ hours ago, needs cleaning
-        // This rule ONLY applies when last_cleaned_at exists (room was cleaned before)
-        if ($this->last_cleaned_at->diffInHours(now()) >= 24) {
-            return [
-                'code' => 'pendiente',
-                'label' => 'Pendiente por Aseo',
-                'color' => 'bg-yellow-100 text-yellow-800',
-                'icon' => 'fa-broom',
-            ];
-        }
-
-        // Clean (less than 24 hours since last cleaning)
+        // Clean: room was cleaned (last_cleaned_at has a value)
+        // Note: A free room that hasn't been used stays clean indefinitely
+        // until it's actually used/occupied, at which point it will be marked as needing cleaning
         return [
             'code' => 'limpia',
             'label' => 'Limpia',
@@ -183,13 +187,24 @@ class Room extends Model
         }
 
         // Priority 3: Check if reservation ends today (Pendiente Checkout)
-        $reservationEndingToday = $this->reservations()
-            ->where('check_in_date', '<=', $date)
-            ->where('check_out_date', '=', $date->toDateString())
-            ->exists();
+        // A room is "Pendiente Checkout" only if:
+        // 1. It has a reservation ending on this date
+        // 2. The room was occupied the day before (meaning the guest was staying)
+        // This prevents marking rooms as "Pendiente Checkout" for historical reservations
+        // that ended on this date but weren't actually active (e.g., multiple reservations ending same day)
+        $previousDay = $date->copy()->subDay();
+        $wasOccupiedYesterday = $this->isOccupied($previousDay);
         
-        if ($reservationEndingToday) {
-            return RoomStatus::PENDIENTE_CHECKOUT;
+        if ($wasOccupiedYesterday) {
+            // Verify that there's a reservation ending today and it was the one that occupied yesterday
+            $reservationEndingToday = $this->reservations()
+                ->where('check_in_date', '<=', $previousDay)
+                ->where('check_out_date', '=', $date->toDateString())
+                ->exists();
+            
+            if ($reservationEndingToday) {
+                return RoomStatus::PENDIENTE_CHECKOUT;
+            }
         }
 
         // Priority 4: If status is SUCIA, show as SUCIA

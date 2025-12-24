@@ -64,7 +64,7 @@ class CleaningPanel extends Component
      */
     private function transformRoomToArray(Room $room, Carbon $date): array
     {
-        $cleaningStatus = $room->cleaningStatus();
+        $cleaningStatus = $room->cleaningStatus($date);
         $displayStatus = $room->getDisplayStatus($date);
         
         return [
@@ -86,18 +86,20 @@ class CleaningPanel extends Component
      * Check if a room needs cleaning.
      * Uses cleaningStatus() as single source of truth.
      */
-    private function needsCleaning(Room $room): bool
+    private function needsCleaning(Room $room, Carbon $date = null): bool
     {
-        return $room->cleaningStatus()['code'] === 'pendiente';
+        $date = $date ?? Carbon::today();
+        return $room->cleaningStatus($date)['code'] === 'pendiente';
     }
 
     /**
      * Check if a room can be marked as clean.
      * Only rooms with 'pendiente' cleaning status can be marked.
      */
-    private function canMarkClean(Room $room): bool
+    private function canMarkClean(Room $room, Carbon $date = null): bool
     {
-        return $room->cleaningStatus()['code'] === 'pendiente';
+        $date = $date ?? Carbon::today();
+        return $room->cleaningStatus($date)['code'] === 'pendiente';
     }
 
     /**
@@ -118,8 +120,8 @@ class CleaningPanel extends Component
                 }
             ])->findOrFail($roomId);
 
-            // Validate: only rooms needing cleaning can be marked
-            if (!$this->canMarkClean($room)) {
+            // Validate: only rooms needing cleaning can be marked (using today's date)
+            if (!$this->canMarkClean($room, $today)) {
                 $this->dispatch('notify', 
                     type: 'error', 
                     message: "La habitación #{$room->room_number} no requiere limpieza en este momento."
