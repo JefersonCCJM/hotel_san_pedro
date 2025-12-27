@@ -16,9 +16,29 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Collection;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
+use Throwable;
 
 class ReservationController extends Controller
 {
+    /**
+     * Livewire browser-events are not safe to dispatch from Controllers in all Livewire versions.
+     * In some installations, LivewireManager::dispatch() does not exist and will throw a fatal Error,
+     * preventing redirects (even though the DB transaction already happened).
+     */
+    private function safeLivewireDispatch(string $event): void
+    {
+        try {
+            if (class_exists(\Livewire\Livewire::class)) {
+                // This will work on Livewire versions that support it, otherwise may throw.
+                \Livewire\Livewire::dispatch($event);
+            }
+        } catch (Throwable $e) {
+            // Never break controller redirects because of a UI-only event.
+            \Log::warning("Livewire dispatch skipped in controller for event: {$event}", [
+                'exception' => $e,
+            ]);
+        }
+    }
     /**
      * Display a listing of the resource.
      */
@@ -261,7 +281,7 @@ class ReservationController extends Controller
             }
 
             // Dispatch Livewire event for stats update
-            \Livewire\Livewire::dispatch('reservation-created');
+            $this->safeLivewireDispatch('reservation-created');
 
             // Redirect to reservations index with calendar view for the check-in month
             $month = $checkInDate->format('Y-m');
@@ -322,7 +342,7 @@ class ReservationController extends Controller
         $reservation->update($request->validated());
 
         // Dispatch Livewire event for stats update
-        \Livewire\Livewire::dispatch('reservation-updated');
+        $this->safeLivewireDispatch('reservation-updated');
 
         return redirect()->route('reservations.index')->with('success', 'Reserva actualizada correctamente.');
     }
@@ -346,7 +366,7 @@ class ReservationController extends Controller
         ]);
 
         // Dispatch Livewire event for stats update
-        \Livewire\Livewire::dispatch('reservation-deleted');
+        $this->safeLivewireDispatch('reservation-deleted');
 
         return redirect()->route('reservations.index')->with('success', 'Reserva eliminada correctamente.');
     }
