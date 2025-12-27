@@ -163,7 +163,7 @@
                         </td>
 
                         <td class="px-6 py-4 whitespace-nowrap">
-                            @if(isset($room->current_reservation) && $room->current_reservation)
+                            @if(($room->display_status === \App\Enums\RoomStatus::OCUPADA || $room->display_status === \App\Enums\RoomStatus::PENDIENTE_CHECKOUT) && isset($room->current_reservation) && $room->current_reservation)
                                 <div class="flex flex-col">
                                     <span class="text-sm font-semibold text-gray-900">{{ $room->current_reservation->customer->name ?? 'N/A' }}</span>
                                     <span class="text-xs text-blue-600 font-medium">
@@ -176,7 +176,7 @@
                         </td>
 
                         <td class="px-6 py-4 whitespace-nowrap">
-                            @if(isset($room->current_reservation) && $room->current_reservation)
+                            @if(($room->display_status === \App\Enums\RoomStatus::OCUPADA || $room->display_status === \App\Enums\RoomStatus::PENDIENTE_CHECKOUT) && isset($room->current_reservation) && $room->current_reservation)
                                 <div class="flex flex-col space-y-1">
                                     @if($room->is_night_paid)
                                         <span class="inline-flex items-center w-fit px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
@@ -216,9 +216,12 @@
                                     </button>
                                 @endif
 
-                                @if(isset($room->current_reservation) && $room->current_reservation && \Carbon\Carbon::parse($room->current_reservation->check_out_date)->startOfDay()->eq(\Carbon\Carbon::parse($date)->startOfDay()))
+                                @if($room->display_status === \App\Enums\RoomStatus::PENDIENTE_CHECKOUT && isset($room->current_reservation) && $room->current_reservation)
                                     <button wire:click="continueStay({{ $room->id }})" class="text-emerald-600 hover:text-emerald-700 transition-colors" title="Continúa">
                                         <i class="fas fa-redo-alt"></i>
+                                    </button>
+                                    <button wire:click="cancelReservation({{ $room->id }})" class="text-red-600 hover:text-red-700 transition-colors" title="Cancelar Reserva">
+                                        <i class="fas fa-times"></i>
                                     </button>
                                 @endif
 

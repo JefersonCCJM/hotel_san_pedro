@@ -410,21 +410,71 @@ class RoomManager extends Component
         $this->dispatch('notify', type: 'success', message: $message);
     }
 
+    public function cancelReservation($roomId)
+    {
+        $room = Room::findOrFail($roomId);
+        $date = Carbon::parse($this->date)->startOfDay();
+
+        // Get the reservation that causes Pendiente Checkout status
+        $reservation = $room->getPendingCheckoutReservation($date);
+
+        if (!$reservation) {
+            $this->dispatch('notify', 
+                type: 'error', 
+                message: "No se encontró una reserva pendiente de checkout para esta habitación."
+            );
+            return;
+        }
+
+        // Delete the reservation and mark room as free
+        DB::transaction(function() use ($reservation, $room, $date) {
+            $reservation->delete();
+            
+            // Mark room as clean and free (only if date is today)
+            if ($date->isToday()) {
+                $room->update([
+                    'last_cleaned_at' => now(),
+                    'status' => RoomStatus::LIBRE
+                ]);
+            }
+        });
+
+        // Recargar los datos del detalle si hay una habitación seleccionada
+        if ($this->selectedRoomId == $roomId) {
+            $this->loadRoomDetail();
+        }
+
+        // Force immediate refresh of room list to reflect changes
+        $this->refreshRooms();
+
+        // Dispatch evento global para sincronización en tiempo real con otros componentes
+        $this->dispatch('room-status-updated', roomId: $room->id);
+        
+        $this->dispatch('notify', 
+            type: 'success', 
+            message: "Reserva cancelada. Habitación #{$room->room_number} liberada."
+        );
+    }
+
     public function continueStay($roomId)
     {
         $room = Room::findOrFail($roomId);
         $date = Carbon::parse($this->date)->startOfDay();
 
-        // Find reservation ending today (check_out_date == $date) or active (check_out_date > $date)
-        // This allows continuing a stay even when checkout is today
-        $reservation = $room->reservations()
-            ->where('check_in_date', '<=', $date)
-            ->where(function($query) use ($date) {
-                $query->where('check_out_date', '>', $date)
-                      ->orWhere('check_out_date', '=', $date->toDateString());
-            })
-            ->orderBy('check_out_date', 'desc')
-            ->first();
+        // First, try to get reservation from Pendiente Checkout status
+        $reservation = $room->getPendingCheckoutReservation($date);
+        
+        // If not found, find active reservation or reservation ending today
+        if (!$reservation) {
+            $reservation = $room->reservations()
+                ->where('check_in_date', '<=', $date)
+                ->where(function($query) use ($date) {
+                    $query->where('check_out_date', '>', $date)
+                          ->orWhere('check_out_date', '=', $date->toDateString());
+                })
+                ->orderBy('check_out_date', 'desc')
+                ->first();
+        }
 
         if (!$reservation) return;
 
@@ -490,7 +540,7 @@ class RoomManager extends Component
     {
         if (in_array($key, ['people', 'check_out'])) {
             $p = (int)$this->rentForm['people'];
-            $basePrice = $this->rentForm['prices'][$p] ?? ($this->rentForm['prices'][$this.rentForm['max_capacity']] ?? 0);
+            $basePrice = $this->rentForm['prices'][$p] ?? ($this->rentForm['prices'][$this->rentForm['max_capacity']] ?? 0);
             $start = Carbon::parse($this->date);
             $end = Carbon::parse($this->rentForm['check_out']);
             $diffDays = max(1, $start->diffInDays($end));
@@ -726,14 +776,24 @@ class RoomManager extends Component
                     return $checkIn->lte($date) && $checkOut->gt($date);
                 });
                 
-                // If no active reservation, check for reservation ending today (for continue button)
+                // If no active reservation, check for reservation ending today or starting today (for continue/cancel buttons)
                 if (!$reservation) {
                     $reservation = $room->reservations->first(function($res) use ($date) {
                         $checkIn = Carbon::parse($res->check_in_date)->startOfDay();
                         $checkOut = Carbon::parse($res->check_out_date)->startOfDay();
+                        $tomorrow = $date->copy()->addDay()->startOfDay();
                         // Reservation ending today: check_in_date <= $date AND check_out_date == $date
-                        return $checkIn->lte($date) && $checkOut->eq($date);
+                        // Or reservation starting today (one day): check_in_date == $date AND check_out_date == tomorrow
+                        // Or reservation ending tomorrow: check_in_date <= $date AND check_out_date == tomorrow
+                        return ($checkIn->lte($date) && $checkOut->eq($date)) ||
+                               ($checkIn->eq($date) && $checkOut->eq($tomorrow)) ||
+                               ($checkIn->lte($date) && $checkOut->eq($tomorrow));
                     });
+                }
+                
+                // Also check if status is Pendiente Checkout and get the reservation
+                if (!$reservation && $room->getDisplayStatus($date) === \App\Enums\RoomStatus::PENDIENTE_CHECKOUT) {
+                    $reservation = $room->getPendingCheckoutReservation($date);
                 }
             }
             

@@ -201,17 +201,17 @@ class Room extends Model
             return RoomStatus::OCUPADA;
         }
 
-        // Priority 3: Check if reservation ends today (Pendiente Checkout)
-        // A room is "Pendiente Checkout" only if:
-        // 1. It has a reservation ending on this date
-        // 2. The room was occupied the day before (meaning the guest was staying)
-        // This prevents marking rooms as "Pendiente Checkout" for historical reservations
-        // that ended on this date but weren't actually active (e.g., multiple reservations ending same day)
+        // Priority 3: Check if reservation ends today or starts today (Pendiente Checkout)
+        // After midnight, rooms are "Pendiente Checkout" if:
+        // 1. Reservation ends today (was occupied yesterday, checkout today)
+        // 2. Reservation starts today and is for one day only (check-in today, check-out tomorrow)
+        // 3. Reservation has one day remaining (check-out tomorrow)
         $previousDay = $date->copy()->subDay();
+        $tomorrow = $date->copy()->addDay();
         $wasOccupiedYesterday = $this->isOccupied($previousDay);
         
+        // Case 1: Was occupied yesterday, checkout today
         if ($wasOccupiedYesterday) {
-            // Verify that there's a reservation ending today and it was the one that occupied yesterday
             $reservationEndingToday = $this->reservations()
                 ->where('check_in_date', '<=', $previousDay)
                 ->where('check_out_date', '=', $date->toDateString())
@@ -220,6 +220,26 @@ class Room extends Model
             if ($reservationEndingToday) {
                 return RoomStatus::PENDIENTE_CHECKOUT;
             }
+        }
+        
+        // Case 2: Reservation starts today and is one-day reservation (check-in today, check-out tomorrow)
+        $oneDayReservationStartingToday = $this->reservations()
+            ->where('check_in_date', '=', $date->toDateString())
+            ->where('check_out_date', '=', $tomorrow->toDateString())
+            ->exists();
+        
+        if ($oneDayReservationStartingToday) {
+            return RoomStatus::PENDIENTE_CHECKOUT;
+        }
+        
+        // Case 3: Reservation has one day remaining (check-out tomorrow)
+        $reservationEndingTomorrow = $this->reservations()
+            ->where('check_in_date', '<=', $date)
+            ->where('check_out_date', '=', $tomorrow->toDateString())
+            ->exists();
+        
+        if ($reservationEndingTomorrow) {
+            return RoomStatus::PENDIENTE_CHECKOUT;
         }
 
         // Priority 4: If status is SUCIA, show as SUCIA
@@ -230,6 +250,53 @@ class Room extends Model
         // Priority 5: Default to LIBRE
         // Note: Cleaning status (Pendiente por Aseo) is shown separately in "ESTADO DE LIMPIEZA" column
         return RoomStatus::LIBRE;
+    }
+
+    /**
+     * Get the reservation that causes Pendiente Checkout status for a specific date.
+     *
+     * @param \Carbon\Carbon|null $date Date to check. Defaults to today.
+     * @return \App\Models\Reservation|null
+     */
+    public function getPendingCheckoutReservation(?\Carbon\Carbon $date = null): ?\App\Models\Reservation
+    {
+        $date = $date ?? \Carbon\Carbon::today();
+        
+        // If not in Pendiente Checkout status, return null
+        if ($this->getDisplayStatus($date) !== RoomStatus::PENDIENTE_CHECKOUT) {
+            return null;
+        }
+        
+        $previousDay = $date->copy()->subDay();
+        $tomorrow = $date->copy()->addDay();
+        
+        // Case 1: Was occupied yesterday, checkout today
+        $reservationEndingToday = $this->reservations()
+            ->where('check_in_date', '<=', $previousDay)
+            ->where('check_out_date', '=', $date->toDateString())
+            ->first();
+        
+        if ($reservationEndingToday) {
+            return $reservationEndingToday;
+        }
+        
+        // Case 2: Reservation starts today and is one-day reservation (check-in today, check-out tomorrow)
+        $oneDayReservationStartingToday = $this->reservations()
+            ->where('check_in_date', '=', $date->toDateString())
+            ->where('check_out_date', '=', $tomorrow->toDateString())
+            ->first();
+        
+        if ($oneDayReservationStartingToday) {
+            return $oneDayReservationStartingToday;
+        }
+        
+        // Case 3: Reservation has one day remaining (check-out tomorrow)
+        $reservationEndingTomorrow = $this->reservations()
+            ->where('check_in_date', '<=', $date)
+            ->where('check_out_date', '=', $tomorrow->toDateString())
+            ->first();
+        
+        return $reservationEndingTomorrow;
     }
 
     /**
