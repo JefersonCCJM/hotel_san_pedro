@@ -5,8 +5,13 @@ namespace App\Livewire\Reservations;
 use Livewire\Component;
 use App\Models\Room;
 use App\Models\Customer;
+use App\Models\Reservation;
+use App\Models\CompanyTaxSetting;
+use App\Models\DianMunicipality;
 use App\Http\Controllers\ReservationController;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Carbon\Carbon;
 
 class ReservationCreate extends Component
@@ -47,11 +52,13 @@ class ReservationCreate extends Component
     public $showCustomerDropdown = false;
 
     // Guest assignment
-    public $assignedGuests = [];
+    // NOTE: $assignedGuests removed - use getAssignedGuestsProperty() computed property instead
     public $currentRoomForGuestAssignment = null;
     public $guestModalOpen = false;
     public $guestModalTab = 'search';
     public $selectedGuestForAdd = null;
+    public $guestSearchTerm = '';
+    public $showGuestDropdown = false;
 
     // New customer modal (for main customer)
     public $newCustomerModalOpen = false;
@@ -104,7 +111,7 @@ class ReservationCreate extends Component
         'customerId' => 'required|exists:customers,id',
         'checkIn' => 'required|date|after_or_equal:today',
         'checkOut' => 'required|date|after:checkIn',
-        'checkInTime' => 'nullable|regex:/^([0-1]\d|2[0-3]):[0-5]\d$/',
+        'checkInTime' => ['nullable', 'regex:/^([0-1]\d|2[0-3]):[0-5]\d$/'],
         'total' => 'required|numeric|min:0',
         'deposit' => 'required|numeric|min:0',
         'guestsCount' => 'nullable|integer|min:0',
@@ -219,6 +226,19 @@ class ReservationCreate extends Component
         }
     }
 
+    public function updatedNewCustomer($value, $key)
+    {
+        // Recalculate DV when identification changes
+        if ($key === 'identification' && $this->customerRequiresDV) {
+            $this->newCustomer['dv'] = $this->calculateVerificationDigit($value ?? '');
+        }
+
+        // Update required fields when document type changes
+        if ($key === 'identificationDocumentId') {
+            $this->updateCustomerRequiredFields();
+        }
+    }
+
     public function updatedCheckInTime($value)
     {
         if (!empty($value) && !preg_match('/^([0-1]\d|2[0-3]):[0-5]\d$/', $value)) {
@@ -240,14 +260,26 @@ class ReservationCreate extends Component
     public function updatedRoomId($value)
     {
         if (empty($value)) {
+            $this->roomId = '';
             $this->total = 0;
             $this->resetAvailabilityState();
             return;
         }
 
-        // Initialize empty roomGuests array for the selected room if not exists
-        if (!isset($this->roomGuests[$value]) || !is_array($this->roomGuests[$value])) {
-            $this->roomGuests[$value] = [];
+        // Normalize to integer immediately
+        $roomIdInt = is_numeric($value) ? (int) $value : 0;
+
+        if ($roomIdInt <= 0) {
+            $this->roomId = '';
+            return;
+        }
+
+        // Store as string for Livewire compatibility, but always use int for roomGuests keys
+        $this->roomId = (string) $roomIdInt;
+
+        // Initialize empty roomGuests array with integer key
+        if (!isset($this->roomGuests[$roomIdInt]) || !is_array($this->roomGuests[$roomIdInt])) {
+            $this->roomGuests[$roomIdInt] = [];
         }
 
         $this->calculateTotal();
@@ -376,7 +408,7 @@ class ReservationCreate extends Component
             $this->datesCompleted = true;
             $this->formStep = 2;
         } catch (\Exception $e) {
-            \Log::error('Error validating dates: ' . $e->getMessage(), [
+            Log::error('Error validating dates: ' . $e->getMessage(), [
                 'checkIn' => $this->checkIn,
                 'checkOut' => $this->checkOut,
                 'trace' => $e->getTraceAsString()
@@ -474,7 +506,7 @@ class ReservationCreate extends Component
                 $this->total = $pricePerNight * $nights;
             }
         } catch (\Exception $e) {
-            \Log::error('Error calculating total: ' . $e->getMessage(), [
+            Log::error('Error calculating total: ' . $e->getMessage(), [
                 'checkIn' => $this->checkIn,
                 'checkOut' => $this->checkOut
             ]);
@@ -498,33 +530,20 @@ class ReservationCreate extends Component
         $this->availability = null;
 
         try {
-            $url = route('api.check-availability');
-            if (empty($url)) {
-                throw new \Exception('Route api.check-availability not found');
-            }
+            $roomId = (int) $this->roomId;
+            $checkIn = Carbon::parse($this->checkIn)->startOfDay();
+            $checkOut = Carbon::parse($this->checkOut)->startOfDay();
 
-            $response = \Http::timeout(5)->get($url, [
-                'room_id' => $this->roomId,
-                'check_in_date' => $this->checkIn,
-                'check_out_date' => $this->checkOut,
-            ]);
+            // Use direct DB query instead of HTTP call to avoid timeouts
+            // This method checks both reservations table and reservation_rooms pivot table
+            $isAvailable = $this->isRoomAvailableForDates($roomId, $checkIn, $checkOut);
 
-            if ($response->successful()) {
-                $data = $response->json();
-                $this->availability = $data['available'] ?? false;
-                $this->availabilityMessage = $this->availability
-                    ? 'HABITACIÓN DISPONIBLE'
-                    : 'NO DISPONIBLE PARA ESTAS FECHAS';
-            } else {
-                $this->availability = false;
-                $this->availabilityMessage = 'Error al verificar disponibilidad';
-            }
-        } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            \Log::error('Connection error checking availability: ' . $e->getMessage());
-            $this->availability = false;
-            $this->availabilityMessage = 'Error de conexión al verificar disponibilidad';
+            $this->availability = $isAvailable;
+            $this->availabilityMessage = $isAvailable
+                ? 'HABITACIÓN DISPONIBLE'
+                : 'NO DISPONIBLE PARA ESTAS FECHAS';
         } catch (\Exception $e) {
-            \Log::error('Error checking availability: ' . $e->getMessage(), [
+            Log::error('Error checking availability: ' . $e->getMessage(), [
                 'roomId' => $this->roomId,
                 'checkIn' => $this->checkIn,
                 'checkOut' => $this->checkOut,
@@ -537,7 +556,7 @@ class ReservationCreate extends Component
         }
     }
 
-    public function getNightsProperty()
+    public function getNightsProperty(): int
     {
         if (empty($this->checkIn) || empty($this->checkOut)) {
             return 0;
@@ -548,33 +567,48 @@ class ReservationCreate extends Component
             $checkOut = Carbon::parse($this->checkOut);
             $diff = $checkOut->diffInDays($checkIn);
 
-            return $diff > 0 ? $diff : 0;
+            return $diff > 0 ? (int) $diff : 0;
         } catch (\Exception $e) {
-            \Log::error('Error calculating nights: ' . $e->getMessage());
+            Log::error('Error calculating nights: ' . $e->getMessage());
             return 0;
         }
     }
 
-    public function getBalanceProperty()
+    public function getBalanceProperty(): int
     {
-        return $this->total - $this->deposit;
+        try {
+            // Force cast to numeric values, defaulting to 0 if null or invalid
+            $total = is_numeric($this->total) ? (float) $this->total : 0.0;
+            $deposit = is_numeric($this->deposit) ? (float) $this->deposit : 0.0;
+
+            $balance = $total - $deposit;
+
+            // Ensure balance is never negative and cast to int
+            return (int) max(0, $balance);
+        } catch (\Exception $e) {
+            Log::error('Error in getBalanceProperty: ' . $e->getMessage(), [
+                'total' => $this->total,
+                'deposit' => $this->deposit
+            ]);
+            return 0;
+        }
     }
 
-    public function getCanProceedProperty()
+    public function getCanProceedProperty(): bool
     {
         if (empty($this->checkIn) || empty($this->checkOut)) {
             return false;
         }
 
         try {
-            $checkIn = Carbon::parse($this->checkIn);
-            $checkOut = Carbon::parse($this->checkOut);
-            $today = Carbon::today();
+            $checkIn = Carbon::parse($this->checkIn)->startOfDay();
+            $checkOut = Carbon::parse($this->checkOut)->startOfDay();
+            $today = Carbon::today()->startOfDay();
 
-            return $checkIn->isAfterOrEqualTo($today)
-                && $checkOut->isAfter($checkIn);
+            // Use gte() for check-in >= today and gt() for check-out > check-in
+            return $checkIn->gte($today) && $checkOut->gt($checkIn);
         } catch (\Exception $e) {
-            \Log::error('Error in getCanProceedProperty: ' . $e->getMessage(), [
+            Log::error('Error in getCanProceedProperty: ' . $e->getMessage(), [
                 'checkIn' => $this->checkIn,
                 'checkOut' => $this->checkOut
             ]);
@@ -582,29 +616,19 @@ class ReservationCreate extends Component
         }
     }
 
-    public function getShowGuestAssignmentPanelProperty()
+    public function getShowGuestAssignmentPanelProperty(): bool
     {
         if ($this->showMultiRoomSelector) {
+            // Multi-room mode: show panel if any room is selected
             if (!is_array($this->selectedRoomIds) || empty($this->selectedRoomIds)) {
                 return false;
             }
-
-            foreach ($this->selectedRoomIds as $roomId) {
-                $room = $this->getRoomById($roomId);
-                if (!$room || !is_array($room)) {
-                    continue;
-                }
-
-                $assignedCount = $this->getRoomGuestsCount($roomId);
-                $capacity = $room['capacity'] ?? 0;
-                if ($assignedCount >= $capacity) {
-                    return false;
-                }
-            }
+            // Panel should show if there are selected rooms (allows viewing/removing guests)
             return true;
         }
 
-        // Single room mode: check if room is selected and has available capacity
+        // Single room mode: show panel if room is selected
+        // Panel should remain visible even when capacity is full (allows removing guests)
         if (empty($this->roomId)) {
             return false;
         }
@@ -614,13 +638,12 @@ class ReservationCreate extends Component
             return false;
         }
 
-        $assignedCount = $this->getRoomGuestsCount($this->roomId);
-        $capacity = $selectedRoom['capacity'] ?? 0;
-
-        return $assignedCount < $capacity;
+        // Show panel if room is selected (regardless of capacity)
+        // This allows users to view and remove guests even when room is full
+        return true;
     }
 
-    public function getExceedsCapacityProperty()
+    public function getExceedsCapacityProperty(): bool
     {
         if ($this->showMultiRoomSelector) {
             if (!is_array($this->selectedRoomIds) || empty($this->selectedRoomIds)) {
@@ -634,7 +657,7 @@ class ReservationCreate extends Component
                 }
 
                 $assignedCount = $this->getRoomGuestsCount($roomId);
-                $capacity = $room['capacity'] ?? 0;
+                $capacity = (int) ($room['capacity'] ?? 0);
                 if ($assignedCount > $capacity) {
                     return true;
                 }
@@ -653,12 +676,12 @@ class ReservationCreate extends Component
         }
 
         $assignedCount = $this->getRoomGuestsCount($this->roomId);
-        $capacity = $selectedRoom['capacity'] ?? 0;
+        $capacity = (int) ($selectedRoom['capacity'] ?? 0);
 
         return $assignedCount > $capacity;
     }
 
-    public function getIsValidProperty()
+    public function getIsValidProperty(): bool
     {
         try {
             // Basic required fields
@@ -696,88 +719,160 @@ class ReservationCreate extends Component
                 }
             }
 
-            // Financial validation
-            if ($this->total <= 0 || $this->deposit < 0) {
+            // Financial validation - ensure numeric types
+            $total = is_numeric($this->total) ? (float) $this->total : 0.0;
+            $deposit = is_numeric($this->deposit) ? (float) $this->deposit : 0.0;
+
+            if ($total <= 0 || $deposit < 0) {
                 return false;
             }
 
-            if ($this->balance < 0) {
+            $balance = $this->balance;
+            if ($balance < 0) {
                 return false;
             }
 
             return true;
         } catch (\Exception $e) {
-            \Log::error('Error in getIsValidProperty: ' . $e->getMessage(), [
+            Log::error('Error in getIsValidProperty: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
             ]);
             return false;
         }
     }
 
+    /**
+     * Get room data by ID with normalized output
+     * Optimized for performance - normalizes roomId to int
+     *
+     * @param int|string $roomId Room ID
+     * @return array|null Normalized room data or null
+     */
     public function getRoomById($roomId)
     {
+        // Default array to prevent null access errors in Blade
+        $defaultRoom = [
+            'id' => null,
+            'number' => null,
+            'capacity' => 0,
+            'max_capacity' => 0,
+            'room_number' => null,
+            'beds' => 0,
+            'occupancyPrices' => [],
+            'price1Person' => 0,
+            'priceAdditionalPerson' => 0,
+        ];
+
         if (empty($roomId)) {
-            return null;
+            Log::warning('getRoomById called with empty roomId', ['roomId' => $roomId]);
+            return $defaultRoom;
         }
 
-        // Try roomsData first (has detailed pricing info with 'number' and 'capacity')
-        if (!empty($this->roomsData) && is_array($this->roomsData)) {
-            foreach ($this->roomsData as $room) {
-                if (!is_array($room)) {
-                    continue;
-                }
-                $roomIdValue = $room['id'] ?? null;
-                if ($roomIdValue !== null && (int)$roomIdValue === (int)$roomId) {
-                    return $room;
+        try {
+            // Normalize roomId to integer for consistent comparison
+            $roomIdInt = is_numeric($roomId) ? (int) $roomId : 0;
+            if ($roomIdInt <= 0) {
+                Log::warning('getRoomById called with invalid roomId', ['roomId' => $roomId, 'normalized' => $roomIdInt]);
+                return $defaultRoom;
+            }
+
+            // Try roomsData first (has detailed pricing info with 'number' and 'capacity')
+            if (!empty($this->roomsData) && is_array($this->roomsData)) {
+                foreach ($this->roomsData as $room) {
+                    if (!is_array($room)) {
+                        continue;
+                    }
+                    $roomIdValue = $room['id'] ?? null;
+                    if ($roomIdValue !== null && (int)$roomIdValue === $roomIdInt) {
+                        // Ensure all required fields have defaults to prevent null access errors
+                        return [
+                            'id' => $room['id'] ?? $roomIdInt,
+                            'number' => $room['number'] ?? $room['room_number'] ?? null,
+                            'capacity' => $room['capacity'] ?? $room['max_capacity'] ?? 0,
+                            'max_capacity' => $room['max_capacity'] ?? $room['capacity'] ?? 0,
+                            'room_number' => $room['room_number'] ?? $room['number'] ?? null,
+                            'beds' => $room['beds'] ?? 0,
+                            'occupancyPrices' => $room['occupancyPrices'] ?? [],
+                            'price1Person' => $room['price1Person'] ?? 0,
+                            'priceAdditionalPerson' => $room['priceAdditionalPerson'] ?? 0,
+                        ];
+                    }
                 }
             }
-        }
 
-        // Fallback to rooms array (has 'room_number' and 'max_capacity')
-        // Convert to roomsData format for consistency
-        if (!empty($this->rooms) && is_array($this->rooms)) {
-            foreach ($this->rooms as $room) {
-                if (!is_array($room)) {
-                    continue;
-                }
-                $roomIdValue = $room['id'] ?? null;
-                if ($roomIdValue !== null && (int)$roomIdValue === (int)$roomId) {
-                    // Convert to roomsData format for consistency
-                    return [
-                        'id' => $room['id'] ?? null,
-                        'number' => $room['room_number'] ?? null,
-                        'capacity' => $room['max_capacity'] ?? 2,
-                        'room_number' => $room['room_number'] ?? null, // Keep for compatibility
-                        'max_capacity' => $room['max_capacity'] ?? 2, // Keep for compatibility
-                    ];
+            // Fallback to rooms array (has 'room_number' and 'max_capacity')
+            // Convert to roomsData format for consistency
+            if (!empty($this->rooms) && is_array($this->rooms)) {
+                foreach ($this->rooms as $room) {
+                    if (!is_array($room)) {
+                        continue;
+                    }
+                    $roomIdValue = $room['id'] ?? null;
+                    if ($roomIdValue !== null && (int)$roomIdValue === $roomIdInt) {
+                        // Convert to roomsData format for consistency with all required fields
+                        return [
+                            'id' => $room['id'] ?? $roomIdInt,
+                            'number' => $room['room_number'] ?? null,
+                            'capacity' => $room['max_capacity'] ?? 0,
+                            'max_capacity' => $room['max_capacity'] ?? 0,
+                            'room_number' => $room['room_number'] ?? null,
+                            'beds' => $room['beds'] ?? 0,
+                            'occupancyPrices' => $room['occupancyPrices'] ?? [],
+                            'price1Person' => $room['price1Person'] ?? 0,
+                            'priceAdditionalPerson' => $room['priceAdditionalPerson'] ?? 0,
+                        ];
+                    }
                 }
             }
-        }
 
-        return null;
+            // Room not found - return default array instead of null
+            Log::warning('getRoomById: Room not found', [
+                'roomId' => $roomId,
+                'roomIdInt' => $roomIdInt,
+                'roomsDataCount' => is_array($this->roomsData) ? count($this->roomsData) : 0,
+                'roomsCount' => is_array($this->rooms) ? count($this->rooms) : 0,
+            ]);
+            return $defaultRoom;
+        } catch (\Exception $e) {
+            Log::error('Error in getRoomById: ' . $e->getMessage(), [
+                'roomId' => $roomId,
+                'trace' => $e->getTraceAsString()
+            ]);
+            return $defaultRoom;
+        }
     }
 
+    /**
+     * Get count of valid guests assigned to a room
+     *
+     * @param int|string $roomId Room ID
+     * @return int Number of valid guests
+     */
     public function getRoomGuestsCount($roomId): int
     {
         if (empty($roomId)) {
             return 0;
         }
 
-        $assignedGuests = $this->roomGuests[$roomId] ?? [];
-
-        if (!is_array($assignedGuests) || empty($assignedGuests)) {
+        // Normalize to integer (roomGuests always uses int keys)
+        $roomIdInt = is_numeric($roomId) ? (int) $roomId : 0;
+        if ($roomIdInt <= 0) {
             return 0;
         }
 
-        $validGuests = array_filter($assignedGuests, function ($guest): bool {
-            if (!is_array($guest)) {
-                return false;
-            }
-            $guestId = $guest['id'] ?? null;
-            return !empty($guestId) && is_numeric($guestId) && $guestId > 0;
-        });
+        $guests = $this->roomGuests[$roomIdInt] ?? [];
 
-        return count($validGuests);
+        if (!is_array($guests) || empty($guests)) {
+            return 0;
+        }
+
+        // Count only valid guests (with id and name)
+        return count(array_filter($guests, function ($guest): bool {
+            return is_array($guest)
+                && !empty($guest['id'])
+                && is_numeric($guest['id'])
+                && isset($guest['name']);
+        }));
     }
 
     public function calculatePriceForRoom(array $room, int $guestsCount): float
@@ -848,7 +943,7 @@ class ReservationCreate extends Component
 
             return $this->calculatePriceForRoom($selectedRoom, $guestCount);
         } catch (\Exception $e) {
-            \Log::error('Error calculating price for guests: ' . $e->getMessage());
+            Log::error('Error calculating price for guests: ' . $e->getMessage());
             return 0.0;
         }
     }
@@ -859,21 +954,126 @@ class ReservationCreate extends Component
             return [];
         }
 
-        $prices = [];
-        foreach ($this->selectedRoomIds as $roomId) {
-            $room = $this->getRoomById($roomId);
-            if (!$room || !is_array($room)) {
-                continue;
+        try {
+            $prices = [];
+            foreach ($this->selectedRoomIds as $roomId) {
+                $roomIdInt = (int) $roomId;
+                $room = $this->getRoomById($roomIdInt);
+                if (!$room || !is_array($room)) {
+                    continue;
+                }
+                $guestCount = $this->getRoomGuestsCount($roomIdInt);
+                // Only calculate price if guests are assigned
+                if ($guestCount > 0) {
+                    $prices[$roomIdInt] = $this->calculatePriceForRoom($room, $guestCount);
+                } else {
+                    $prices[$roomIdInt] = 0;
+                }
             }
-            $guestCount = $this->getRoomGuestsCount($roomId);
-            // Only calculate price if guests are assigned
-            if ($guestCount > 0) {
-                $prices[$roomId] = $this->calculatePriceForRoom($room, $guestCount);
-            } else {
-                $prices[$roomId] = 0;
-            }
+            return $prices;
+        } catch (\Exception $e) {
+            Log::error('Error in getRoomPriceForGuestsProperty: ' . $e->getMessage());
+            return [];
         }
-        return $prices;
+    }
+
+    /**
+     * Pre-calculated room guests data for multi-room mode
+     * Avoids calling getRoomGuests() directly in Blade
+     *
+     * @return array<int, array> Room ID => array of guests
+     */
+    public function getRoomsGuestsDataProperty(): array
+    {
+        if (!is_array($this->selectedRoomIds) || empty($this->selectedRoomIds)) {
+            return [];
+        }
+
+        try {
+            $data = [];
+            foreach ($this->selectedRoomIds as $roomId) {
+                $roomIdInt = (int) $roomId;
+                $guests = $this->getRoomGuests($roomIdInt);
+                if (!empty($guests)) {
+                    $data[$roomIdInt] = $guests;
+                }
+            }
+            return $data;
+        } catch (\Exception $e) {
+            Log::error('Error in getRoomsGuestsDataProperty: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Pre-calculated room guests counts for multi-room mode
+     * Avoids calling getRoomGuestsCount() directly in Blade
+     *
+     * @return array<int, int> Room ID => guest count
+     */
+    public function getRoomsGuestsCountsProperty(): array
+    {
+        if (!is_array($this->selectedRoomIds) || empty($this->selectedRoomIds)) {
+            return [];
+        }
+
+        try {
+            $counts = [];
+            foreach ($this->selectedRoomIds as $roomId) {
+                $roomIdInt = (int) $roomId;
+                $counts[$roomIdInt] = $this->getRoomGuestsCount($roomIdInt);
+            }
+            return $counts;
+        } catch (\Exception $e) {
+            Log::error('Error in getRoomsGuestsCountsProperty: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Pre-calculated room data with guests for multi-room mode
+     * Combines room info, guests, and counts in one structure
+     *
+     * @return array<int, array> Room ID => ['room' => ..., 'guests' => ..., 'count' => ..., 'price' => ...]
+     */
+    public function getRoomsDataWithGuestsProperty(): array
+    {
+        if (!is_array($this->selectedRoomIds) || empty($this->selectedRoomIds)) {
+            return [];
+        }
+
+        try {
+            $data = [];
+
+            // Calculate directly instead of accessing other computed properties to avoid recursion
+            foreach ($this->selectedRoomIds as $roomId) {
+                $roomIdInt = (int) $roomId;
+                $room = $this->getRoomById($roomIdInt);
+
+                if (!$room || !is_array($room)) {
+                    continue;
+                }
+
+                // Get data directly instead of using computed properties
+                $guests = $this->getRoomGuests($roomIdInt);
+                $count = $this->getRoomGuestsCount($roomIdInt);
+                $price = $count > 0 ? $this->calculatePriceForRoom($room, $count) : 0;
+
+                $data[$roomIdInt] = [
+                    'room' => $room,
+                    'guests' => $guests,
+                    'count' => $count,
+                    'price' => $price,
+                    'canAssignMore' => $this->canAssignMoreGuestsToRoom($roomIdInt),
+                ];
+            }
+            return $data;
+        } catch (\Exception $e) {
+            Log::error('Error in getRoomsDataWithGuestsProperty: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return [];
+        }
     }
 
     public function getSelectedRoomProperty()
@@ -882,18 +1082,26 @@ class ReservationCreate extends Component
             return null;
         }
 
-        if (empty($this->roomsData) || !is_array($this->roomsData)) {
-            return null;
-        }
-
         try {
             $room = $this->getRoomById($this->roomId);
-            if (!$room || !is_array($room)) {
+            // getRoomById() now always returns an array, never null
+            if (!is_array($room) || empty($room['id'])) {
                 return null;
             }
-            return $room;
+            // Ensure all required fields exist with defaults
+            return [
+                'id' => $room['id'] ?? (int)$this->roomId,
+                'number' => $room['number'] ?? $room['room_number'] ?? null,
+                'capacity' => $room['capacity'] ?? $room['max_capacity'] ?? 0,
+                'max_capacity' => $room['max_capacity'] ?? $room['capacity'] ?? 0,
+                'room_number' => $room['room_number'] ?? $room['number'] ?? null,
+                'beds' => $room['beds'] ?? 0,
+                'occupancyPrices' => $room['occupancyPrices'] ?? [],
+                'price1Person' => $room['price1Person'] ?? 0,
+                'priceAdditionalPerson' => $room['priceAdditionalPerson'] ?? 0,
+            ];
         } catch (\Exception $e) {
-            \Log::error('Error getting selected room: ' . $e->getMessage(), [
+            Log::error('Error getting selected room: ' . $e->getMessage(), [
                 'roomId' => $this->roomId,
                 'roomsData' => is_array($this->roomsData) ? 'array(' . count($this->roomsData) . ')' : gettype($this->roomsData),
                 'exception' => $e
@@ -934,7 +1142,7 @@ class ReservationCreate extends Component
                 'phone' => $phone
             ];
         } catch (\Exception $e) {
-            \Log::error('Error getting selected customer info: ' . $e->getMessage(), [
+            Log::error('Error getting selected customer info: ' . $e->getMessage(), [
                 'customerId' => $this->customerId,
                 'exception' => $e
             ]);
@@ -985,7 +1193,7 @@ class ReservationCreate extends Component
             $pricePerNight = $this->getPriceForGuests;
             return $pricePerNight * $nights;
         } catch (\Exception $e) {
-            \Log::error('Error calculating auto total: ' . $e->getMessage(), [
+            Log::error('Error calculating auto total: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
             ]);
             return 0;
@@ -1014,31 +1222,53 @@ class ReservationCreate extends Component
         return $total;
     }
 
+    /**
+     * Toggle room selection in multi-room mode
+     * Normalizes roomId to int and manages roomGuests cleanup
+     *
+     * @param int|string $roomId Room ID
+     * @return void
+     */
     public function toggleSelectedRoomIds($roomId): void
     {
-        $roomId = (int) $roomId;
+        // Normalize to integer
+        $roomIdInt = is_numeric($roomId) ? (int) $roomId : 0;
+        if ($roomIdInt <= 0) {
+            return;
+        }
 
+        // Ensure selectedRoomIds is an array
         if (!is_array($this->selectedRoomIds)) {
             $this->selectedRoomIds = [];
         }
 
+        // Normalize all IDs to integers
         $currentIds = array_map('intval', $this->selectedRoomIds);
-        $index = array_search($roomId, $currentIds, true);
+        $index = array_search($roomIdInt, $currentIds, true);
 
         if ($index !== false) {
             // Remove if already selected
             unset($currentIds[$index]);
             $this->selectedRoomIds = array_values($currentIds);
 
-            // Clean up roomGuests for removed room
-            if (isset($this->roomGuests[$roomId])) {
-                unset($this->roomGuests[$roomId]);
+            // Clean up roomGuests for removed room (using integer key)
+            if (isset($this->roomGuests[$roomIdInt])) {
+                unset($this->roomGuests[$roomIdInt]);
             }
         } else {
             // Add if not selected
-            $currentIds[] = $roomId;
+            $currentIds[] = $roomIdInt;
             $this->selectedRoomIds = array_values(array_unique($currentIds));
+
+            // Initialize empty roomGuests array for newly selected room
+            if (!isset($this->roomGuests[$roomIdInt]) || !is_array($this->roomGuests[$roomIdInt])) {
+                $this->roomGuests[$roomIdInt] = [];
+            }
         }
+
+        // Force reactivity
+        $this->selectedRoomIds = $this->selectedRoomIds;
+        $this->roomGuests = $this->roomGuests;
 
         $this->calculateTotal();
     }
@@ -1056,113 +1286,272 @@ class ReservationCreate extends Component
 
     public function openGuestModal(?int $roomId = null): void
     {
+        // In single room mode, if no roomId is provided, use the current roomId
+        if ($roomId === null && !$this->showMultiRoomSelector && !empty($this->roomId)) {
+            $roomId = is_numeric($this->roomId) ? (int) $this->roomId : 0;
+            if ($roomId <= 0) {
+                Log::warning('openGuestModal: Invalid roomId in single room mode', ['roomId' => $this->roomId]);
+                return;
+            }
+        }
+
         $this->currentRoomForGuestAssignment = $roomId;
         $this->guestModalOpen = true;
         $this->guestModalTab = 'search';
         $this->selectedGuestForAdd = null;
+        $this->guestSearchTerm = '';
+        $this->showGuestDropdown = false;
+
+        // Temporary logging for debugging
+        $room = $this->getRoomById($roomId);
+        Log::info('openGuestModal: Modal opened', [
+            'roomId' => $roomId,
+            'currentRoomForGuestAssignment' => $this->currentRoomForGuestAssignment,
+            'roomFound' => !empty($room) && is_array($room),
+            'roomData' => $room,
+        ]);
     }
 
-    public function addGuest($guestData): void
+    public function closeGuestModal(): void
     {
+        $this->guestModalOpen = false;
+        $this->currentRoomForGuestAssignment = null;
+        $this->guestModalTab = 'search';
+        $this->guestSearchTerm = '';
+        $this->showGuestDropdown = false;
+    }
+
+    public function openNewCustomerModal(): void
+    {
+        $this->newCustomerModalOpen = true;
+    }
+
+    public function closeNewCustomerModal(): void
+    {
+        $this->newCustomerModalOpen = false;
+    }
+
+    public function setGuestModalTab(string $tab): void
+    {
+        $this->guestModalTab = $tab;
+    }
+
+    public function clearCustomerSelection(): void
+    {
+        $this->customerId = '';
+        $this->customerSearchTerm = '';
+        $this->showCustomerDropdown = false;
+    }
+
+    public function restoreSuggestedTotal(): void
+    {
+        $this->total = $this->autoCalculatedTotal;
+    }
+
+    public function closeCustomerDropdown(): void
+    {
+        $this->showCustomerDropdown = false;
+    }
+
+    public function closeGuestDropdown(): void
+    {
+        $this->showGuestDropdown = false;
+    }
+
+    public function openGuestSearchDropdown(): void
+    {
+        $this->showGuestDropdown = true;
+    }
+
+    public function getFilteredGuestsProperty(): array
+    {
+        $allCustomers = $this->customers ?? [];
+
+        // If no search term, return first 5 customers
+        if (empty($this->guestSearchTerm)) {
+            return array_slice($allCustomers, 0, 5);
+        }
+
+        $searchTerm = mb_strtolower(trim($this->guestSearchTerm));
+        $filtered = [];
+
+        foreach ($allCustomers as $customer) {
+            $name = mb_strtolower($customer['name'] ?? '');
+            $identification = $customer['taxProfile']['identification'] ?? '';
+            $phone = mb_strtolower($customer['phone'] ?? '');
+
+            // Search in name, identification, or phone
+            if (str_contains($name, $searchTerm) ||
+                str_contains($identification, $searchTerm) ||
+                str_contains($phone, $searchTerm)) {
+                $filtered[] = $customer;
+            }
+
+            // Limit to 20 results for performance
+            if (count($filtered) >= 20) {
+                break;
+            }
+        }
+
+        return $filtered;
+    }
+
+    /**
+     * Select a customer from the list and assign as guest
+     *
+     * @param int|string $customerId Customer ID
+     * @return void
+     */
+    public function selectGuestForAssignment($customerId): void
+    {
+        if (empty($customerId)) {
+            return;
+        }
+
+        // Find customer in the list
+        $customer = collect($this->customers)->first(function ($customer) use ($customerId) {
+            return (string)($customer['id'] ?? '') === (string)$customerId;
+        });
+
+        if (!$customer || !is_array($customer)) {
+            $this->addError('guestAssignment', 'Cliente no encontrado.');
+            return;
+        }
+
+        // Prepare normalized guest data
+        $guestData = [
+            'id' => $customer['id'] ?? null,
+            'name' => $customer['name'] ?? '',
+            'identification' => $customer['taxProfile']['identification'] ?? 'S/N',
+            'phone' => $customer['phone'] ?? 'S/N',
+            'email' => $customer['email'] ?? null,
+        ];
+
+        // Add guest (this will validate, assign, and close modal)
+        $this->addGuest($guestData);
+
+        // Clear search state
+        $this->guestSearchTerm = '';
+        $this->showGuestDropdown = false;
+    }
+
+    public function updatedGuestSearchTerm($value)
+    {
+        // Keep dropdown open when typing (debounced in view)
+        if ($this->guestModalOpen) {
+            $this->showGuestDropdown = true;
+        }
+    }
+
+    /**
+     * Add a guest to a room with validation and immediate UI update
+     *
+     * @param array $guestData Guest data with id, name, identification, phone
+     * @return void
+     */
+    public function addGuest(array $guestData): void
+    {
+        // Validate guest data structure
         if (empty($guestData) || !is_array($guestData)) {
+            $this->addError('guestAssignment', 'Datos del huésped inválidos.');
             return;
         }
 
         $guestId = $guestData['id'] ?? null;
-        if (empty($guestId)) {
+        if (empty($guestId) || !is_numeric($guestId)) {
+            $this->addError('guestAssignment', 'El ID del cliente es inválido.');
             return;
         }
 
-        $roomId = $this->currentRoomForGuestAssignment;
+        $guestId = (int) $guestId;
 
-        if ($roomId !== null) {
-            // Multiple rooms mode: add to specific room
-            $room = $this->getRoomById($roomId);
-            if (!$room || !is_array($room)) {
+        // Determine target room ID
+        $targetRoomId = $this->currentRoomForGuestAssignment;
+
+        // In single room mode, use current roomId if no specific room is set
+        if ($targetRoomId === null && !$this->showMultiRoomSelector && !empty($this->roomId)) {
+            $targetRoomId = is_numeric($this->roomId) ? (int) $this->roomId : 0;
+            if ($targetRoomId <= 0) {
+                $this->addError('guestAssignment', 'No se ha seleccionado una habitación válida.');
                 return;
             }
-
-            // Check if guest is already assigned to this room
-            $roomGuests = $this->getRoomGuests($roomId);
-            $alreadyAssigned = false;
-            foreach ($roomGuests as $guest) {
-                if (isset($guest['id']) && (int)$guest['id'] === (int)$guestId) {
-                    $alreadyAssigned = true;
-                    break;
-                }
-            }
-
-            if ($alreadyAssigned) {
-                $this->addError('guestAssignment', 'Este cliente ya está asignado a esta habitación.');
-                return;
-            }
-
-            // Check capacity
-            $currentCount = $this->getRoomGuestsCount($roomId);
-            $capacity = $room['capacity'] ?? 0;
-            if ($currentCount >= $capacity) {
-                $this->addError('guestAssignment', "No se pueden asignar más huéspedes. La habitación ha alcanzado su capacidad máxima de {$capacity} personas.");
-                return;
-            }
-
-            // Initialize array if needed
-            if (!isset($this->roomGuests[$roomId]) || !is_array($this->roomGuests[$roomId])) {
-                $this->roomGuests[$roomId] = [];
-            }
-
-            // Add guest to room
-            $this->roomGuests[$roomId][] = $guestData;
-
-            // Close modal
-            $this->guestModalOpen = false;
-            $this->selectedGuestForAdd = null;
-        } else {
-            // Single room mode: add to roomGuests using roomId
-            if (empty($this->roomId)) {
-                return;
-            }
-
-            $selectedRoom = $this->selectedRoom;
-            if (!$selectedRoom || !is_array($selectedRoom)) {
-                return;
-            }
-
-            // Initialize array if needed
-            if (!isset($this->roomGuests[$this->roomId]) || !is_array($this->roomGuests[$this->roomId])) {
-                $this->roomGuests[$this->roomId] = [];
-            }
-
-            // Check if already assigned
-            $roomGuests = $this->getRoomGuests($this->roomId);
-            $alreadyAssigned = false;
-            foreach ($roomGuests as $guest) {
-                if (isset($guest['id']) && (int)$guest['id'] === (int)$guestId) {
-                    $alreadyAssigned = true;
-                    break;
-                }
-            }
-
-            if ($alreadyAssigned) {
-                $this->addError('guestAssignment', 'Este cliente ya está asignado a la habitación.');
-                return;
-            }
-
-            // Check capacity
-            $currentCount = $this->getRoomGuestsCount($this->roomId);
-            $capacity = $selectedRoom['capacity'] ?? 0;
-            if ($currentCount >= $capacity) {
-                $this->addError('guestAssignment', "No se pueden asignar más huéspedes. La habitación ha alcanzado su capacidad máxima de {$capacity} personas.");
-                return;
-            }
-
-            // Add guest to roomGuests
-            $this->roomGuests[$this->roomId][] = $guestData;
-
-            // Close modal
-            $this->guestModalOpen = false;
-            $this->selectedGuestForAdd = null;
         }
 
+        // Validate room selection
+        if ($targetRoomId === null) {
+            $this->addError('guestAssignment', 'No se ha seleccionado una habitación.');
+            return;
+        }
+
+        // Normalize to integer (roomGuests always uses int keys)
+        $targetRoomId = (int) $targetRoomId;
+        $room = $this->getRoomById($targetRoomId);
+
+        if (!$room || !is_array($room)) {
+            $this->addError('guestAssignment', 'La habitación seleccionada no es válida.');
+            return;
+        }
+
+        // Initialize room guests array if needed
+        if (!isset($this->roomGuests[$targetRoomId]) || !is_array($this->roomGuests[$targetRoomId])) {
+            $this->roomGuests[$targetRoomId] = [];
+        }
+
+        // Check for duplicates - validate guest is not already assigned
+        $existingGuestIds = array_column($this->roomGuests[$targetRoomId], 'id');
+        $existingGuestIds = array_map('intval', $existingGuestIds);
+        if (in_array($guestId, $existingGuestIds, true)) {
+            $this->addError('guestAssignment', 'Este cliente ya está asignado a esta habitación.');
+            return;
+        }
+
+        // Validate capacity - ensure room has available space
+        $currentCount = $this->getRoomGuestsCount($targetRoomId);
+        $capacity = (int)($room['capacity'] ?? $room['max_capacity'] ?? 0);
+
+        if ($capacity <= 0) {
+            $this->addError('guestAssignment', 'La habitación no tiene capacidad definida.');
+            return;
+        }
+
+        if ($currentCount >= $capacity) {
+            $this->addError('guestAssignment', "No se pueden asignar más huéspedes. La habitación ha alcanzado su capacidad máxima de {$capacity} personas.");
+            return;
+        }
+
+        // Ensure guest data has required fields
+        $guestName = trim($guestData['name'] ?? '');
+        if (empty($guestName)) {
+            $this->addError('guestAssignment', 'El nombre del huésped es requerido.');
+            return;
+        }
+
+        $normalizedGuestData = [
+            'id' => $guestId,
+            'name' => $guestName,
+            'identification' => $guestData['identification'] ?? 'S/N',
+            'phone' => $guestData['phone'] ?? 'S/N',
+            'email' => $guestData['email'] ?? null,
+        ];
+
+        // Add guest to room (using integer key)
+        $this->roomGuests[$targetRoomId][] = $normalizedGuestData;
+
+        // Re-index array to maintain sequential indices
+        $this->roomGuests[$targetRoomId] = array_values($this->roomGuests[$targetRoomId]);
+
+        // Force Livewire reactivity by reassigning the property
+        // This ensures computed properties are recalculated
+        $this->roomGuests = $this->roomGuests;
+
+        // Close modal and reset state
+        $this->guestModalOpen = false;
+        $this->currentRoomForGuestAssignment = null;
+        $this->selectedGuestForAdd = null;
+        $this->guestSearchTerm = '';
+        $this->showGuestDropdown = false;
+
+        // Recalculate totals (will use updated roomGuests)
         $this->calculateTotal();
     }
 
@@ -1175,84 +1564,198 @@ class ReservationCreate extends Component
         $this->addGuest($this->selectedGuestForAdd);
     }
 
+    /**
+     * Remove a guest from a room by index
+     *
+     * @param int|null $roomId Room ID (null for single room mode)
+     * @param int $index Guest index in the array
+     * @return void
+     */
     public function removeGuest(?int $roomId, int $index): void
     {
+        // Determine target room ID
         if ($roomId !== null) {
             // Multiple rooms mode: remove from specific room
-            if (isset($this->roomGuests[$roomId][$index])) {
-                unset($this->roomGuests[$roomId][$index]);
-                $this->roomGuests[$roomId] = array_values($this->roomGuests[$roomId]);
-            }
+            $targetRoomId = (int) $roomId;
         } else {
-            // Single room mode: remove from roomGuests using roomId
+            // Single room mode: use current roomId (normalize to int)
             if (empty($this->roomId)) {
                 return;
             }
-            if (isset($this->roomGuests[$this->roomId][$index])) {
-                unset($this->roomGuests[$this->roomId][$index]);
-                $this->roomGuests[$this->roomId] = array_values($this->roomGuests[$this->roomId]);
+            $targetRoomId = is_numeric($this->roomId) ? (int) $this->roomId : 0;
+            if ($targetRoomId <= 0) {
+                return;
             }
         }
-        $this->calculateTotal();
+
+        // Validate index and remove guest
+        if (!isset($this->roomGuests[$targetRoomId]) || !is_array($this->roomGuests[$targetRoomId])) {
+            return;
+        }
+
+        if (isset($this->roomGuests[$targetRoomId][$index])) {
+            unset($this->roomGuests[$targetRoomId][$index]);
+            // Re-index array to maintain sequential indices
+            $this->roomGuests[$targetRoomId] = array_values($this->roomGuests[$targetRoomId]);
+
+            // If array is empty, ensure it's still an array (not null)
+            if (empty($this->roomGuests[$targetRoomId])) {
+                $this->roomGuests[$targetRoomId] = [];
+            }
+
+            // Force Livewire reactivity
+            $this->roomGuests = $this->roomGuests;
+
+            // Recalculate totals
+            $this->calculateTotal();
+        }
     }
 
+    /**
+     * Check if more guests can be assigned to a room
+     *
+     * @param int $roomId Room ID
+     * @return bool True if room has available capacity
+     */
     public function canAssignMoreGuestsToRoom(int $roomId): bool
     {
+        $roomId = (int) $roomId;
         $room = $this->getRoomById($roomId);
-        if (!$room) {
+
+        if (!$room || !is_array($room)) {
             return false;
         }
+
         $currentCount = $this->getRoomGuestsCount($roomId);
-        return $currentCount < ($room['capacity'] ?? 0);
+        $capacity = (int)($room['capacity'] ?? $room['max_capacity'] ?? 0);
+
+        return $currentCount < $capacity;
     }
 
+    /**
+     * Get guests assigned to a specific room
+     *
+     * @param int $roomId Room ID
+     * @return array Array of guest data
+     */
     public function getRoomGuests(int $roomId): array
     {
-        return $this->roomGuests[$roomId] ?? [];
+        $roomId = (int) $roomId;
+        $guests = $this->roomGuests[$roomId] ?? [];
+
+        if (!is_array($guests)) {
+            return [];
+        }
+
+        // Filter and validate guest data
+        return array_values(array_filter($guests, function ($guest): bool {
+            return is_array($guest)
+                && !empty($guest['id'])
+                && is_numeric($guest['id'])
+                && isset($guest['name']);
+        }));
     }
 
+    /**
+     * Get assigned guests for single room mode (computed property)
+     * This property is used by the Blade view to display guests
+     *
+     * @return array Array of guest data with id, name, identification, phone
+     */
     public function getAssignedGuestsProperty(): array
     {
-        // In single room mode, derive from roomGuests for compatibility with view
-        if (!$this->showMultiRoomSelector && !empty($this->roomId)) {
-            return $this->getRoomGuests($this->roomId);
+        // Only for single room mode
+        if ($this->showMultiRoomSelector) {
+            return [];
         }
-        // In multi-room mode, return empty array (not used)
-        return [];
+
+        // Validate roomId exists
+        if (empty($this->roomId)) {
+            return [];
+        }
+
+        // Normalize roomId to integer (roomGuests always uses int keys)
+        $roomIdInt = is_numeric($this->roomId) ? (int) $this->roomId : 0;
+        if ($roomIdInt <= 0) {
+            return [];
+        }
+
+        // Read directly from roomGuests using integer key
+        $guests = $this->roomGuests[$roomIdInt] ?? [];
+
+        if (!is_array($guests) || empty($guests)) {
+            return [];
+        }
+
+        // Filter and validate guest data
+        $validGuests = [];
+        foreach ($guests as $guest) {
+            if (!is_array($guest)) {
+                continue;
+            }
+
+            $guestId = $guest['id'] ?? null;
+            $guestName = $guest['name'] ?? '';
+
+            // Validate required fields
+            if (empty($guestId) || !is_numeric($guestId) || empty($guestName)) {
+                continue;
+            }
+
+            $validGuests[] = [
+                'id' => (int) $guestId,
+                'name' => (string) $guestName,
+                'identification' => $guest['identification'] ?? 'S/N',
+                'phone' => $guest['phone'] ?? 'S/N',
+                'email' => $guest['email'] ?? null,
+            ];
+        }
+
+        return array_values($validGuests);
     }
 
     public function getAvailableSlotsProperty(): int
     {
-        if (empty($this->roomId)) {
+        try {
+            if (empty($this->roomId)) {
+                return 0;
+            }
+
+            $selectedRoom = $this->selectedRoom;
+            if (!$selectedRoom || !is_array($selectedRoom)) {
+                return 0;
+            }
+
+            $assignedCount = $this->getRoomGuestsCount($this->roomId);
+            $capacity = $selectedRoom['capacity'] ?? $selectedRoom['max_capacity'] ?? 0;
+
+            return max(0, (int)$capacity - $assignedCount);
+        } catch (\Exception $e) {
+            Log::error('Error in getAvailableSlotsProperty: ' . $e->getMessage());
             return 0;
         }
-
-        $selectedRoom = $this->selectedRoom;
-        if (!$selectedRoom || !is_array($selectedRoom)) {
-            return 0;
-        }
-
-        $assignedCount = $this->getRoomGuestsCount($this->roomId);
-        $capacity = $selectedRoom['capacity'] ?? 0;
-
-        return max(0, $capacity - $assignedCount);
     }
 
     public function getCanAssignMoreGuestsProperty(): bool
     {
-        if (empty($this->roomId)) {
+        try {
+            if (empty($this->roomId)) {
+                return false;
+            }
+
+            $selectedRoom = $this->selectedRoom;
+            if (!$selectedRoom || !is_array($selectedRoom)) {
+                return false;
+            }
+
+            $assignedCount = $this->getRoomGuestsCount($this->roomId);
+            $capacity = $selectedRoom['capacity'] ?? $selectedRoom['max_capacity'] ?? 0;
+
+            return $assignedCount < (int)$capacity;
+        } catch (\Exception $e) {
+            Log::error('Error in getCanAssignMoreGuestsProperty: ' . $e->getMessage());
             return false;
         }
-
-        $selectedRoom = $this->selectedRoom;
-        if (!$selectedRoom || !is_array($selectedRoom)) {
-            return false;
-        }
-
-        $assignedCount = $this->getRoomGuestsCount($this->roomId);
-        $capacity = $selectedRoom['capacity'] ?? 0;
-
-        return $assignedCount < $capacity;
     }
 
     private function clearDateErrors(): void
@@ -1285,7 +1788,7 @@ class ReservationCreate extends Component
                 $this->addError('checkIn', 'La fecha de entrada no puede ser anterior al día actual.');
             }
         } catch (\Exception $e) {
-            \Log::error('Error parsing check-in date: ' . $e->getMessage(), ['value' => $value]);
+            Log::error('Error parsing check-in date: ' . $e->getMessage(), ['value' => $value]);
             if (strlen($value) > 0) {
                 $this->addError('checkIn', 'Fecha inválida. Por favor, selecciona una fecha válida.');
             }
@@ -1306,7 +1809,7 @@ class ReservationCreate extends Component
                 $this->addError('checkOut', 'La fecha de salida debe ser posterior a la fecha de entrada.');
             }
         } catch (\Exception $e) {
-            \Log::error('Error parsing check-out date: ' . $e->getMessage(), [
+            Log::error('Error parsing check-out date: ' . $e->getMessage(), [
                 'value' => $value,
                 'checkIn' => $this->checkIn
             ]);
@@ -1330,7 +1833,7 @@ class ReservationCreate extends Component
                 $this->addError('checkOut', 'La fecha de salida debe ser posterior a la fecha de entrada.');
             }
         } catch (\Exception $e) {
-            \Log::error('Error validating check-out against check-in: ' . $e->getMessage(), [
+            Log::error('Error validating check-out against check-in: ' . $e->getMessage(), [
                 'checkIn' => $this->checkIn,
                 'checkOut' => $this->checkOut
             ]);
@@ -1450,7 +1953,7 @@ class ReservationCreate extends Component
 
             return $availableRooms;
         } catch (\Exception $e) {
-            \Log::error('Error filtering available rooms: ' . $e->getMessage(), [
+            Log::error('Error filtering available rooms: ' . $e->getMessage(), [
                 'checkIn' => $this->checkIn,
                 'checkOut' => $this->checkOut,
                 'trace' => $e->getTraceAsString()
@@ -1462,10 +1965,20 @@ class ReservationCreate extends Component
     private function clearUnavailableRooms(): void
     {
         if (!$this->datesCompleted || $this->hasDateValidationErrors()) {
+            // If dates are not valid, clear all room selections
+            $this->roomId = '';
+            $this->selectedRoomIds = [];
+            $this->roomGuests = [];
+            $this->calculateTotal();
             return;
         }
 
         if (empty($this->checkIn) || empty($this->checkOut)) {
+            // If dates are empty, clear all room selections
+            $this->roomId = '';
+            $this->selectedRoomIds = [];
+            $this->roomGuests = [];
+            $this->calculateTotal();
             return;
         }
 
@@ -1474,22 +1987,24 @@ class ReservationCreate extends Component
             $checkOut = Carbon::parse($this->checkOut)->startOfDay();
 
             if ($checkOut->lte($checkIn)) {
+                // Invalid date range, clear all selections
+                $this->roomId = '';
+                $this->selectedRoomIds = [];
+                $this->roomGuests = [];
+                $this->calculateTotal();
                 return;
             }
 
-            $availableRooms = $this->availableRooms;
-            $availableRoomIds = array_map(function($room) {
-                return (int) ($room['id'] ?? 0);
-            }, $availableRooms);
-
+            // Check availability directly instead of using computed property to avoid recursion
             // Clear single room selection if not available
             if (!empty($this->roomId)) {
                 $roomId = (int) $this->roomId;
-                if (!in_array($roomId, $availableRoomIds, true)) {
+                if (!$this->isRoomAvailableForDates($roomId, $checkIn, $checkOut)) {
                     $this->roomId = '';
                     if (isset($this->roomGuests[$roomId])) {
                         unset($this->roomGuests[$roomId]);
                     }
+                    $this->calculateTotal();
                 }
             }
 
@@ -1497,27 +2012,37 @@ class ReservationCreate extends Component
             if (is_array($this->selectedRoomIds) && !empty($this->selectedRoomIds)) {
                 $validRoomIds = [];
                 foreach ($this->selectedRoomIds as $roomId) {
-                    $roomId = (int) $roomId;
-                    if (in_array($roomId, $availableRoomIds, true)) {
-                        $validRoomIds[] = $roomId;
+                    $roomIdInt = (int) $roomId;
+                    if ($this->isRoomAvailableForDates($roomIdInt, $checkIn, $checkOut)) {
+                        $validRoomIds[] = $roomIdInt;
                     } else {
                         // Remove guests for unavailable room
-                        if (isset($this->roomGuests[$roomId])) {
-                            unset($this->roomGuests[$roomId]);
+                        if (isset($this->roomGuests[$roomIdInt])) {
+                            unset($this->roomGuests[$roomIdInt]);
                         }
                     }
                 }
                 $this->selectedRoomIds = $validRoomIds;
+                $this->calculateTotal();
             }
         } catch (\Exception $e) {
-            \Log::error('Error clearing unavailable rooms: ' . $e->getMessage());
+            Log::error('Error clearing unavailable rooms: ' . $e->getMessage(), [
+                'checkIn' => $this->checkIn,
+                'checkOut' => $this->checkOut,
+                'trace' => $e->getTraceAsString()
+            ]);
+            // On error, clear selections to prevent inconsistent state
+            $this->roomId = '';
+            $this->selectedRoomIds = [];
+            $this->roomGuests = [];
+            $this->total = 0;
         }
     }
 
     private function isRoomAvailableForDates(int $roomId, Carbon $checkIn, Carbon $checkOut): bool
     {
         // Check in main reservations table (single room reservations)
-        $existsInReservations = \App\Models\Reservation::where('room_id', $roomId)
+        $existsInReservations = Reservation::where('room_id', $roomId)
             ->where(function ($query) use ($checkIn, $checkOut) {
                 $query->where('check_in_date', '<', $checkOut)
                       ->where('check_out_date', '>', $checkIn);
@@ -1529,7 +2054,7 @@ class ReservationCreate extends Component
         }
 
         // Check in reservation_rooms table (multi-room reservations)
-        $existsInPivot = \Illuminate\Support\Facades\DB::table('reservation_rooms')
+        $existsInPivot = DB::table('reservation_rooms')
             ->join('reservations', 'reservation_rooms.reservation_id', '=', 'reservations.id')
             ->where('reservation_rooms.room_id', $roomId)
             ->where(function ($query) use ($checkIn, $checkOut) {
@@ -1695,15 +2220,32 @@ class ReservationCreate extends Component
             ]);
 
             // Create tax profile
+            // Use default values when electronic invoice is not required
+            $municipalityId = $requiresElectronicInvoice
+                ? ($this->newMainCustomer['municipalityId'] ?? null)
+                : (CompanyTaxSetting::first()?->municipality_id
+                    ?? DianMunicipality::first()?->factus_id
+                    ?? 149); // Bogotá Factus ID as fallback
+
             $taxProfileData = [
                 'identification' => $this->newMainCustomer['identification'],
                 'dv' => $this->newMainCustomer['dv'] ?? null,
-                'identification_document_id' => $requiresElectronicInvoice ? ($this->newMainCustomer['identificationDocumentId'] ?? null) : null,
-                'legal_organization_id' => $requiresElectronicInvoice ? ($this->newMainCustomer['legalOrganizationId'] ?? null) : null,
-                'tribute_id' => $requiresElectronicInvoice ? ($this->newMainCustomer['tributeId'] ?? null) : null,
-                'municipality_id' => $requiresElectronicInvoice ? ($this->newMainCustomer['municipalityId'] ?? null) : null,
-                'company' => $requiresElectronicInvoice && $this->mainCustomerIsJuridicalPerson ? ($this->newMainCustomer['company'] ?? null) : null,
-                'trade_name' => $requiresElectronicInvoice ? ($this->newMainCustomer['tradeName'] ?? null) : null,
+                'identification_document_id' => $requiresElectronicInvoice
+                    ? ($this->newMainCustomer['identificationDocumentId'] ?? null)
+                    : 3, // Default to CC (Cédula de Ciudadanía)
+                'legal_organization_id' => $requiresElectronicInvoice
+                    ? ($this->newMainCustomer['legalOrganizationId'] ?? null)
+                    : 2, // Default to Persona Natural
+                'tribute_id' => $requiresElectronicInvoice
+                    ? ($this->newMainCustomer['tributeId'] ?? null)
+                    : 21, // Default to No responsable de IVA
+                'municipality_id' => $municipalityId,
+                'company' => $requiresElectronicInvoice && $this->mainCustomerIsJuridicalPerson
+                    ? ($this->newMainCustomer['company'] ?? null)
+                    : null,
+                'trade_name' => $requiresElectronicInvoice
+                    ? ($this->newMainCustomer['tradeName'] ?? null)
+                    : null,
             ];
 
             $customer->taxProfile()->create($taxProfileData);
@@ -1746,12 +2288,29 @@ class ReservationCreate extends Component
 
             // Show success message
             session()->flash('message', 'Cliente creado exitosamente.');
+        } catch (ValidationException $e) {
+            // Re-throw validation exceptions to show specific field errors
+            throw $e;
         } catch (\Exception $e) {
-            \Log::error('Error creating customer: ' . $e->getMessage(), [
+            Log::error('Error creating customer: ' . $e->getMessage(), [
                 'exception' => $e,
+                'trace' => $e->getTraceAsString(),
                 'data' => $this->newMainCustomer
             ]);
-            $this->addError('newMainCustomer.name', 'Error al crear el cliente. Por favor intente nuevamente.');
+
+            // Show more specific error messages
+            $errorMessage = 'Error al crear el cliente.';
+            if (str_contains($e->getMessage(), 'SQLSTATE')) {
+                if (str_contains($e->getMessage(), 'Duplicate entry')) {
+                    $errorMessage = 'Ya existe un cliente con esta identificación.';
+                    $this->addError('newMainCustomer.identification', $errorMessage);
+                } else {
+                    $errorMessage = 'Error en la base de datos. Por favor verifique los datos e intente nuevamente.';
+                    $this->addError('newMainCustomer.name', $errorMessage);
+                }
+            } else {
+                $this->addError('newMainCustomer.name', $errorMessage . ' Por favor intente nuevamente.');
+            }
         } finally {
             $this->creatingMainCustomer = false;
         }
@@ -1792,7 +2351,7 @@ class ReservationCreate extends Component
 
     public function updatedCustomerSearchTerm($value)
     {
-        // Keep dropdown open when typing
+        // Keep dropdown open when typing (debounced in view)
         if ($this->datesCompleted) {
             $this->showCustomerDropdown = true;
         }
@@ -1812,6 +2371,215 @@ class ReservationCreate extends Component
         $this->customerId = (string) $customerId;
         $this->customerSearchTerm = '';
         $this->showCustomerDropdown = false;
+    }
+
+    public function updateCustomerRequiredFields(): void
+    {
+        $documentId = $this->newCustomer['identificationDocumentId'] ?? '';
+
+        if (empty($documentId)) {
+            $this->customerRequiresDV = false;
+            $this->customerIsJuridicalPerson = false;
+            $this->newCustomer['dv'] = '';
+            return;
+        }
+
+        // Find document in identificationDocuments array
+        $document = null;
+        if (is_array($this->identificationDocuments)) {
+            foreach ($this->identificationDocuments as $doc) {
+                if (isset($doc['id']) && (string)$doc['id'] === (string)$documentId) {
+                    $document = $doc;
+                    break;
+                }
+            }
+        }
+
+        if ($document) {
+            $this->customerRequiresDV = (bool)($document['requires_dv'] ?? false);
+            $this->customerIsJuridicalPerson = in_array($document['code'] ?? '', ['NI', 'NIT'], true);
+
+            // Calculate DV if required
+            if ($this->customerRequiresDV && !empty($this->newCustomer['identification'])) {
+                $this->newCustomer['dv'] = $this->calculateVerificationDigit($this->newCustomer['identification']);
+            } else {
+                $this->newCustomer['dv'] = '';
+            }
+        } else {
+            $this->customerRequiresDV = false;
+            $this->customerIsJuridicalPerson = false;
+            $this->newCustomer['dv'] = '';
+        }
+    }
+
+    public function checkCustomerIdentification(): void
+    {
+        $identification = $this->newCustomer['identification'] ?? '';
+
+        if (empty($identification)) {
+            $this->customerIdentificationMessage = '';
+            $this->customerIdentificationExists = false;
+            return;
+        }
+
+        // Check if identification already exists
+        $exists = Customer::withoutGlobalScopes()
+            ->whereHas('taxProfile', function ($query) use ($identification) {
+                $query->where('identification', $identification);
+            })
+            ->exists();
+
+        if ($exists) {
+            $this->customerIdentificationExists = true;
+            $this->customerIdentificationMessage = 'Esta identificación ya está registrada.';
+        } else {
+            $this->customerIdentificationExists = false;
+            $this->customerIdentificationMessage = 'Identificación disponible.';
+        }
+
+        // Recalculate DV if required
+        if ($this->customerRequiresDV && !empty($identification)) {
+            $this->newCustomer['dv'] = $this->calculateVerificationDigit($identification);
+        }
+    }
+
+    public function createAndAddGuest(): void
+    {
+        $requiresElectronicInvoice = $this->newCustomer['requiresElectronicInvoice'] ?? false;
+
+        $rules = [
+            'newCustomer.name' => 'required|string|max:255',
+            'newCustomer.identification' => 'required|string|max:10',
+            'newCustomer.phone' => 'required|string|max:20',
+            'newCustomer.email' => 'nullable|email|max:255',
+            'newCustomer.address' => 'nullable|string|max:500',
+        ];
+
+        $messages = [
+            'newCustomer.name.required' => 'El nombre es obligatorio.',
+            'newCustomer.name.max' => 'El nombre no puede exceder 255 caracteres.',
+            'newCustomer.identification.required' => 'La identificación es obligatoria.',
+            'newCustomer.identification.max' => 'La identificación no puede exceder 10 dígitos.',
+            'newCustomer.phone.required' => 'El teléfono es obligatorio.',
+            'newCustomer.phone.max' => 'El teléfono no puede exceder 20 caracteres. Por favor, ingrese un número válido.',
+            'newCustomer.email.email' => 'El email debe tener un formato válido (ejemplo: correo@dominio.com).',
+            'newCustomer.email.max' => 'El email no puede exceder 255 caracteres.',
+            'newCustomer.address.max' => 'La dirección no puede exceder 500 caracteres.',
+        ];
+
+        // Add DIAN validation if electronic invoice is required
+        if ($requiresElectronicInvoice) {
+            $rules['newCustomer.identificationDocumentId'] = 'required|exists:dian_identification_documents,id';
+            $rules['newCustomer.municipalityId'] = 'required|exists:dian_municipalities,factus_id';
+
+            $messages['newCustomer.identificationDocumentId.required'] = 'El tipo de documento es obligatorio para facturación electrónica.';
+            $messages['newCustomer.identificationDocumentId.exists'] = 'El tipo de documento seleccionado no es válido. Por favor, seleccione una opción de la lista.';
+            $messages['newCustomer.municipalityId.required'] = 'El municipio es obligatorio para facturación electrónica.';
+            $messages['newCustomer.municipalityId.exists'] = 'El municipio seleccionado no es válido. Por favor, seleccione una opción de la lista.';
+
+            // If juridical person, company is required
+            if ($this->customerIsJuridicalPerson) {
+                $rules['newCustomer.company'] = 'required|string|max:255';
+                $messages['newCustomer.company.required'] = 'La razón social es obligatoria para personas jurídicas (NIT).';
+                $messages['newCustomer.company.max'] = 'La razón social no puede exceder 255 caracteres.';
+            }
+        }
+
+        $this->validate($rules, $messages);
+
+        // Check if identification already exists
+        $this->checkCustomerIdentification();
+        if ($this->customerIdentificationExists) {
+            $this->addError('newCustomer.identification', 'Esta identificación ya está registrada.');
+            return;
+        }
+
+        $this->creatingCustomer = true;
+
+        try {
+            // Create customer
+            $customer = Customer::create([
+                'name' => mb_strtoupper($this->newCustomer['name']),
+                'phone' => $this->newCustomer['phone'],
+                'email' => $this->newCustomer['email'] ?? null,
+                'address' => $this->newCustomer['address'] ?? null,
+                'is_active' => true,
+                'requires_electronic_invoice' => $requiresElectronicInvoice,
+            ]);
+
+            // Create tax profile
+            // Use default values when electronic invoice is not required
+            $municipalityId = $requiresElectronicInvoice
+                ? ($this->newCustomer['municipalityId'] ?? null)
+                : (CompanyTaxSetting::first()?->municipality_id
+                    ?? DianMunicipality::first()?->factus_id
+                    ?? 149); // Bogotá Factus ID as fallback
+
+            $taxProfileData = [
+                'identification' => $this->newCustomer['identification'],
+                'dv' => $this->newCustomer['dv'] ?? null,
+                'identification_document_id' => $requiresElectronicInvoice
+                    ? ($this->newCustomer['identificationDocumentId'] ?? null)
+                    : 3, // Default to CC (Cédula de Ciudadanía)
+                'legal_organization_id' => $requiresElectronicInvoice
+                    ? ($this->newCustomer['legalOrganizationId'] ?? null)
+                    : 2, // Default to Persona Natural
+                'tribute_id' => $requiresElectronicInvoice
+                    ? ($this->newCustomer['tributeId'] ?? null)
+                    : 21, // Default to No responsable de IVA
+                'municipality_id' => $municipalityId,
+                'company' => $requiresElectronicInvoice && $this->customerIsJuridicalPerson
+                    ? ($this->newCustomer['company'] ?? null)
+                    : null,
+                'trade_name' => $requiresElectronicInvoice
+                    ? ($this->newCustomer['tradeName'] ?? null)
+                    : null,
+            ];
+
+            $customer->taxProfile()->create($taxProfileData);
+
+            // Prepare guest data
+            $guestData = [
+                'id' => $customer->id,
+                'name' => $customer->name,
+                'identification' => $customer->taxProfile?->identification ?? 'S/N',
+                'phone' => $customer->phone ?? 'S/N',
+                'email' => $customer->email ?? null,
+            ];
+
+            // Add guest to room
+            $this->addGuest($guestData);
+
+            // Reset form
+            $this->newCustomer = [
+                'name' => '',
+                'identification' => '',
+                'phone' => '',
+                'email' => '',
+                'address' => '',
+                'requiresElectronicInvoice' => false,
+                'identificationDocumentId' => '',
+                'dv' => '',
+                'company' => '',
+                'tradeName' => '',
+                'municipalityId' => '',
+                'legalOrganizationId' => '',
+                'tributeId' => ''
+            ];
+            $this->newCustomerErrors = [];
+            $this->customerIdentificationMessage = '';
+            $this->customerIdentificationExists = false;
+            $this->customerRequiresDV = false;
+            $this->customerIsJuridicalPerson = false;
+        } catch (\Exception $e) {
+            Log::error('Error creating guest customer: ' . $e->getMessage(), [
+                'exception' => $e,
+                'data' => $this->newCustomer
+            ]);
+            $this->addError('newCustomer.name', 'Error al crear el cliente. Por favor intente nuevamente.');
+        } finally {
+            $this->creatingCustomer = false;
+        }
     }
 
     public function render()

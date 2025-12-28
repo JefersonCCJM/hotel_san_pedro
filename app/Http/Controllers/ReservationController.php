@@ -16,9 +16,29 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Collection;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
+use Throwable;
 
 class ReservationController extends Controller
 {
+    /**
+     * Livewire browser-events are not safe to dispatch from Controllers in all Livewire versions.
+     * In some installations, LivewireManager::dispatch() does not exist and will throw a fatal Error,
+     * preventing redirects (even though the DB transaction already happened).
+     */
+    private function safeLivewireDispatch(string $event): void
+    {
+        try {
+            if (class_exists(\Livewire\Livewire::class)) {
+                // This will work on Livewire versions that support it, otherwise may throw.
+                \Livewire\Livewire::dispatch($event);
+            }
+        } catch (Throwable $e) {
+            // Never break controller redirects because of a UI-only event.
+            \Log::warning("Livewire dispatch skipped in controller for event: {$event}", [
+                'exception' => $e,
+            ]);
+        }
+    }
     /**
      * Display a listing of the resource.
      */
@@ -62,61 +82,108 @@ class ReservationController extends Controller
 
     /**
      * Show the form for creating a new resource.
+     * Always returns arrays, never null values.
      */
     public function create()
     {
-        $customers = Customer::withoutGlobalScopes()
-            ->with('taxProfile')
-            ->orderBy('name')
-            ->get();
-        $rooms = Room::where('status', '!=', \App\Enums\RoomStatus::MANTENIMIENTO)->get();
+        try {
+            // Fetch customers with error handling
+            $customers = Customer::withoutGlobalScopes()
+                ->with('taxProfile')
+                ->orderBy('name')
+                ->get();
 
-        // Prepare rooms data for frontend
-        $roomsData = $this->prepareRoomsData($rooms);
+            // Fetch rooms with error handling
+            $rooms = Room::where('status', '!=', \App\Enums\RoomStatus::MANTENIMIENTO)->get();
 
-        // Get DIAN catalogs for customer creation modal
-        $dianCatalogs = $this->getDianCatalogs();
+            // Prepare rooms data for frontend (always returns array)
+            $roomsData = $this->prepareRoomsData($rooms);
 
-        // Prepare customers as simple array for Livewire
-        $customersArray = $customers->map(function ($customer) {
-            return [
-                'id' => $customer->id,
-                'name' => $customer->name,
-                'phone' => $customer->phone ?? 'S/N',
-                'email' => $customer->email ?? null,
-                'taxProfile' => $customer->taxProfile ? [
-                    'identification' => $customer->taxProfile->identification ?? 'S/N',
-                    'dv' => $customer->taxProfile->dv ?? null,
-                ] : null,
+            // Get DIAN catalogs for customer creation modal (always returns valid collections)
+            $dianCatalogs = $this->getDianCatalogs();
+
+            // Prepare customers as simple array for Livewire
+            // Ensure structure matches what Livewire expects
+            $customersArray = $customers->map(function ($customer) {
+                return [
+                    'id' => (int) $customer->id,
+                    'name' => (string) ($customer->name ?? ''),
+                    'phone' => (string) ($customer->phone ?? 'S/N'),
+                    'email' => $customer->email ? (string) $customer->email : null,
+                    'taxProfile' => $customer->taxProfile ? [
+                        'identification' => (string) ($customer->taxProfile->identification ?? 'S/N'),
+                        'dv' => $customer->taxProfile->dv ? (string) $customer->taxProfile->dv : null,
+                    ] : null,
+                ];
+            })->toArray();
+
+            // Ensure customersArray is always an array
+            if (!is_array($customersArray)) {
+                $customersArray = [];
+            }
+
+            // Prepare rooms as simple array for Livewire
+            // Ensure structure matches what Livewire expects
+            $roomsArray = $rooms->map(function ($room) {
+                return [
+                    'id' => (int) $room->id,
+                    'room_number' => (string) ($room->room_number ?? ''),
+                    'beds_count' => (int) ($room->beds_count ?? 0),
+                    'max_capacity' => (int) ($room->max_capacity ?? 0),
+                ];
+            })->toArray();
+
+            // Ensure roomsArray is always an array
+            if (!is_array($roomsArray)) {
+                $roomsArray = [];
+            }
+
+            // Ensure roomsData is always an array
+            if (!is_array($roomsData)) {
+                $roomsData = [];
+            }
+
+            // Prepare DIAN catalogs as arrays
+            // Ensure all catalogs are arrays, never null
+            $dianCatalogsArray = [
+                'identificationDocuments' => $dianCatalogs['identificationDocuments']->toArray(),
+                'legalOrganizations' => $dianCatalogs['legalOrganizations']->toArray(),
+                'tributes' => $dianCatalogs['tributes']->toArray(),
+                'municipalities' => $dianCatalogs['municipalities']->toArray(),
             ];
-        })->toArray();
 
-        // Prepare rooms as simple array for Livewire
-        $roomsArray = $rooms->map(function ($room) {
-            return [
-                'id' => $room->id,
-                'room_number' => $room->room_number,
-                'beds_count' => $room->beds_count,
-                'max_capacity' => $room->max_capacity,
-            ];
-        })->toArray();
+            // Ensure all catalog arrays are valid
+            foreach ($dianCatalogsArray as $key => $value) {
+                if (!is_array($value)) {
+                    $dianCatalogsArray[$key] = [];
+                }
+            }
 
-        // Prepare DIAN catalogs as arrays
-        $dianCatalogsArray = [
-            'identificationDocuments' => $dianCatalogs['identificationDocuments']->toArray(),
-            'legalOrganizations' => $dianCatalogs['legalOrganizations']->toArray(),
-            'tributes' => $dianCatalogs['tributes']->toArray(),
-            'municipalities' => $dianCatalogs['municipalities']->toArray(),
-        ];
+            return view('reservations.create', array_merge(
+                [
+                    'customers' => $customersArray,
+                    'rooms' => $roomsArray,
+                    'roomsData' => $roomsData,
+                ],
+                $dianCatalogsArray
+            ));
+        } catch (\Exception $e) {
+            \Log::error('Error in ReservationController::create(): ' . $e->getMessage(), [
+                'exception' => $e,
+                'trace' => $e->getTraceAsString()
+            ]);
 
-        return view('reservations.create', array_merge(
-            [
-                'customers' => $customersArray,
-                'rooms' => $roomsArray,
-                'roomsData' => $roomsData,
-            ],
-            $dianCatalogsArray
-        ));
+            // Return view with empty arrays to prevent 500 errors
+            return view('reservations.create', [
+                'customers' => [],
+                'rooms' => [],
+                'roomsData' => [],
+                'identificationDocuments' => [],
+                'legalOrganizations' => [],
+                'tributes' => [],
+                'municipalities' => [],
+            ])->withErrors(['error' => 'Error al cargar los datos. Por favor, recarga la página.']);
+        }
     }
 
     /**
@@ -125,6 +192,17 @@ class ReservationController extends Controller
     public function store(StoreReservationRequest $request)
     {
         try {
+            // Log the incoming request data for debugging
+            \Log::info('Reservation store request', [
+                'all_data' => $request->all(),
+                'customer_id' => $request->customer_id,
+                'room_id' => $request->room_id,
+                'room_ids' => $request->room_ids,
+                'total_amount' => $request->total_amount,
+                'deposit' => $request->deposit,
+                'guests_count' => $request->guests_count,
+            ]);
+
             $data = $request->validated();
 
             // Determine if using multiple rooms or single room (backward compatibility)
@@ -153,9 +231,19 @@ class ReservationController extends Controller
 
             // Validate guest assignment
             $roomGuests = $request->room_guests ?? [];
+
+            // Normalize roomGuests keys to integers (form sends them as strings)
+            $normalizedRoomGuests = [];
+            foreach ($roomGuests as $roomId => $assignedGuestIds) {
+                $roomIdInt = is_numeric($roomId) ? (int) $roomId : 0;
+                if ($roomIdInt > 0) {
+                    $normalizedRoomGuests[$roomIdInt] = $assignedGuestIds;
+                }
+            }
+
             $rooms = Room::whereIn('id', $roomIds)->get()->keyBy('id');
 
-            $guestValidationErrors = $this->validateGuestAssignment($roomGuests, $rooms);
+            $guestValidationErrors = $this->validateGuestAssignment($normalizedRoomGuests, $rooms);
             if (!empty($guestValidationErrors)) {
                 return back()->withInput()->withErrors($guestValidationErrors);
             }
@@ -177,8 +265,9 @@ class ReservationController extends Controller
                     'room_id' => $roomId,
                 ]);
 
-                // Assign guests to this specific room if provided
-                $this->assignGuestsToRoom($reservationRoom, $roomGuests[$roomId] ?? []);
+                // Assign guests to this specific room if provided (use normalized array)
+                $roomIdInt = is_numeric($roomId) ? (int) $roomId : 0;
+                $this->assignGuestsToRoom($reservationRoom, $normalizedRoomGuests[$roomIdInt] ?? []);
             }
 
             // Backward compatibility: Assign guests to reservation if using old format
@@ -192,16 +281,20 @@ class ReservationController extends Controller
             }
 
             // Dispatch Livewire event for stats update
-            \Livewire\Livewire::dispatch('reservation-created');
+            $this->safeLivewireDispatch('reservation-created');
 
             // Redirect to reservations index with calendar view for the check-in month
             $month = $checkInDate->format('Y-m');
             return redirect()->route('reservations.index', ['view' => 'calendar', 'month' => $month])
                 ->with('success', 'Reserva registrada exitosamente.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // Re-throw validation exceptions to let Laravel handle them properly
+            throw $e;
         } catch (\Exception $e) {
             \Log::error('Error creating reservation: ' . $e->getMessage(), [
                 'request_data' => $request->all(),
-                'exception' => $e
+                'exception' => $e,
+                'trace' => $e->getTraceAsString()
             ]);
 
             return back()->withInput()->withErrors(['error' => 'Error al crear la reserva: ' . $e->getMessage()]);
@@ -249,7 +342,7 @@ class ReservationController extends Controller
         $reservation->update($request->validated());
 
         // Dispatch Livewire event for stats update
-        \Livewire\Livewire::dispatch('reservation-updated');
+        $this->safeLivewireDispatch('reservation-updated');
 
         return redirect()->route('reservations.index')->with('success', 'Reserva actualizada correctamente.');
     }
@@ -273,7 +366,7 @@ class ReservationController extends Controller
         ]);
 
         // Dispatch Livewire event for stats update
-        \Livewire\Livewire::dispatch('reservation-deleted');
+        $this->safeLivewireDispatch('reservation-deleted');
 
         return redirect()->route('reservations.index')->with('success', 'Reserva eliminada correctamente.');
     }
@@ -310,21 +403,28 @@ class ReservationController extends Controller
     /**
      * Prepare rooms data for frontend consumption.
      * Similar to CustomerController::getTaxCatalogs() pattern.
+     * Always returns array with all required keys, never null.
      */
     private function prepareRoomsData(Collection $rooms): array
     {
+        if ($rooms->isEmpty()) {
+            return [];
+        }
+
         return $rooms->map(function (Room $room): array {
             $occupancyPrices = $room->occupancy_prices ?? [];
 
             // Fallback to legacy prices if occupancy_prices is empty
-            if (empty($occupancyPrices)) {
+            if (empty($occupancyPrices) || !is_array($occupancyPrices)) {
+                $defaultPrice = (float) ($room->price_per_night ?? 0);
                 $occupancyPrices = [
-                    1 => (float) ($room->price_1_person ?: $room->price_per_night),
-                    2 => (float) ($room->price_2_persons ?: $room->price_per_night),
+                    1 => (float) ($room->price_1_person ?? $defaultPrice),
+                    2 => (float) ($room->price_2_persons ?? $defaultPrice),
                 ];
                 // Calculate additional person prices
-                $additionalPrice = (float) ($room->price_additional_person ?: 0);
-                for ($i = 3; $i <= ($room->max_capacity ?? 2); $i++) {
+                $additionalPrice = (float) ($room->price_additional_person ?? 0);
+                $maxCapacity = (int) ($room->max_capacity ?? 2);
+                for ($i = 3; $i <= $maxCapacity; $i++) {
                     $occupancyPrices[$i] = $occupancyPrices[2] + ($additionalPrice * ($i - 2));
                 }
             } else {
@@ -338,26 +438,32 @@ class ReservationController extends Controller
 
             // Calculate additional person price
             // If price_additional_person is set, use it; otherwise calculate from price_2_persons - price_1_person
-            $price1Person = (float) ($room->price_1_person ?: $room->price_per_night);
-            $price2Persons = (float) ($room->price_2_persons ?: $room->price_per_night);
-            $priceAdditionalPerson = (float) $room->price_additional_person;
+            $defaultPrice = (float) ($room->price_per_night ?? 0);
+            $price1Person = (float) ($room->price_1_person ?? $defaultPrice);
+            $price2Persons = (float) ($room->price_2_persons ?? $defaultPrice);
+            $priceAdditionalPerson = (float) ($room->price_additional_person ?? 0);
 
             // If price_additional_person is 0 or not set, calculate it from the difference
             if ($priceAdditionalPerson == 0 && $price2Persons > $price1Person) {
                 $priceAdditionalPerson = $price2Persons - $price1Person;
             }
 
+            // Ensure status is always a string value
+            $statusValue = $room->status instanceof \App\Enums\RoomStatus
+                ? $room->status->value
+                : (string) ($room->status ?? 'libre');
+
             return [
-                'id' => $room->id,
-                'number' => $room->room_number,
-                'beds' => $room->beds_count,
-                'price' => (float) $room->price_per_night, // Keep for backward compatibility
+                'id' => (int) $room->id,
+                'number' => (string) ($room->room_number ?? ''),
+                'beds' => (int) ($room->beds_count ?? 0),
+                'price' => $defaultPrice, // Keep for backward compatibility
                 'occupancyPrices' => $occupancyPrices, // Prices by number of guests
                 'price1Person' => $price1Person, // Base price for 1 person
                 'price2Persons' => $price2Persons, // Price for 2 persons (for calculation fallback)
                 'priceAdditionalPerson' => $priceAdditionalPerson, // Additional price per person
-                'capacity' => $room->max_capacity ?? 2,
-                'status' => $room->status->value,
+                'capacity' => (int) ($room->max_capacity ?? 2),
+                'status' => $statusValue,
             ];
         })->toArray();
     }
@@ -365,18 +471,32 @@ class ReservationController extends Controller
     /**
      * Get DIAN catalogs for customer creation modal.
      * Similar to CustomerController::getTaxCatalogs() pattern.
+     * Always returns valid collections, never null.
      */
     private function getDianCatalogs(): array
     {
-        return [
-            'identificationDocuments' => DianIdentificationDocument::query()->orderBy('id')->get(),
-            'legalOrganizations' => DianLegalOrganization::query()->orderBy('id')->get(),
-            'tributes' => DianCustomerTribute::query()->orderBy('id')->get(),
-            'municipalities' => DianMunicipality::query()
-                ->orderBy('department')
-                ->orderBy('name')
-                ->get(),
-        ];
+        try {
+            return [
+                'identificationDocuments' => DianIdentificationDocument::query()->orderBy('id')->get() ?? collect(),
+                'legalOrganizations' => DianLegalOrganization::query()->orderBy('id')->get() ?? collect(),
+                'tributes' => DianCustomerTribute::query()->orderBy('id')->get() ?? collect(),
+                'municipalities' => DianMunicipality::query()
+                    ->orderBy('department')
+                    ->orderBy('name')
+                    ->get() ?? collect(),
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Error fetching DIAN catalogs: ' . $e->getMessage(), [
+                'exception' => $e
+            ]);
+            // Return empty collections to prevent null errors in frontend
+            return [
+                'identificationDocuments' => collect(),
+                'legalOrganizations' => collect(),
+                'tributes' => collect(),
+                'municipalities' => collect(),
+            ];
+        }
     }
 
     /**
@@ -394,7 +514,7 @@ class ReservationController extends Controller
         }
 
         // Check if check-out is before or equal to check-in
-        if ($checkOut->isBeforeOrEqualTo($checkIn)) {
+        if ($checkOut->lte($checkIn)) {
             $errors['check_out_date'] = 'La fecha de salida debe ser posterior a la fecha de entrada.';
         }
 

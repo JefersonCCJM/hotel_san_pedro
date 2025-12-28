@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\RoomStatusCast;
 use App\Enums\RoomStatus;
 use App\Enums\VentilationType;
 use Illuminate\Database\Eloquent\Model;
@@ -28,7 +29,8 @@ class Room extends Model
         'price_2_persons' => 'decimal:2',
         'price_additional_person' => 'decimal:2',
         'occupancy_prices' => 'array',
-        'status' => RoomStatus::class,
+        // Use backward-compatible cast to avoid ValueError on legacy values like "available".
+        'status' => RoomStatusCast::class,
         'ventilation_type' => VentilationType::class,
         'beds_count' => 'integer',
         'max_capacity' => 'integer',
