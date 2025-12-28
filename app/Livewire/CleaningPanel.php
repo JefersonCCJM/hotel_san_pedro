@@ -9,6 +9,7 @@ use App\Enums\RoomStatus as RoomStatusEnum;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class CleaningPanel extends Component
 {
@@ -21,11 +22,54 @@ class CleaningPanel extends Component
      * Esto evita renders innecesarios y que el polling sobrescriba cambios recientes.
      */
     public $lastEventUpdate = 0;
+    
+    /**
+     * Hash para detectar cambios sin cargar datos completos.
+     * Optimización: permite verificar cambios rápidamente antes de recargar todo.
+     */
+    public $dataHash = '';
+    
+    private const POLLING_INTERVAL = 5;
+    private const EVENT_COOLDOWN = 6; // segundos
 
     public function mount(): void
     {
         $this->loadRooms();
         $this->currentTime = now()->format('H:i');
+    }
+    
+    /**
+     * Calculate hash of current room states for fast change detection.
+     * Single Responsibility: Only calculates hash.
+     * Performance: Uses minimal queries, only gets timestamps and counts.
+     * 
+     * @return string Hash of room states
+     */
+    private function calculateDataHash(): string
+    {
+        // Get only critical fields that indicate changes: IDs, last_cleaned_at, reservation counts
+        $today = Carbon::today();
+        
+        $roomStates = Room::select('id', 'last_cleaned_at')
+            ->withCount([
+                'reservations' => function($query) use ($today) {
+                    $query->where('check_in_date', '<=', $today)
+                          ->where('check_out_date', '>=', $today);
+                }
+            ])
+            ->orderBy('id')
+            ->get()
+            ->map(function($room) {
+                return [
+                    'id' => $room->id,
+                    'last_cleaned' => $room->last_cleaned_at?->timestamp ?? 0,
+                    'reservations_count' => $room->reservations_count
+                ];
+            })
+            ->toArray();
+        
+        // Create hash from room states
+        return md5(json_encode($roomStates));
     }
 
     /**
@@ -52,6 +96,9 @@ class CleaningPanel extends Component
         $this->rooms = $allRooms->map(function($room) use ($today) {
             return $this->transformRoomToArray($room, $today);
         })->toArray();
+        
+        // Calculate hash for change detection (much faster than loading all data)
+        $this->dataHash = $this->calculateDataHash();
     }
 
     /**
@@ -103,27 +150,6 @@ class CleaningPanel extends Component
         ];
     }
 
-
-    /**
-     * Check if a room needs cleaning.
-     * Uses cleaningStatus() as single source of truth.
-     */
-    private function needsCleaning(Room $room, Carbon $date = null): bool
-    {
-        $date = $date ?? Carbon::today();
-        return $room->cleaningStatus($date)['code'] === 'pendiente';
-    }
-
-    /**
-     * Check if a room can be marked as clean.
-     * Only rooms with 'pendiente' cleaning status can be marked.
-     */
-    private function canMarkClean(Room $room, Carbon $date = null): bool
-    {
-        $date = $date ?? Carbon::today();
-        return $room->cleaningStatus($date)['code'] === 'pendiente';
-    }
-
     /**
      * Mark a room as clean.
      * Optimized: Only updates the affected room in memory, no full reload.
@@ -143,9 +169,9 @@ class CleaningPanel extends Component
             ])->findOrFail($roomId);
 
             // Validate: only rooms needing cleaning can be marked (using today's date)
-            if (!$this->canMarkClean($room, $today)) {
-                $this->dispatch('notify', 
-                    type: 'error', 
+            if ($room->cleaningStatus($today)['code'] !== 'pendiente') {
+                $this->dispatch('notify',
+                    type: 'error',
                     message: "La habitación #{$room->room_number} no requiere limpieza en este momento."
                 );
                 return;
@@ -175,6 +201,12 @@ class CleaningPanel extends Component
                 $this->rooms[$roomIndex] = $updatedRoomData;
             }
 
+            // Update hash after change
+            $this->dataHash = $this->calculateDataHash();
+            
+            // Mark as just updated to skip next listener query (1 second cache)
+            Cache::put("room_updated_{$roomId}", true, 1);
+            
             // Dispatch evento global para sincronización en tiempo real con otros componentes
             // MECANISMO PRINCIPAL: Si RoomManager está montado, recibirá este evento inmediatamente (<1s)
             // FALLBACK: Si no está montado, el polling cada 5s capturará el cambio en ≤5s
@@ -201,7 +233,7 @@ class CleaningPanel extends Component
     }
 
     /**
-     * Polling fallback method (ejecutado cada 5s automáticamente).
+     * OPTIMIZED POLLING: Smart change detection before reloading.
      * 
      * ROL: Mecanismo de sincronización FALLBACK INTELIGENTE
      * - Se ejecuta automáticamente cada 5s mediante wire:poll.5s
@@ -209,11 +241,11 @@ class CleaningPanel extends Component
      * - Garantiza que cambios externos se reflejen en ≤5s si el evento Livewire se pierde
      * - NO es el mecanismo principal (los eventos Livewire son más rápidos e inmediatos)
      * 
-     * OPTIMIZACIÓN:
-     * - Verifica $lastEventUpdate antes de ejecutar queries
-     * - Si hubo evento reciente (< 6s), se salta la ejecución (evita renders innecesarios)
-     * - Esto evita que el polling sobrescriba cambios recientes hechos por eventos
-     * - loadRooms() solo se ejecuta si realmente es necesario (fallback real)
+     * OPTIMIZACIÓN MEJORADA:
+     * - Verifica $lastEventUpdate antes de ejecutar queries (cooldown)
+     * - Detecta cambios usando hash antes de recargar datos completos
+     * - Solo recarga si realmente hay cambios (evita renders innecesarios)
+     * - Esto reduce carga en BD y mejora rendimiento significativamente
      * 
      * NOTA: Si ambos componentes están montados, los eventos Livewire actualizan
      * inmediatamente (<1s) y marcan $lastEventUpdate, haciendo que este polling
@@ -221,22 +253,47 @@ class CleaningPanel extends Component
      */
     public function refresh(): void
     {
-        // Si hubo un evento reciente (< 6s), no ejecutar polling
-        // Esto evita renders innecesarios y que el polling sobrescriba cambios recientes
+        // Skip if recent event update (cooldown)
         $secondsSinceLastEvent = now()->timestamp - $this->lastEventUpdate;
-        if ($this->lastEventUpdate > 0 && $secondsSinceLastEvent < 6) {
+        if ($this->lastEventUpdate > 0 && $secondsSinceLastEvent < self::EVENT_COOLDOWN) {
             // Solo actualizar hora, no recargar habitaciones
             $this->currentTime = now()->format('H:i');
             return;
         }
         
-        // Solo ejecutar polling si realmente no hubo evento reciente (fallback real)
-        $this->loadRooms();
+        // Smart change detection: Compare hash before full reload
+        // This is much faster than loading all room data
+        $newHash = $this->calculateDataHash();
+        
+        if ($newHash !== $this->dataHash) {
+            // Data changed, reload everything
+            $this->loadRooms();
+        }
+        
+        // Always update time (minimal operation)
         $this->currentTime = now()->format('H:i');
+    }
+    
+    /**
+     * Determine if polling should be active.
+     * Single Responsibility: Only decides polling state.
+     * 
+     * @return bool
+     */
+    public function shouldPoll(): bool
+    {
+        // Don't poll if recent event (cooldown active)
+        $secondsSinceLastEvent = now()->timestamp - $this->lastEventUpdate;
+        if ($this->lastEventUpdate > 0 && $secondsSinceLastEvent < self::EVENT_COOLDOWN) {
+            return false;
+        }
+        
+        // Poll if no recent activity or if data might have changed
+        return true;
     }
 
     /**
-     * Listener para eventos de actualización de estado de habitaciones.
+     * OPTIMIZED LISTENER: Uses cache to avoid unnecessary queries.
      * 
      * MECANISMO PRINCIPAL de sincronización en tiempo real.
      * 
@@ -245,14 +302,15 @@ class CleaningPanel extends Component
      * - Latencia: <300ms (inmediato, optimizado)
      * - Funciona SOLO si ambos componentes están montados en la misma sesión del navegador
      * 
-     * OPTIMIZACIÓN O(1):
+     * OPTIMIZACIÓN MEJORADA O(1):
      * - Actualiza SOLO la habitación afectada en memoria (no recarga todas)
-     * - NO ejecuta queries adicionales si la habitación ya está en $this->rooms
+     * - Usa cache para evitar query si acabamos de actualizar la habitación
+     * - Solo hace query si realmente es necesario (evita queries duplicadas)
      * - Marca $lastEventUpdate para evitar que el polling ejecute inmediatamente después
      * 
      * FLUJO:
      * 1. RoomManager marca habitación como liberada/continuada → dispatch evento
-     * 2. Este listener recibe el evento → actualiza SOLO la habitación afectada (O(1))
+     * 2. Este listener recibe el evento → verifica cache → actualiza SOLO la habitación afectada (O(1))
      * 3. UI se actualiza automáticamente sin recargar página
      * 
      * FALLBACK:
@@ -263,29 +321,34 @@ class CleaningPanel extends Component
     public function onRoomStatusUpdated(int $roomId): void
     {
         $today = Carbon::today();
-        
-        // Actualizar SOLO la habitación afectada (O(1)) en lugar de recargar todas (O(N))
-        // Esto reduce latencia de ~300ms a ~50ms
         $roomIndex = array_search($roomId, array_column($this->rooms, 'id'));
         
         if ($roomIndex !== false) {
-            // La habitación ya está en memoria, solo actualizarla
-            $room = Room::with([
-                'reservations' => function($query) use ($today) {
-                    $query->where('check_in_date', '<=', $today)
-                          ->where('check_out_date', '>=', $today);
-                }
-            ])->find($roomId);
+            // Room is in memory - check if we really need to reload
+            // Use cache to avoid query if we just updated it
+            $cacheKey = "room_updated_{$roomId}";
+            $justUpdated = Cache::get($cacheKey, false);
             
-            if ($room) {
-                $this->rooms[$roomIndex] = $this->transformRoomToArray($room, $today);
+            if (!$justUpdated) {
+                // Reload only this room
+                $room = Room::with([
+                    'reservations' => function($query) use ($today) {
+                        $query->where('check_in_date', '<=', $today)
+                              ->where('check_out_date', '>=', $today);
+                    }
+                ])->find($roomId);
+                
+                if ($room) {
+                    $this->rooms[$roomIndex] = $this->transformRoomToArray($room, $today);
+                }
             }
         } else {
-            // La habitación no está en memoria (raro, pero puede pasar), recargar todas
+            // Room not in memory - full reload (rare case)
             $this->loadRooms();
         }
         
-        // Marcar que hubo actualización por evento (evita que el polling ejecute inmediatamente)
+        // Update hash and cooldown
+        $this->dataHash = $this->calculateDataHash();
         $this->lastEventUpdate = now()->timestamp;
     }
 

@@ -9,9 +9,11 @@ use App\Models\Reservation;
 use App\Models\ReservationSale;
 use App\Models\Product;
 use App\Enums\RoomStatus;
+use App\Enums\VentilationType;
 use Carbon\Carbon;
 use Livewire\WithPagination;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class RoomManager extends Component
 {
@@ -20,6 +22,7 @@ class RoomManager extends Component
     public $date;
     public $search = '';
     public $status = '';
+    public $ventilation_type = '';
     public $refreshTrigger = 0;
     
     /**
@@ -58,6 +61,7 @@ class RoomManager extends Component
     protected $queryString = [
         'search' => ['except' => ''],
         'status' => ['except' => ''],
+        'ventilation_type' => ['except' => ''],
         'date' => ['except' => ''],
     ];
 
@@ -69,6 +73,7 @@ class RoomManager extends Component
 
     public function updatedSearch() { $this->resetPage(); }
     public function updatedStatus() { $this->resetPage(); }
+    public function updatedVentilationType() { $this->resetPage(); }
 
     public function changeDate($newDate)
     {
@@ -391,6 +396,9 @@ class RoomManager extends Component
         // This ensures the component updates even if pagination didn't change
         $this->refreshTrigger = now()->timestamp;
 
+        // Mark as just updated to skip next listener query (1 second cache)
+        Cache::put("room_updated_{$room->id}", true, 1);
+        
         // Dispatch evento global para sincronización en tiempo real con otros componentes
         // MECANISMO PRINCIPAL: Si CleaningPanel está montado, recibirá este evento inmediatamente (<1s)
         // FALLBACK: Si no está montado, el polling cada 5s capturará el cambio en ≤5s
@@ -447,8 +455,14 @@ class RoomManager extends Component
         // Force immediate refresh of room list to reflect changes
         $this->refreshRooms();
 
+        // Mark as just updated to skip next listener query (1 second cache)
+        Cache::put("room_updated_{$room->id}", true, 1);
+        
         // Dispatch evento global para sincronización en tiempo real con otros componentes
         $this->dispatch('room-status-updated', roomId: $room->id);
+        
+        // Marcar que hubo una actualización por evento (evita que el polling ejecute innecesariamente)
+        $this->lastEventUpdate = now()->timestamp;
         
         $this->dispatch('notify', 
             type: 'success', 
@@ -503,6 +517,9 @@ class RoomManager extends Component
         // Force immediate refresh of room list to reflect changes
         $this->refreshRooms();
 
+        // Mark as just updated to skip next listener query (1 second cache)
+        Cache::put("room_updated_{$room->id}", true, 1);
+        
         // Dispatch evento global para sincronización en tiempo real con otros componentes
         // MECANISMO PRINCIPAL: Si CleaningPanel está montado, recibirá este evento inmediatamente (<1s)
         // FALLBACK: Si no está montado, el polling cada 5s capturará el cambio en ≤5s
@@ -589,6 +606,9 @@ class RoomManager extends Component
         
         // Dispatch notifications first (non-blocking)
         $this->dispatch('notify', type: 'success', message: 'Reserva creada exitosamente.');
+        
+        // Mark as just updated to skip next listener query (1 second cache)
+        Cache::put("room_updated_{$this->rentForm['room_id']}", true, 1);
         
         // Dispatch evento global para sincronización en tiempo real con otros componentes
         // MECANISMO PRINCIPAL: Si CleaningPanel está montado, recibirá este evento inmediatamente (<1s)
@@ -702,14 +722,20 @@ class RoomManager extends Component
     #[On('room-status-updated')]
     public function onRoomStatusUpdated(int $roomId): void
     {
-        // Actualizar trigger para forzar re-render mínimo (no ejecutar refreshRooms completo)
-        // El render() siguiente verá los datos actualizados vía eager loading
-        // Esto reduce latencia de ~500ms a ~200ms
-        $this->refreshTrigger = now()->timestamp;
+        // Use cache to avoid query if we just updated it
+        $cacheKey = "room_updated_{$roomId}";
+        $justUpdated = Cache::get($cacheKey, false);
         
-        // If the updated room detail is open, reload it
-        if ($this->selectedRoomId == $roomId) {
-            $this->loadRoomDetail();
+        if (!$justUpdated) {
+            // Actualizar trigger para forzar re-render mínimo (no ejecutar refreshRooms completo)
+            // El render() siguiente verá los datos actualizados vía eager loading
+            // Esto reduce latencia de ~500ms a ~200ms
+            $this->refreshTrigger = now()->timestamp;
+            
+            // If the updated room detail is open, reload it
+            if ($this->selectedRoomId == $roomId) {
+                $this->loadRoomDetail();
+            }
         }
         
         // Marcar que hubo actualización por evento (evita que el polling ejecute inmediatamente)
@@ -738,6 +764,9 @@ class RoomManager extends Component
         }
         if ($this->status) {
             $query->where('status', $this->status);
+        }
+        if ($this->ventilation_type) {
+            $query->where('ventilation_type', $this->ventilation_type);
         }
 
         // Eager load reservations for the month range to optimize queries
@@ -833,6 +862,7 @@ class RoomManager extends Component
         return view('livewire.room-manager', [
             'rooms' => $rooms,
             'statuses' => RoomStatus::cases(),
+            'ventilationTypes' => VentilationType::cases(),
             'daysInMonth' => $daysInMonth,
             'currentDate' => $date
         ]);

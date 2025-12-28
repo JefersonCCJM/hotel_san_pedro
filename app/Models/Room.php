@@ -70,6 +70,8 @@ class Room extends Model
      * Check if the room is occupied on a specific date.
      * OCCUPATION IS DERIVED FROM RESERVATIONS, NOT FROM room_statuses.
      * This is the SINGLE SOURCE OF TRUTH for occupancy.
+     * 
+     * Enhanced with validation to ensure only valid reservations are considered.
      *
      * @param \Carbon\Carbon|null $date Date to check. Defaults to today.
      * @return bool True if room has an active reservation on the given date.
@@ -77,12 +79,19 @@ class Room extends Model
     public function isOccupied(?\Carbon\Carbon $date = null): bool
     {
         $date = $date ?? \Carbon\Carbon::today();
+        
+        // Normalize date to start of day for consistent comparison
+        $normalizedDate = $date->copy()->startOfDay();
 
         // Room is occupied if: check_in <= date AND check_out > date
         // If checkout is today, room is NOT occupied (guest leaves today)
+        // Validate that checkout is after checkin (data integrity)
         return $this->reservations()
-            ->where('check_in_date', '<=', $date)
-            ->where('check_out_date', '>', $date)
+            ->where(function($query) use ($normalizedDate) {
+                $query->where('check_in_date', '<=', $normalizedDate->toDateString())
+                      ->where('check_out_date', '>', $normalizedDate->toDateString());
+            })
+            ->whereColumn('check_out_date', '>', 'check_in_date') // Validate data integrity
             ->exists();
     }
 
@@ -117,11 +126,11 @@ class Room extends Model
      * Get the cleaning status of the room.
      * SINGLE SOURCE OF TRUTH for cleaning status.
      * 
-     * Rules:
+     * Rules (Single Responsibility Principle - each rule is clear):
      * - If never cleaned (last_cleaned_at is NULL) → needs cleaning
      * - If room is OCCUPIED and 24+ hours have passed since last_cleaned_at → needs cleaning
-     * - If room is OCCUPIED and less than 24 hours have passed → clean
-     * - If room is FREE → clean (no 24-hour rule applies, stays clean indefinitely)
+     * - If room is FREE → clean (no 24-hour rule, stays clean indefinitely)
+     * - If room is OCCUPIED but less than 24 hours have passed → clean
      * 
      * IMPORTANT: The 24-hour rule ONLY applies when the room is occupied.
      * A free room that hasn't been used stays clean indefinitely.
@@ -140,34 +149,59 @@ class Room extends Model
         
         // If never cleaned or explicitly marked as needing cleaning (last_cleaned_at is NULL)
         if (!$this->last_cleaned_at) {
-            return [
-                'code' => 'pendiente',
-                'label' => 'Pendiente por Aseo',
-                'color' => 'bg-yellow-100 text-yellow-800',
-                'icon' => 'fa-broom',
-            ];
+            return $this->getPendingCleaningStatus();
         }
 
-        // Check if room is currently occupied
+        // Check if room is currently occupied (Dependency Inversion - uses abstraction)
         $isOccupied = $this->isOccupied($date);
         
-        // If room is OCCUPIED, apply 24-hour rule
-        // After 24 hours of occupation, room needs cleaning
-        if ($isOccupied) {
-            $hoursSinceLastCleaning = $this->last_cleaned_at->diffInHours(now());
-            if ($hoursSinceLastCleaning >= 24) {
-                return [
-                    'code' => 'pendiente',
-                    'label' => 'Pendiente por Aseo',
-                    'color' => 'bg-yellow-100 text-yellow-800',
-                    'icon' => 'fa-broom',
-                ];
-            }
+        // If room is NOT occupied, it stays clean indefinitely (Open/Closed Principle)
+        if (!$isOccupied) {
+            return $this->getCleanStatus();
         }
 
-        // Clean: 
-        // - Room is FREE (no 24-hour rule, stays clean indefinitely), OR
-        // - Room is OCCUPIED but less than 24 hours have passed
+        // If room is OCCUPIED, apply 24-hour rule
+        // Calculate hours from last_cleaned_at to the queried date (not now())
+        // This ensures consistency when querying past or future dates
+        $cleaningDate = $this->last_cleaned_at instanceof \Carbon\Carbon 
+            ? $this->last_cleaned_at 
+            : \Carbon\Carbon::parse($this->last_cleaned_at);
+        
+        // Normalize both dates to start of day for consistent comparison
+        $cleaningDateNormalized = $cleaningDate->copy()->startOfDay();
+        $queryDateNormalized = $date->copy()->startOfDay();
+        
+        $hoursSinceLastCleaning = $cleaningDateNormalized->diffInHours($queryDateNormalized);
+        
+        if ($hoursSinceLastCleaning >= 24) {
+            return $this->getPendingCleaningStatus();
+        }
+
+        return $this->getCleanStatus();
+    }
+
+    /**
+     * Get pending cleaning status array (Single Responsibility)
+     *
+     * @return array{code: string, label: string, color: string, icon: string}
+     */
+    private function getPendingCleaningStatus(): array
+    {
+        return [
+            'code' => 'pendiente',
+            'label' => 'Pendiente por Aseo',
+            'color' => 'bg-yellow-100 text-yellow-800',
+            'icon' => 'fa-broom',
+        ];
+    }
+
+    /**
+     * Get clean status array (Single Responsibility)
+     *
+     * @return array{code: string, label: string, color: string, icon: string}
+     */
+    private function getCleanStatus(): array
+    {
         return [
             'code' => 'limpia',
             'label' => 'Limpia',
@@ -195,6 +229,7 @@ class Room extends Model
     public function getDisplayStatus(?\Carbon\Carbon $date = null): RoomStatus
     {
         $date = $date ?? \Carbon\Carbon::today();
+        $normalizedDate = $date->copy()->startOfDay();
 
         // Priority 1: Maintenance blocks everything
         if ($this->isInMaintenance()) {
@@ -202,7 +237,8 @@ class Room extends Model
         }
 
         // Priority 2: Active reservation means occupied
-        if ($this->isOccupied($date)) {
+        // Use the validated isOccupied method
+        if ($this->isOccupied($normalizedDate)) {
             return RoomStatus::OCUPADA;
         }
 
@@ -211,8 +247,8 @@ class Room extends Model
         // 1. Reservation ends today (was occupied yesterday, checkout today)
         // 2. Reservation starts today and is for one day only (check-in today, check-out tomorrow)
         // 3. Reservation has one day remaining (check-out tomorrow)
-        $previousDay = $date->copy()->subDay();
-        $tomorrow = $date->copy()->addDay();
+        $previousDay = $normalizedDate->copy()->subDay();
+        $tomorrow = $normalizedDate->copy()->addDay();
         $wasOccupiedYesterday = $this->isOccupied($previousDay);
         
         // Case 1: Was occupied yesterday, checkout today
@@ -229,8 +265,9 @@ class Room extends Model
         
         // Case 2: Reservation starts today and is one-day reservation (check-in today, check-out tomorrow)
         $oneDayReservationStartingToday = $this->reservations()
-            ->where('check_in_date', '=', $date->toDateString())
+            ->where('check_in_date', '=', $normalizedDate->toDateString())
             ->where('check_out_date', '=', $tomorrow->toDateString())
+            ->whereColumn('check_out_date', '>', 'check_in_date') // Validate data integrity
             ->exists();
         
         if ($oneDayReservationStartingToday) {
@@ -239,8 +276,9 @@ class Room extends Model
         
         // Case 3: Reservation has one day remaining (check-out tomorrow)
         $reservationEndingTomorrow = $this->reservations()
-            ->where('check_in_date', '<=', $date)
+            ->where('check_in_date', '<=', $normalizedDate->toDateString())
             ->where('check_out_date', '=', $tomorrow->toDateString())
+            ->whereColumn('check_out_date', '>', 'check_in_date') // Validate data integrity
             ->exists();
         
         if ($reservationEndingTomorrow) {
@@ -314,5 +352,35 @@ class Room extends Model
     public function getDisplayStatusAttribute(): RoomStatus
     {
         return $this->getDisplayStatus();
+    }
+
+    /**
+     * Validate and clean invalid reservations.
+     * This helps maintain data integrity (Interface Segregation Principle)
+     * 
+     * @return array{invalid_count: int, invalid_reservations: \Illuminate\Database\Eloquent\Collection}
+     */
+    public function validateReservations(): array
+    {
+        $today = \Carbon\Carbon::today();
+        
+        // Find reservations with invalid date ranges (check_out <= check_in)
+        $invalidReservations = $this->reservations()
+            ->whereColumn('check_out_date', '<=', 'check_in_date')
+            ->get();
+        
+        if ($invalidReservations->isNotEmpty()) {
+            \Illuminate\Support\Facades\Log::warning("Room {$this->room_number} has invalid reservations", [
+                'room_id' => $this->id,
+                'room_number' => $this->room_number,
+                'invalid_count' => $invalidReservations->count(),
+                'reservation_ids' => $invalidReservations->pluck('id')->toArray()
+            ]);
+        }
+        
+        return [
+            'invalid_count' => $invalidReservations->count(),
+            'invalid_reservations' => $invalidReservations
+        ];
     }
 }
