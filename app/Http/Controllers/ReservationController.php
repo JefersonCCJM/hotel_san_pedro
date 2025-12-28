@@ -41,7 +41,7 @@ class ReservationController extends Controller
     }
     /**
      * Display a listing of the resource.
-
+     */
     public function index(Request $request)
     {
         Carbon::setLocale('es');
@@ -59,12 +59,15 @@ class ReservationController extends Controller
             $tempDate->addDay();
         }
 
-        $rooms = Room::with(['reservations' => function($query) use ($startOfMonth, $endOfMonth) {
-            $query->where(function($q) use ($startOfMonth, $endOfMonth) {
-                $q->where('check_in_date', '<=', $endOfMonth)
-                  ->where('check_out_date', '>=', $startOfMonth);
-            });
-reservations.customer'])->orderBy('room_number')->get();
+        $rooms = Room::with([
+            'reservations' => function ($query) use ($startOfMonth, $endOfMonth) {
+                $query->where(function ($q) use ($startOfMonth, $endOfMonth) {
+                    $q->where('check_in_date', '<=', $endOfMonth)
+                        ->where('check_out_date', '>=', $startOfMonth);
+                });
+            },
+            'reservations.customer',
+        ])->orderBy('room_number')->get();
 
         // Asegurarse de que el status se maneje como string para la vista si es necesario,
         // aunque Blade puede manejar el enum.
