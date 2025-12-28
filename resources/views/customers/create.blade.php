@@ -565,16 +565,16 @@ function customerForm() {
         async checkIdentification() {
             if (!this.validateIdentification()) return;
             if (!this.formData.identification || this.formData.identification.length < 6) return;
-
+            
             this.identificationMessage = 'Verificando...';
             this.identificationExists = false;
-
+            
             try {
                 const response = await fetch(`{{ route('api.customers.check-identification') }}?identification=${this.formData.identification}`);
                 if (!response.ok) throw new Error('Error en la validación');
-
+                
                 const data = await response.json();
-
+                
                 if (data.exists) {
                     this.identificationExists = true;
                     this.identificationMessage = `Este cliente ya está registrado como: ${data.name}`;

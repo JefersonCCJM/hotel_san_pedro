@@ -21,8 +21,25 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="flex items-center space-x-3">
+                <form method="GET"
+                      action="{{ route('reservations.export.monthly') }}"
+                      class="flex items-center gap-2">
+                    <label for="monthly-report-month" class="sr-only">Mes del reporte</label>
+                    <input id="monthly-report-month"
+                           type="month"
+                           name="month"
+                           value="{{ $date->format('Y-m') }}"
+                           required
+                           class="h-[42px] px-3 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm" />
+                    <button type="submit"
+                            class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-red-600 bg-white text-red-600 text-sm font-semibold hover:bg-red-50 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-sm hover:shadow-md"
+                            title="Exportar reporte mensual en PDF">
+                        <i class="fas fa-file-pdf mr-2"></i>
+                        <span>Exportar PDF</span>
+                    </button>
+                </form>
                 <a href="{{ route('reservations.create') }}"
                    class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md">
                     <i class="fas fa-plus mr-2"></i>
@@ -38,11 +55,11 @@
     <!-- View Switcher & Date Navigation -->
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
         <div class="flex items-center p-1 bg-gray-50 rounded-xl border border-gray-100">
-            <a href="{{ route('reservations.index', ['view' => 'calendar', 'month' => $date->format('Y-m')]) }}" 
+            <a href="{{ route('reservations.index', ['view' => 'calendar', 'month' => $date->format('Y-m')]) }}"
                class="flex items-center px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 {{ $view === 'calendar' ? 'bg-white text-emerald-600 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100' }}">
                 <i class="fas fa-calendar-alt mr-2"></i>Vista Calendario
             </a>
-            <a href="{{ route('reservations.index', ['view' => 'list', 'month' => $date->format('Y-m')]) }}" 
+            <a href="{{ route('reservations.index', ['view' => 'list', 'month' => $date->format('Y-m')]) }}"
                class="flex items-center px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 {{ $view === 'list' ? 'bg-white text-emerald-600 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100' }}">
                 <i class="fas fa-list mr-2"></i>Vista Lista
             </a>
@@ -50,7 +67,7 @@
 
         @if($view === 'calendar')
         <div class="flex items-center justify-between md:justify-end gap-4 min-w-[300px]">
-            <a href="{{ route('reservations.index', ['view' => 'calendar', 'month' => $date->copy()->subMonth()->format('Y-m')]) }}" 
+            <a href="{{ route('reservations.index', ['view' => 'calendar', 'month' => $date->copy()->subMonth()->format('Y-m')]) }}"
                class="p-2.5 hover:bg-emerald-50 hover:text-emerald-600 rounded-xl text-gray-500 transition-all border border-transparent hover:border-emerald-100">
                 <i class="fas fa-chevron-left"></i>
             </a>
@@ -59,7 +76,7 @@
                     {{ ucfirst($date->translatedFormat('F Y')) }}
                 </h2>
             </div>
-            <a href="{{ route('reservations.index', ['view' => 'calendar', 'month' => $date->copy()->addMonth()->format('Y-m')]) }}" 
+            <a href="{{ route('reservations.index', ['view' => 'calendar', 'month' => $date->copy()->addMonth()->format('Y-m')]) }}"
                class="p-2.5 hover:bg-emerald-50 hover:text-emerald-600 rounded-xl text-gray-500 transition-all border border-transparent hover:border-emerald-100">
                 <i class="fas fa-chevron-right"></i>
             </a>
@@ -138,7 +155,7 @@
                                 } elseif ($room->status->value === 'limpieza') {
                                     $status = 'cleaning';
                                 }
-                                
+
                                 $colorClass = [
                                     'free' => 'bg-emerald-500 hover:bg-emerald-600',
                                     'reserved' => 'bg-blue-500 hover:bg-blue-600',
@@ -149,7 +166,7 @@
                             @endphp
                             <td class="p-1 border-r border-b relative group w-[45px] min-w-[45px]">
                                 <div class="w-full h-10 rounded-lg {{ $colorClass }} cursor-pointer transition-all duration-200 flex items-center justify-center overflow-hidden shadow-sm"
-                                     @if($reservation && $reservation->customer) 
+                                     @if($reservation && $reservation->customer)
                                      onclick="openReservationDetail({{ json_encode([
                                          'id' => $reservation->id,
                                          'customer_name' => $reservation->customer ? $reservation->customer->name : 'Cliente eliminado',
@@ -157,6 +174,9 @@
                                          'beds_count' => $room->beds_count . ($room->beds_count == 1 ? ' Cama' : ' Camas'),
                                          'check_in' => $reservation->check_in_date ? $reservation->check_in_date->format('d/m/Y') : 'N/A',
                                          'check_out' => $reservation->check_out_date ? $reservation->check_out_date->format('d/m/Y') : 'N/A',
+                                         'check_in_time' => $reservation->check_in_time ? substr((string) $reservation->check_in_time, 0, 5) : 'N/A',
+                                         'guests_count' => (int) ($reservation->guests_count ?? 0),
+                                         'payment_method' => $reservation->payment_method ? (string) $reservation->payment_method : 'N/A',
                                          'total' => number_format($reservation->total_amount, 0, ',', '.'),
                                          'deposit' => number_format($reservation->deposit, 0, ',', '.'),
                                          'balance' => number_format($reservation->total_amount - $reservation->deposit, 0, ',', '.'),
@@ -257,9 +277,9 @@
                                 </a>
                                 <button type="button"
                                         onclick="openDeleteModal({{ $reservation->id }})"
-                                        class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                        title="Eliminar">
-                                    <i class="fas fa-trash"></i>
+                                        class="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                                        title="Cancelar">
+                                    <i class="fas fa-ban"></i>
                                 </button>
                             </div>
                         </td>
@@ -272,7 +292,7 @@
                 </tbody>
             </table>
         </div>
-        
+
         @if($reservations->hasPages())
         <div class="bg-white px-6 py-4 border-t border-gray-100">
             {{ $reservations->links() }}
@@ -321,6 +341,30 @@
                 </div>
             </div>
 
+            <div class="grid grid-cols-3 gap-4">
+                <div class="space-y-1">
+                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Hora de ingreso</span>
+                    <div class="flex items-center text-gray-900">
+                        <i class="fas fa-clock mr-2 text-emerald-500"></i>
+                        <span class="font-bold" id="modal-checkin-time"></span>
+                    </div>
+                </div>
+                <div class="space-y-1">
+                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Huéspedes</span>
+                    <div class="flex items-center text-gray-900">
+                        <i class="fas fa-users mr-2 text-emerald-500"></i>
+                        <span class="font-bold" id="modal-guests-count"></span>
+                    </div>
+                </div>
+                <div class="space-y-1 text-right">
+                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Método de pago</span>
+                    <div class="flex items-center justify-end text-gray-900">
+                        <i class="fas fa-credit-card mr-2 text-emerald-500"></i>
+                        <span class="font-bold" id="modal-payment-method"></span>
+                    </div>
+                </div>
+            </div>
+
             <div class="p-6 bg-gray-50 rounded-3xl space-y-4 border border-gray-100 shadow-inner">
                 <div class="flex justify-between items-center pb-3 border-b border-gray-200">
                     <span class="text-xs font-bold text-gray-500 uppercase">Total de Reserva</span>
@@ -352,30 +396,30 @@
                     <span class="text-[10px] font-black uppercase">PDF</span>
                 </a>
                 <button id="modal-delete-btn" onclick="" class="flex flex-col items-center justify-center p-4 bg-orange-50 text-orange-600 rounded-2xl hover:bg-orange-100 transition-all group">
-                    <i class="fas fa-trash mb-2 group-hover:scale-110 transition-transform"></i>
-                    <span class="text-[10px] font-black uppercase">Eliminar</span>
+                    <i class="fas fa-ban mb-2 group-hover:scale-110 transition-transform"></i>
+                    <span class="text-[10px] font-black uppercase">Cancelar</span>
                 </button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Modal de Eliminación -->
+<!-- Modal de Cancelación -->
 <div id="delete-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
     <div class="relative top-20 mx-auto p-5 border w-96 shadow-xl rounded-xl bg-white">
         <div class="mt-3 text-center">
             <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
                 <i class="fas fa-exclamation-triangle text-red-600"></i>
             </div>
-            <h3 class="text-lg leading-6 font-medium text-gray-900">Eliminar Reserva</h3>
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Cancelar Reserva</h3>
             <div class="mt-2 px-7 py-3">
-                <p class="text-sm text-gray-500">¿Estás seguro de eliminar esta reserva? Esta acción no se puede deshacer.</p>
+                <p class="text-sm text-gray-500">¿Estás seguro de cancelar esta reserva? Esta acción no se puede deshacer.</p>
             </div>
             <div class="items-center px-4 py-3">
                 <form id="delete-form" method="POST" onsubmit="event.preventDefault(); confirmDeleteWithPin(this);">
                     @csrf
                     @method('DELETE')
-                    <button type="submit" class="px-4 py-2 bg-red-600 text-white text-base font-medium rounded-lg w-full shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-300">Eliminar</button>
+                    <button type="submit" class="px-4 py-2 bg-orange-600 text-white text-base font-medium rounded-lg w-full shadow-sm hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300">Aceptar</button>
                     <button type="button" onclick="closeDeleteModal()" class="mt-3 px-4 py-2 bg-white text-gray-700 text-base font-medium rounded-lg w-full border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300">Cancelar</button>
                 </form>
             </div>
@@ -387,23 +431,26 @@
 <script>
 function openReservationDetail(data) {
     const modal = document.getElementById('reservation-detail-modal');
-    
+
     document.getElementById('modal-customer-name').innerText = data.customer_name;
     document.getElementById('modal-reservation-id').innerText = 'Reserva #' + data.id;
     document.getElementById('modal-room-info').innerText = 'Hab. ' + data.room_number + ' (' + data.beds_count + ')';
     document.getElementById('modal-dates').innerText = data.check_in + ' - ' + data.check_out;
+    document.getElementById('modal-checkin-time').innerText = data.check_in_time;
+    document.getElementById('modal-guests-count').innerText = data.guests_count;
+    document.getElementById('modal-payment-method').innerText = data.payment_method;
     document.getElementById('modal-total').innerText = '$' + data.total;
     document.getElementById('modal-deposit').innerText = '$' + data.deposit;
     document.getElementById('modal-balance').innerText = '$' + data.balance;
     document.getElementById('modal-notes').innerText = data.notes;
-    
+
     document.getElementById('modal-edit-btn').href = data.edit_url;
     document.getElementById('modal-pdf-btn').href = data.pdf_url;
     document.getElementById('modal-delete-btn').onclick = () => {
         closeReservationDetail();
         openDeleteModal(data.id);
     };
-    
+
     modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 }

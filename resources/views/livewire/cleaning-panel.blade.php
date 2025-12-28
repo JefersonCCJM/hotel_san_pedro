@@ -1,14 +1,17 @@
 {{--
-    SINCRONIZACIÓN EN TIEMPO REAL:
+    SINCRONIZACIÓN EN TIEMPO REAL OPTIMIZADA:
     - Mecanismo principal: Eventos Livewire (inmediatos cuando ambos componentes están montados)
-    - Mecanismo fallback: Polling cada 5s (garantiza sincronización ≤5s si el evento se pierde)
+    - Mecanismo fallback: Polling inteligente cada 5s con detección de cambios (solo recarga si hay cambios)
+    - Optimización: Polling solo cuando pestaña está visible (keep-alive.visible)
+    - Optimización: Detección de cambios con hash para evitar recargas innecesarias
     - NO se usan WebSockets para mantener simplicidad y evitar infraestructura adicional
-    - El polling es ligero porque ya se eliminaron N+1 queries (optimización O(1) en markAsClean)
 --}}
 <div class="bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen"
-     wire:poll.5s="refresh">
+     @if($this->shouldPoll())
+         wire:poll.5s.keep-alive.visible="refresh"
+     @endif>
     <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-6 max-w-7xl">
-        <!-- Header -->
+        <!-- Header
         <div class="bg-white rounded-2xl shadow-lg border-2 border-gray-200 p-6 mb-6">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div class="flex items-center space-x-4">
@@ -73,7 +76,7 @@
                         ? 'bg-yellow-50 text-yellow-700'
                         : $displayStatus->color();
                 @endphp
-                <div wire:key="room-{{ $room['id'] }}" class="room-card {{ $cardBgColor }} rounded-2xl shadow-lg border-3 {{ $cardBorderColor }} transition-all duration-300 hover:transform hover:-translate-y-1">
+                <div wire:key="room-{{ $room['id'] }}-{{ $room['last_cleaned_at']?->timestamp ?? 0 }}-{{ $room['cleaning_status']['code'] }}" class="room-card {{ $cardBgColor }} rounded-2xl shadow-lg border-3 {{ $cardBorderColor }} transition-all duration-300 hover:transform hover:-translate-y-1">
                     <div class="p-5 sm:p-6">
                         <!-- Room Number -->
                         <div class="flex items-center justify-between mb-4">

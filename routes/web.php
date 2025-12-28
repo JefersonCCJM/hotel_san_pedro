@@ -121,6 +121,7 @@ Route::middleware('auth')->group(function () {
     // Reservas
     Route::middleware('permission:view_reservations')->group(function () {
         Route::get('/reservations', [ReservationController::class, 'index'])->name('reservations.index');
+        Route::get('/reservations/export/monthly', [ReservationController::class, 'exportMonthlyReport'])->name('reservations.export.monthly');
         Route::get('/reservations/{reservation}/download', [ReservationController::class, 'download'])->name('reservations.download');
         Route::get('/api/check-room-availability', [ReservationController::class, 'checkAvailability'])->name('api.check-availability');
     });

@@ -12,9 +12,11 @@ use App\Models\ReservationSale;
 use App\Models\Product;
 use App\Models\Customer;
 use App\Enums\RoomStatus;
+use App\Enums\VentilationType;
 use Carbon\Carbon;
 use Livewire\WithPagination;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class RoomManager extends Component
 {
@@ -24,6 +26,7 @@ class RoomManager extends Component
     public $date;
     public $search = '';
     public $status = '';
+    public $ventilation_type = '';
     public $refreshTrigger = 0;
 
     /**
@@ -93,6 +96,7 @@ class RoomManager extends Component
     protected $queryString = [
         'search' => ['except' => ''],
         'status' => ['except' => ''],
+        'ventilation_type' => ['except' => ''],
         'date' => ['except' => ''],
     ];
 
@@ -133,6 +137,7 @@ class RoomManager extends Component
 
     public function updatedSearch() { $this->resetPage(); }
     public function updatedStatus() { $this->resetPage(); }
+    public function updatedVentilationType() { $this->resetPage(); }
 
     public function changeDate($newDate)
     {
@@ -590,6 +595,9 @@ class RoomManager extends Component
         // This ensures the component updates even if pagination didn't change
         $this->refreshTrigger = now()->timestamp;
 
+        // Mark as just updated to skip next listener query (1 second cache)
+        Cache::put("room_updated_{$room->id}", true, 1);
+        
         // Dispatch evento global para sincronización en tiempo real con otros componentes
         // MECANISMO PRINCIPAL: Si CleaningPanel está montado, recibirá este evento inmediatamente (<1s)
         // FALLBACK: Si no está montado, el polling cada 5s capturará el cambio en ≤5s
@@ -646,11 +654,17 @@ class RoomManager extends Component
         // Force immediate refresh of room list to reflect changes
         $this->refreshRooms();
 
+        // Mark as just updated to skip next listener query (1 second cache)
+        Cache::put("room_updated_{$room->id}", true, 1);
+        
         // Dispatch evento global para sincronización en tiempo real con otros componentes
         $this->dispatch('room-status-updated', roomId: $room->id);
-
-        $this->dispatch('notify',
-            type: 'success',
+        
+        // Marcar que hubo una actualización por evento (evita que el polling ejecute innecesariamente)
+        $this->lastEventUpdate = now()->timestamp;
+        
+        $this->dispatch('notify', 
+            type: 'success', 
             message: "Reserva cancelada. Habitación #{$room->room_number} liberada."
         );
     }
@@ -702,6 +716,9 @@ class RoomManager extends Component
         // Force immediate refresh of room list to reflect changes
         $this->refreshRooms();
 
+        // Mark as just updated to skip next listener query (1 second cache)
+        Cache::put("room_updated_{$room->id}", true, 1);
+        
         // Dispatch evento global para sincronización en tiempo real con otros componentes
         // MECANISMO PRINCIPAL: Si CleaningPanel está montado, recibirá este evento inmediatamente (<1s)
         // FALLBACK: Si no está montado, el polling cada 5s capturará el cambio en ≤5s
@@ -880,7 +897,10 @@ class RoomManager extends Component
 
         // Dispatch notifications first (non-blocking)
         $this->dispatch('notify', type: 'success', message: 'Reserva creada exitosamente.');
-
+        
+        // Mark as just updated to skip next listener query (1 second cache)
+        Cache::put("room_updated_{$this->rentForm['room_id']}", true, 1);
+        
         // Dispatch evento global para sincronización en tiempo real con otros componentes
         // MECANISMO PRINCIPAL: Si CleaningPanel está montado, recibirá este evento inmediatamente (<1s)
         // FALLBACK: Si no está montado, el polling cada 5s capturará el cambio en ≤5s
@@ -993,14 +1013,20 @@ class RoomManager extends Component
     #[On('room-status-updated')]
     public function onRoomStatusUpdated(int $roomId): void
     {
-        // Actualizar trigger para forzar re-render mínimo (no ejecutar refreshRooms completo)
-        // El render() siguiente verá los datos actualizados vía eager loading
-        // Esto reduce latencia de ~500ms a ~200ms
-        $this->refreshTrigger = now()->timestamp;
-
-        // If the updated room detail is open, reload it
-        if ($this->selectedRoomId == $roomId) {
-            $this->loadRoomDetail();
+        // Use cache to avoid query if we just updated it
+        $cacheKey = "room_updated_{$roomId}";
+        $justUpdated = Cache::get($cacheKey, false);
+        
+        if (!$justUpdated) {
+            // Actualizar trigger para forzar re-render mínimo (no ejecutar refreshRooms completo)
+            // El render() siguiente verá los datos actualizados vía eager loading
+            // Esto reduce latencia de ~500ms a ~200ms
+            $this->refreshTrigger = now()->timestamp;
+            
+            // If the updated room detail is open, reload it
+            if ($this->selectedRoomId == $roomId) {
+                $this->loadRoomDetail();
+            }
         }
 
         // Marcar que hubo actualización por evento (evita que el polling ejecute inmediatamente)
@@ -1032,9 +1058,12 @@ class RoomManager extends Component
                   ->orWhere('beds_count', 'like', '%' . $this->search . '%');
             });
         }
-        // NOTE: Don't filter by status here because we need to calculate display_status
-        // for the selected date first, then filter by that calculated status
-        // The status filter will be applied after transform() below
+        if ($this->status) {
+            $query->where('status', $this->status);
+        }
+        if ($this->ventilation_type) {
+            $query->where('ventilation_type', $this->ventilation_type);
+        }
 
         // Eager load reservations for the month range to optimize queries
         // We load a buffer (month range) to support calendar navigation, but
@@ -1124,6 +1153,10 @@ class RoomManager extends Component
             // will be PENDIENTE_ASEO (if cleaning needed) or LIBRE
             $room->display_status = $room->getDisplayStatus($date);
             $room->active_prices = $room->getPricesForDate($date);
+            
+            // Store cleaning status for the selected date to avoid recalculating in view
+            $room->cleaning_status_for_date = $room->cleaningStatus($date);
+            
             return $room;
         });
 
@@ -1145,6 +1178,7 @@ class RoomManager extends Component
         return view('livewire.room-manager', [
             'rooms' => $rooms,
             'statuses' => RoomStatus::cases(),
+            'ventilationTypes' => VentilationType::cases(),
             'daysInMonth' => $daysInMonth,
             'currentDate' => $date,
             'identificationDocuments' => $identificationDocuments,

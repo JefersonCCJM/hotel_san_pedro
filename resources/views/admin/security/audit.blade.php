@@ -3,6 +3,21 @@
 @section('title', 'Registro de Auditoría')
 @section('header', 'Cumplimiento y Seguridad')
 
+@php
+    // Map event names to Spanish labels
+    $eventLabels = [
+        'login' => 'Inicio de Sesión',
+        'failed_login' => 'Fallo de Sesión',
+        'impersonation_start' => 'Inicio Impersonación',
+        'impersonation_end' => 'Fin Impersonación',
+        'permission_change' => 'Cambio de Permisos',
+        'role_changed' => 'Cambio de Rol',
+        'reservation_created' => 'Creación de Reserva',
+        'reservation_updated' => 'Actualización de Reserva',
+        'reservation_cancelled' => 'Cancelación de Reserva',
+    ];
+@endphp
+
 @section('content')
 <div class="space-y-6">
     <!-- Filtros -->
@@ -16,6 +31,9 @@
                     <option value="failed_login" {{ request('event') == 'failed_login' ? 'selected' : '' }}>Fallo de Sesión</option>
                     <option value="impersonation_start" {{ request('event') == 'impersonation_start' ? 'selected' : '' }}>Inicio Impersonación</option>
                     <option value="permission_change" {{ request('event') == 'permission_change' ? 'selected' : '' }}>Cambio de Permisos</option>
+                    <option value="reservation_created" {{ request('event') == 'reservation_created' ? 'selected' : '' }}>Creación de Reserva</option>
+                    <option value="reservation_updated" {{ request('event') == 'reservation_updated' ? 'selected' : '' }}>Actualización de Reserva</option>
+                    <option value="reservation_cancelled" {{ request('event') == 'reservation_cancelled' ? 'selected' : '' }}>Cancelación de Reserva</option>
                 </select>
             </div>
             <div>
@@ -59,9 +77,9 @@
                             </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full
                                 {{ $log->event == 'failed_login' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800' }}">
-                                {{ $log->event }}
+                                {{ $eventLabels[$log->event] ?? $log->event }}
                             </span>
                         </td>
                         <td class="px-6 py-4 text-sm text-gray-500">

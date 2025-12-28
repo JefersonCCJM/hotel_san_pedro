@@ -578,16 +578,16 @@ function customerForm() {
         async checkIdentification() {
             if (!this.validateIdentification()) return;
             if (!this.formData.identification || this.formData.identification.length < 6) return;
-
+            
             this.identificationMessage = 'Verificando...';
             this.identificationExists = false;
-
+            
             try {
                 const response = await fetch(`{{ route('api.customers.check-identification') }}?identification=${this.formData.identification}&exclude_id=${this.formData.id}`);
                 if (!response.ok) throw new Error('Error en la validación');
-
+                
                 const data = await response.json();
-
+                
                 if (data.exists) {
                     this.identificationExists = true;
                     this.identificationMessage = `Este cliente ya está registrado como: ${data.name}`;
@@ -653,7 +653,7 @@ function customerForm() {
             this.validateField('name');
             this.validateIdentification();
             this.validatePhone();
-
+            
             if (this.requiresElectronicInvoice) {
                 this.validateField('identification_document_id');
                 this.validateField('municipality_id');
@@ -661,9 +661,9 @@ function customerForm() {
                     this.validateField('company');
                 }
             }
-
+            
             const hasErrors = Object.values(this.errors).some(error => error !== null);
-
+            
             if (hasErrors || this.identificationExists) {
                 if (this.identificationExists) {
                     Swal.fire({
@@ -675,7 +675,7 @@ function customerForm() {
                 }
                 return;
             }
-
+            
             this.loading = true;
             this.$el.submit();
         }

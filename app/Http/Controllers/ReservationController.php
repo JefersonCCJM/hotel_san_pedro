@@ -11,6 +11,8 @@ use App\Models\DianLegalOrganization;
 use App\Models\DianCustomerTribute;
 use App\Models\DianMunicipality;
 use App\Http\Requests\StoreReservationRequest;
+use App\Services\AuditService;
+use App\Services\ReservationReportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Collection;
@@ -20,6 +22,10 @@ use Throwable;
 
 class ReservationController extends Controller
 {
+    public function __construct(
+        private AuditService $auditService,
+        private ReservationReportService $reportService
+    ) {}
     /**
      * Livewire browser-events are not safe to dispatch from Controllers in all Livewire versions.
      * In some installations, LivewireManager::dispatch() does not exist and will throw a fatal Error,
@@ -59,12 +65,15 @@ class ReservationController extends Controller
             $tempDate->addDay();
         }
 
-        $rooms = Room::with(['reservations' => function($query) use ($startOfMonth, $endOfMonth) {
-            $query->where(function($q) use ($startOfMonth, $endOfMonth) {
-                $q->where('check_in_date', '<=', $endOfMonth)
-                  ->where('check_out_date', '>=', $startOfMonth);
-            });
-        }, 'reservations.customer'])->orderBy('room_number')->get();
+        $rooms = Room::with([
+            'reservations' => function ($query) use ($startOfMonth, $endOfMonth) {
+                $query->where(function ($q) use ($startOfMonth, $endOfMonth) {
+                    $q->where('check_in_date', '<=', $endOfMonth)
+                        ->where('check_out_date', '>=', $startOfMonth);
+                });
+            },
+            'reservations.customer',
+        ])->orderBy('room_number')->get();
 
         // Asegurarse de que el status se maneje como string para la vista si es necesario,
         // aunque Blade puede manejar el enum.
@@ -117,7 +126,7 @@ class ReservationController extends Controller
                 ];
             })->toArray();
 
-            // Ensure customersArray is always an array
+// Ensure customersArray is always an array
             if (!is_array($customersArray)) {
                 $customersArray = [];
             }
@@ -175,7 +184,7 @@ class ReservationController extends Controller
 
             // Return view with empty arrays to prevent 500 errors
             return view('reservations.create', [
-                'customers' => [],
+    'customers' => [],
                 'rooms' => [],
                 'roomsData' => [],
                 'identificationDocuments' => [],
@@ -280,6 +289,9 @@ class ReservationController extends Controller
                 Room::whereIn('id', $roomIds)->update(['status' => \App\Enums\RoomStatus::OCUPADA]);
             }
 
+            // Audit log for reservation creation
+            $this->auditService->logReservationCreated($reservation, $request, $roomIds);
+
             // Dispatch Livewire event for stats update
             $this->safeLivewireDispatch('reservation-created');
 
@@ -339,7 +351,24 @@ class ReservationController extends Controller
             return back()->withInput()->withErrors(['room_id' => 'La habitación ya está reservada para las fechas seleccionadas.']);
         }
 
+        // Capture old values for audit
+        $oldValues = [
+            'room_id' => $reservation->room_id,
+            'check_in_date' => $reservation->check_in_date?->format('Y-m-d'),
+            'check_out_date' => $reservation->check_out_date?->format('Y-m-d'),
+            'total_amount' => (float) $reservation->total_amount,
+            'deposit' => (float) $reservation->deposit,
+            'guests_count' => (int) $reservation->guests_count,
+            'payment_method' => $reservation->payment_method,
+        ];
+
         $reservation->update($request->validated());
+
+        // Refresh to get updated values
+        $reservation->refresh();
+
+        // Audit log for reservation update
+        $this->auditService->logReservationUpdated($reservation, $request, $oldValues);
 
         // Dispatch Livewire event for stats update
         $this->safeLivewireDispatch('reservation-updated');
@@ -352,23 +381,15 @@ class ReservationController extends Controller
      */
     public function destroy(Reservation $reservation)
     {
-        $reservationId = $reservation->id;
-        $customerName = $reservation->customer->name;
-
         $reservation->delete();
 
-        \App\Models\AuditLog::create([
-            'user_id' => auth()->id(),
-            'event' => 'reservation_deleted',
-            'description' => "Eliminó la reserva #{$reservationId} del cliente {$customerName}",
-            'ip_address' => request()->ip(),
-            'user_agent' => request()->userAgent(),
-        ]);
+        // Audit log for reservation cancellation
+        $this->auditService->logReservationCancelled($reservation, request());
 
         // Dispatch Livewire event for stats update
-        $this->safeLivewireDispatch('reservation-deleted');
+        $this->safeLivewireDispatch('reservation-cancelled');
 
-        return redirect()->route('reservations.index')->with('success', 'Reserva eliminada correctamente.');
+        return redirect()->route('reservations.index')->with('success', 'Reserva cancelada correctamente.');
     }
 
     /**
@@ -379,6 +400,27 @@ class ReservationController extends Controller
         $reservation->load(['customer', 'room']);
         $pdf = Pdf::loadView('reservations.pdf', compact('reservation'));
         return $pdf->download("Soporte_Reserva_{$reservation->id}.pdf");
+    }
+
+    /**
+     * Export monthly reservations report as PDF.
+     */
+    public function exportMonthlyReport(Request $request)
+    {
+        $month = $request->get('month', now()->format('Y-m'));
+
+        try {
+            Carbon::createFromFormat('Y-m', (string) $month);
+        } catch (\Exception $e) {
+            return back()->withErrors([
+                'month' => 'Formato de mes inválido. Use YYYY-MM.',
+            ]);
+        }
+
+        $reportData = $this->reportService->getMonthlyReservations((string) $month);
+        $pdf = Pdf::loadView('reservations.monthly-report-pdf', $reportData);
+
+        return $pdf->download("Reporte_Reservaciones_{$month}.pdf");
     }
 
     /**
@@ -566,6 +608,7 @@ class ReservationController extends Controller
         $existsInPivot = DB::table('reservation_rooms')
             ->join('reservations', 'reservation_rooms.reservation_id', '=', 'reservations.id')
             ->where('reservation_rooms.room_id', $roomId)
+            ->whereNull('reservations.deleted_at')
             ->where(function ($query) use ($checkIn, $checkOut) {
                 $query->where('reservations.check_in_date', '<', $checkOut)
                       ->where('reservations.check_out_date', '>', $checkIn);
@@ -584,6 +627,7 @@ class ReservationController extends Controller
     private function validateGuestAssignment(array $roomGuests, Collection $rooms): array
     {
         $errors = [];
+        $guestRoomMap = [];
 
         foreach ($roomGuests as $roomId => $assignedGuestIds) {
             $room = $rooms->get($roomId);
@@ -597,11 +641,29 @@ class ReservationController extends Controller
             $validGuestIds = array_filter($assignedGuestIds, function ($id): bool {
                 return !empty($id) && is_numeric($id) && $id > 0;
             });
+            $validGuestIds = array_values(array_unique(array_map('intval', $validGuestIds)));
 
             $guestCount = count($validGuestIds);
 
             if ($guestCount > $room->max_capacity) {
                 $errors['room_guests'][] = "La habitación {$room->room_number} tiene una capacidad máxima de {$room->max_capacity} personas, pero se están intentando asignar {$guestCount}.";
+            }
+
+            // Business rule: prevent assigning the same guest to multiple rooms in the same reservation.
+            foreach ($validGuestIds as $guestId) {
+                if (!isset($guestRoomMap[$guestId])) {
+                    $guestRoomMap[$guestId] = (int) $roomId;
+                    continue;
+                }
+
+                $firstRoomId = (int) $guestRoomMap[$guestId];
+                if ($firstRoomId === (int) $roomId) {
+                    continue;
+                }
+
+                $firstRoom = $rooms->get($firstRoomId);
+                $firstRoomNumber = $firstRoom ? $firstRoom->room_number : (string) $firstRoomId;
+                $errors['room_guests'][] = "Un huésped no puede estar asignado a dos habitaciones en la misma reserva (Hab. {$firstRoomNumber} y Hab. {$room->room_number}).";
             }
         }
 

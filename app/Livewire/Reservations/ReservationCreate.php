@@ -51,6 +51,10 @@ class ReservationCreate extends Component
     public $customerSearchTerm = '';
     public $showCustomerDropdown = false;
 
+    // Room search (unified selector for single and multi)
+    public $roomSearchTerm = '';
+    public $showRoomDropdown = false;
+
     // Guest assignment
     // NOTE: $assignedGuests removed - use getAssignedGuestsProperty() computed property instead
     public $currentRoomForGuestAssignment = null;
@@ -1358,6 +1362,63 @@ class ReservationCreate extends Component
         $this->showGuestDropdown = false;
     }
 
+    public function closeRoomDropdown(): void
+    {
+        $this->showRoomDropdown = false;
+    }
+
+    public function openRoomDropdown(): void
+    {
+        if ($this->datesCompleted) {
+            $this->showRoomDropdown = true;
+        }
+    }
+
+    public function updatedRoomSearchTerm($value): void
+    {
+        if ($this->datesCompleted) {
+            $this->showRoomDropdown = true;
+        }
+    }
+
+    public function getFilteredRoomsProperty(): array
+    {
+        $availableRooms = $this->availableRooms;
+        if (!is_array($availableRooms) || empty($availableRooms)) {
+            return [];
+        }
+        return $availableRooms;
+    }
+
+    public function selectRoom($roomId): void
+    {
+        if (empty($roomId) || !is_numeric($roomId)) {
+            return;
+        }
+
+        $roomIdInt = (int) $roomId;
+        if ($roomIdInt <= 0) {
+            return;
+        }
+
+        if ($this->showMultiRoomSelector) {
+            $this->toggleSelectedRoomIds($roomIdInt);
+            $this->showRoomDropdown = true;
+            return;
+        }
+
+        $this->roomId = (string) $roomIdInt;
+        $this->showRoomDropdown = false;
+        $this->roomSearchTerm = '';
+    }
+
+    public function clearSelectedRooms(): void
+    {
+        $this->selectedRoomIds = [];
+        $this->roomGuests = [];
+        $this->calculateTotal();
+    }
+
     public function openGuestSearchDropdown(): void
     {
         $this->showGuestDropdown = true;
@@ -1367,23 +1428,86 @@ class ReservationCreate extends Component
     {
         $allCustomers = $this->customers ?? [];
 
-        // If no search term, return first 5 customers
-        if (empty($this->guestSearchTerm)) {
-            return array_slice($allCustomers, 0, 5);
+        $targetRoomId = null;
+
+        if ($this->currentRoomForGuestAssignment !== null) {
+            $targetRoomId = (int) $this->currentRoomForGuestAssignment;
+        } elseif (!$this->showMultiRoomSelector && !empty($this->roomId) && is_numeric($this->roomId)) {
+            $targetRoomId = (int) $this->roomId;
         }
 
-        $searchTerm = mb_strtolower(trim($this->guestSearchTerm));
+        // Hide guests already assigned to ANY room in the current reservation draft.
+        // Business rule: one person can only be assigned to one room per reservation.
+        $alreadyAssignedIds = [];
+        if (is_array($this->roomGuests) && !empty($this->roomGuests)) {
+            foreach ($this->roomGuests as $roomId => $guests) {
+                if (!is_array($guests) || empty($guests)) {
+                    continue;
+                }
+                foreach ($guests as $guest) {
+                    if (!is_array($guest)) {
+                        continue;
+                    }
+                    $guestId = $guest['id'] ?? null;
+                    if (!empty($guestId) && is_numeric($guestId)) {
+                        $alreadyAssignedIds[] = (int) $guestId;
+                    }
+                }
+            }
+        }
+
+        $alreadyAssignedIds = array_values(array_unique(array_map('intval', $alreadyAssignedIds)));
+
+        $searchTermRaw = (string) $this->guestSearchTerm;
+        $searchTerm = mb_strtolower(trim($searchTermRaw));
+        $searchTermAlnum = preg_replace('/[^[:alnum:]]+/u', '', $searchTerm) ?? '';
+
         $filtered = [];
 
         foreach ($allCustomers as $customer) {
-            $name = mb_strtolower($customer['name'] ?? '');
-            $identification = $customer['taxProfile']['identification'] ?? '';
-            $phone = mb_strtolower($customer['phone'] ?? '');
+            if (!is_array($customer)) {
+                continue;
+            }
+
+            $customerId = $customer['id'] ?? null;
+            if (empty($customerId) || !is_numeric($customerId)) {
+                continue;
+            }
+
+            $customerIdInt = (int) $customerId;
+
+            // Hide already assigned guests for the target room to prevent re-selection.
+            if (!empty($alreadyAssignedIds) && in_array($customerIdInt, $alreadyAssignedIds, true)) {
+                continue;
+            }
+
+            // If no search term, return first 5 customers (excluding assigned).
+            if ($searchTerm === '') {
+                $filtered[] = $customer;
+                if (count($filtered) >= 5) {
+                    break;
+                }
+                continue;
+            }
+
+            $name = mb_strtolower((string) ($customer['name'] ?? ''));
+            $identification = mb_strtolower((string) ($customer['taxProfile']['identification'] ?? ''));
+            $phone = mb_strtolower((string) ($customer['phone'] ?? ''));
+
+            // Normalized variants for robust matching (handles dots/spaces in IDs and phones)
+            $nameAlnum = preg_replace('/[^[:alnum:]]+/u', '', $name) ?? '';
+            $identificationAlnum = preg_replace('/[^[:alnum:]]+/u', '', $identification) ?? '';
+            $phoneAlnum = preg_replace('/[^[:alnum:]]+/u', '', $phone) ?? '';
 
             // Search in name, identification, or phone
             if (str_contains($name, $searchTerm) ||
                 str_contains($identification, $searchTerm) ||
-                str_contains($phone, $searchTerm)) {
+                str_contains($phone, $searchTerm) ||
+                ($searchTermAlnum !== '' && (
+                    str_contains($nameAlnum, $searchTermAlnum) ||
+                    str_contains($identificationAlnum, $searchTermAlnum) ||
+                    str_contains($phoneAlnum, $searchTermAlnum)
+                ))) {
                 $filtered[] = $customer;
             }
 
@@ -1495,6 +1619,26 @@ class ReservationCreate extends Component
         // Initialize room guests array if needed
         if (!isset($this->roomGuests[$targetRoomId]) || !is_array($this->roomGuests[$targetRoomId])) {
             $this->roomGuests[$targetRoomId] = [];
+        }
+
+        // Business rule: prevent assigning the same guest to multiple rooms in the same reservation draft.
+        if (is_array($this->roomGuests)) {
+            foreach ($this->roomGuests as $roomId => $guests) {
+                $roomIdInt = is_numeric($roomId) ? (int) $roomId : 0;
+                if ($roomIdInt <= 0) {
+                    continue;
+                }
+                if (!is_array($guests) || empty($guests)) {
+                    continue;
+                }
+                $existingIds = array_map('intval', array_column($guests, 'id'));
+                if (in_array($guestId, $existingIds, true) && $roomIdInt !== $targetRoomId) {
+                    $roomInfo = $this->getRoomById($roomIdInt);
+                    $roomNumber = $roomInfo['number'] ?? $roomInfo['room_number'] ?? (string) $roomIdInt;
+                    $this->addError('guestAssignment', "Este cliente ya está asignado a la habitación {$roomNumber}.");
+                    return;
+                }
+            }
         }
 
         // Check for duplicates - validate guest is not already assigned
@@ -2057,6 +2201,7 @@ class ReservationCreate extends Component
         $existsInPivot = DB::table('reservation_rooms')
             ->join('reservations', 'reservation_rooms.reservation_id', '=', 'reservations.id')
             ->where('reservation_rooms.room_id', $roomId)
+            ->whereNull('reservations.deleted_at')
             ->where(function ($query) use ($checkIn, $checkOut) {
                 $query->where('reservations.check_in_date', '<', $checkOut)
                       ->where('reservations.check_out_date', '>', $checkIn);
