@@ -51,6 +51,10 @@ class ReservationCreate extends Component
     public $customerSearchTerm = '';
     public $showCustomerDropdown = false;
 
+    // Room search (unified selector for single and multi)
+    public $roomSearchTerm = '';
+    public $showRoomDropdown = false;
+
     // Guest assignment
     // NOTE: $assignedGuests removed - use getAssignedGuestsProperty() computed property instead
     public $currentRoomForGuestAssignment = null;
@@ -1358,6 +1362,63 @@ class ReservationCreate extends Component
         $this->showGuestDropdown = false;
     }
 
+    public function closeRoomDropdown(): void
+    {
+        $this->showRoomDropdown = false;
+    }
+
+    public function openRoomDropdown(): void
+    {
+        if ($this->datesCompleted) {
+            $this->showRoomDropdown = true;
+        }
+    }
+
+    public function updatedRoomSearchTerm($value): void
+    {
+        if ($this->datesCompleted) {
+            $this->showRoomDropdown = true;
+        }
+    }
+
+    public function getFilteredRoomsProperty(): array
+    {
+        $availableRooms = $this->availableRooms;
+        if (!is_array($availableRooms) || empty($availableRooms)) {
+            return [];
+        }
+        return $availableRooms;
+    }
+
+    public function selectRoom($roomId): void
+    {
+        if (empty($roomId) || !is_numeric($roomId)) {
+            return;
+        }
+
+        $roomIdInt = (int) $roomId;
+        if ($roomIdInt <= 0) {
+            return;
+        }
+
+        if ($this->showMultiRoomSelector) {
+            $this->toggleSelectedRoomIds($roomIdInt);
+            $this->showRoomDropdown = true;
+            return;
+        }
+
+        $this->roomId = (string) $roomIdInt;
+        $this->showRoomDropdown = false;
+        $this->roomSearchTerm = '';
+    }
+
+    public function clearSelectedRooms(): void
+    {
+        $this->selectedRoomIds = [];
+        $this->roomGuests = [];
+        $this->calculateTotal();
+    }
+
     public function openGuestSearchDropdown(): void
     {
         $this->showGuestDropdown = true;
@@ -1367,22 +1428,59 @@ class ReservationCreate extends Component
     {
         $allCustomers = $this->customers ?? [];
 
-        // If no search term, return first 5 customers
-        if (empty($this->guestSearchTerm)) {
-            return array_slice($allCustomers, 0, 5);
+        $targetRoomId = null;
+
+        if ($this->currentRoomForGuestAssignment !== null) {
+            $targetRoomId = (int) $this->currentRoomForGuestAssignment;
+        } elseif (!$this->showMultiRoomSelector && !empty($this->roomId) && is_numeric($this->roomId)) {
+            $targetRoomId = (int) $this->roomId;
         }
 
-        $searchTerm = mb_strtolower(trim($this->guestSearchTerm));
+        $alreadyAssignedIds = [];
+        if ($targetRoomId !== null && $targetRoomId > 0) {
+            $alreadyAssignedIds = array_map(
+                'intval',
+                array_column($this->getRoomGuests($targetRoomId), 'id')
+            );
+        }
+
+        $searchTerm = mb_strtolower(trim((string) $this->guestSearchTerm));
+
         $filtered = [];
 
         foreach ($allCustomers as $customer) {
-            $name = mb_strtolower($customer['name'] ?? '');
-            $identification = $customer['taxProfile']['identification'] ?? '';
-            $phone = mb_strtolower($customer['phone'] ?? '');
+            if (!is_array($customer)) {
+                continue;
+            }
+
+            $customerId = $customer['id'] ?? null;
+            if (empty($customerId) || !is_numeric($customerId)) {
+                continue;
+            }
+
+            $customerIdInt = (int) $customerId;
+
+            // Hide already assigned guests for the target room to prevent re-selection.
+            if (!empty($alreadyAssignedIds) && in_array($customerIdInt, $alreadyAssignedIds, true)) {
+                continue;
+            }
+
+            // If no search term, return first 5 customers (excluding assigned).
+            if ($searchTerm === '') {
+                $filtered[] = $customer;
+                if (count($filtered) >= 5) {
+                    break;
+                }
+                continue;
+            }
+
+            $name = mb_strtolower((string) ($customer['name'] ?? ''));
+            $identification = (string) ($customer['taxProfile']['identification'] ?? '');
+            $phone = mb_strtolower((string) ($customer['phone'] ?? ''));
 
             // Search in name, identification, or phone
             if (str_contains($name, $searchTerm) ||
-                str_contains($identification, $searchTerm) ||
+                str_contains(mb_strtolower($identification), $searchTerm) ||
                 str_contains($phone, $searchTerm)) {
                 $filtered[] = $customer;
             }
@@ -2057,6 +2155,7 @@ class ReservationCreate extends Component
         $existsInPivot = DB::table('reservation_rooms')
             ->join('reservations', 'reservation_rooms.reservation_id', '=', 'reservations.id')
             ->where('reservation_rooms.room_id', $roomId)
+            ->whereNull('reservations.deleted_at')
             ->where(function ($query) use ($checkIn, $checkOut) {
                 $query->where('reservations.check_in_date', '<', $checkOut)
                       ->where('reservations.check_out_date', '>', $checkIn);

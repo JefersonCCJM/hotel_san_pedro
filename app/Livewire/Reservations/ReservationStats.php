@@ -12,12 +12,12 @@ class ReservationStats extends Component
     protected $listeners = [
         'reservation-created' => '$refresh',
         'reservation-updated' => '$refresh',
-        'reservation-deleted' => '$refresh',
+        'reservation-cancelled' => '$refresh',
     ];
 
     public function getTotalReservationsProperty(): int
     {
-        return Reservation::count();
+        return Reservation::withTrashed()->count();
     }
 
     public function getActiveReservationsProperty(): int
@@ -31,9 +31,7 @@ class ReservationStats extends Component
 
     public function getCancelledReservationsProperty(): int
     {
-        // Since reservations are hard deleted, we can't count cancelled ones
-        // This metric is kept for future implementation with soft deletes or status field
-        return 0;
+        return Reservation::onlyTrashed()->count();
     }
 
     public function getOccupiedRoomsTodayProperty(): int
@@ -43,6 +41,7 @@ class ReservationStats extends Component
         // Get rooms from reservation_rooms pivot table (multi-room reservations)
         $roomsFromPivot = DB::table('reservations')
             ->join('reservation_rooms', 'reservations.id', '=', 'reservation_rooms.reservation_id')
+            ->whereNull('reservations.deleted_at')
             ->where('reservations.check_in_date', '<=', $today)
             ->where('reservations.check_out_date', '>=', $today)
             ->distinct('reservation_rooms.room_id')
@@ -50,6 +49,7 @@ class ReservationStats extends Component
         
         // Get rooms from room_id field (backward compatibility for single-room reservations)
         $roomsFromField = DB::table('reservations')
+            ->whereNull('deleted_at')
             ->where('check_in_date', '<=', $today)
             ->where('check_out_date', '>=', $today)
             ->whereNotNull('room_id')

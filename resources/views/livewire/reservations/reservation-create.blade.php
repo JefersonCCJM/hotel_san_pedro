@@ -201,7 +201,7 @@
             </div>
 
             <!-- SECCIÓN 2: HABITACIÓN Y FECHAS -->
-            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-visible">
                 <div class="p-5 border-b border-gray-50 bg-gray-50/50 flex items-center">
                     <i class="fas fa-bed text-emerald-500 mr-2"></i>
                     <h2 class="font-bold text-gray-800">Estancia y Habitación</h2>
@@ -283,111 +283,110 @@
                                 </button>
                             </div>
 
-                            <!-- Modo una habitación (backward compatibility) -->
-                            @if(!$this->showMultiRoomSelector)
-                                <div>
-                                    @if(!$this->datesCompleted)
-                                        <div class="bg-amber-50 text-amber-700 border-amber-100 p-3 rounded-xl border text-xs font-medium flex items-center mb-3">
-                                            <i class="fas fa-exclamation-circle mr-2"></i>
-                                            <span>Completa las fechas para ver las habitaciones disponibles</span>
-                                        </div>
-                                    @endif
+                            <!-- Selector unificado (panel scrollable) para single y multi -->
+                            <div class="space-y-3">
+                                @if(!$this->datesCompleted)
+                                    <div class="bg-amber-50 text-amber-700 border-amber-100 p-3 rounded-xl border text-xs font-medium flex items-center">
+                                        <i class="fas fa-exclamation-circle mr-2"></i>
+                                        <span>Completa las fechas para ver las habitaciones disponibles</span>
+                                    </div>
+                                @endif
 
-                                    <select name="room_id" id="room_id" wire:model.live="roomId"
-                                            @if(!$this->datesCompleted) disabled @endif
-                                            class="w-full @if(!$this->datesCompleted) bg-gray-100 cursor-not-allowed @endif @error('room_id') border-red-500 @enderror">
-                                        <option value="">Seleccionar número...</option>
-                                        @if($this->datesCompleted)
+                                <div class="space-y-2">
+                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                        Seleccionar habitación
+                                    </label>
+                                    @if($this->datesCompleted)
+                                        <div class="border border-gray-300 rounded-xl bg-white max-h-72 overflow-y-auto @error('room_id') border-red-500 @enderror @error('room_ids') border-red-500 @enderror">
                                             @php
-                                                $availableRooms = $this->availableRooms;
+                                                $filteredRooms = $this->filteredRooms;
                                             @endphp
-                                            @if(is_array($availableRooms) && count($availableRooms) > 0)
-                                                @foreach($availableRooms as $room)
+
+                                            @if(is_array($filteredRooms) && count($filteredRooms) > 0)
+                                                <div class="px-4 py-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest bg-gray-50 border-b border-gray-100 sticky top-0 flex items-center justify-between">
+                                                    <span>
+                                                        <i class="fas fa-hand-point-up mr-1"></i>
+                                                        Desliza para ver más habitaciones
+                                                    </span>
+                                                    @if($this->showMultiRoomSelector && is_array($this->selectedRoomIds) && count($this->selectedRoomIds) > 0)
+                                                        <button type="button" wire:click="clearSelectedRooms"
+                                                                class="text-[10px] font-black text-red-600 hover:text-red-800 uppercase tracking-widest">
+                                                            Limpiar
+                                                        </button>
+                                                    @endif
+                                                </div>
+                                                @foreach($filteredRooms as $room)
                                                     @php
-                                                        $roomIdValue = (string)($room['id'] ?? '');
-                                                        $oldRoomId = old('room_id', $this->roomId);
-                                                        $selectedRoomId = (string)$oldRoomId;
+                                                        $roomId = (int)($room['id'] ?? 0);
+                                                        $roomNumber = (string)($room['room_number'] ?? '');
+                                                        $beds = (int)($room['beds_count'] ?? 0);
+                                                        $capacity = (int)($room['max_capacity'] ?? 0);
+                                                        $isSelectedSingle = !$this->showMultiRoomSelector && !empty($this->roomId) && (int)$this->roomId === $roomId;
+                                                        $isSelectedMulti = $this->showMultiRoomSelector && is_array($this->selectedRoomIds) && in_array($roomId, array_map('intval', $this->selectedRoomIds), true);
+                                                        $isSelected = $isSelectedSingle || $isSelectedMulti;
                                                     @endphp
-                                                    <option value="{{ $roomIdValue }}" @if($roomIdValue === $selectedRoomId && !empty($selectedRoomId)) selected @endif>
-                                                        Habitación {{ $room['room_number'] ?? '' }} ({{ $room['beds_count'] ?? 0 }} {{ ($room['beds_count'] ?? 0) == 1 ? 'Cama' : 'Camas' }})
-                                                    </option>
+                                                    @if($roomId > 0)
+                                                        <button type="button"
+                                                                wire:click="selectRoom({{ $roomId }})"
+                                                                class="w-full text-left px-4 py-3 transition-colors border-b border-gray-100 last:border-b-0 {{ $isSelected ? 'bg-emerald-50' : 'hover:bg-emerald-50' }}">
+                                                            <div class="flex items-center justify-between">
+                                                                <div class="flex-1">
+                                                                    <div class="font-bold text-gray-900 text-sm">
+                                                                        Habitación {{ $roomNumber }}
+                                                                    </div>
+                                                                    <div class="text-xs text-gray-500 mt-0.5">
+                                                                        <span class="mr-2"><i class="fas fa-bed mr-1"></i>{{ $beds }} {{ $beds == 1 ? 'Cama' : 'Camas' }}</span>
+                                                                        <span><i class="fas fa-users mr-1"></i>Capacidad {{ $capacity }}</span>
+                                                                    </div>
+                                                                </div>
+                                                                @if($this->showMultiRoomSelector)
+                                                                    <i class="fas {{ $isSelected ? 'fa-check-square text-emerald-600' : 'fa-square text-gray-300' }}"></i>
+                                                                @else
+                                                                    <i class="fas {{ $isSelected ? 'fa-check-circle text-emerald-600' : 'fa-circle text-gray-300' }}"></i>
+                                                                @endif
+                                                            </div>
+                                                        </button>
+                                                    @endif
                                                 @endforeach
                                             @else
-                                                <option value="" disabled>No hay habitaciones disponibles para estas fechas</option>
+                                                <div class="px-4 py-6 text-center text-sm text-gray-500">
+                                                    <i class="fas fa-door-closed text-2xl mb-2 opacity-50"></i>
+                                                    <p>No hay habitaciones disponibles para estas fechas</p>
+                                                </div>
                                             @endif
-                                        @endif
-                                    </select>
-                                    @error('room_id')
-                                        <span class="mt-1 text-xs font-medium text-red-600 flex items-center">
-                                            <i class="fas fa-exclamation-circle mr-1.5"></i> {{ $message }}
-                                        </span>
-                                    @enderror
-                                </div>
-                            @endif
-
-                            <!-- Modo múltiples habitaciones -->
-                            @if($this->showMultiRoomSelector)
-                                <div class="space-y-3">
-                                    @if(!$this->datesCompleted)
-                                        <div class="bg-amber-50 text-amber-700 border-amber-100 p-3 rounded-xl border text-xs font-medium flex items-center">
-                                            <i class="fas fa-exclamation-circle mr-2"></i>
-                                            <span>Completa las fechas para ver las habitaciones disponibles</span>
+                                        </div>
+                                    @else
+                                        <div class="border border-gray-200 rounded-xl bg-gray-50 p-4 text-xs text-gray-500">
+                                            Selecciona las fechas para ver las habitaciones disponibles.
                                         </div>
                                     @endif
-
-                                    <div class="border border-gray-300 rounded-xl p-4 max-h-64 overflow-y-auto bg-white @error('room_ids') border-red-500 @enderror"
-                                         @if(!$this->datesCompleted) style="background-color: #f3f4f6; pointer-events: none;" @endif>
-                                        @if($this->datesCompleted)
-                                            @php
-                                                $availableRooms = $this->availableRooms;
-                                            @endphp
-                                            @if(is_array($availableRooms) && count($availableRooms) > 0)
-                                                <div class="space-y-2">
-                                                    @foreach($availableRooms as $room)
-                                                        @php
-                                                            $roomId = (int)($room['id'] ?? 0);
-                                                            $isSelected = is_array($this->selectedRoomIds) && in_array($roomId, array_map('intval', $this->selectedRoomIds), true);
-                                                        @endphp
-                                                        <label class="flex items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors {{ $isSelected ? 'bg-emerald-50 border border-emerald-200' : '' }}">
-                                                            <input type="checkbox"
-                                                                   value="{{ $roomId }}"
-                                                                   wire:click="toggleSelectedRoomIds({{ $roomId }})"
-                                                                   @checked($isSelected)
-                                                                   class="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 focus:ring-2">
-                                                            <span class="ml-3 text-sm font-medium text-gray-700">
-                                                                <i class="fas fa-bed text-emerald-500 mr-2"></i>
-                                                                Habitación {{ $room['room_number'] ?? '' }}
-                                                                <span class="text-gray-500">(Capacidad: {{ $room['max_capacity'] ?? 0 }} pers.)</span>
-                                                            </span>
-                                                        </label>
-                                                    @endforeach
-                                                </div>
-                                            @else
-                                                <p class="text-sm text-gray-500 text-center py-4">
-                                                    No hay habitaciones disponibles para estas fechas
-                                                </p>
-                                            @endif
-                                        @else
-                                            <p class="text-sm text-gray-500 text-center py-4">
-                                                Selecciona las fechas para ver las habitaciones disponibles
-                                            </p>
-                                        @endif
-                                    </div>
-                                    @error('room_ids')
-                                        <span class="mt-1 text-xs font-medium text-red-600 flex items-center">
-                                            <i class="fas fa-exclamation-circle mr-1.5"></i> {{ $message }}
-                                        </span>
-                                    @enderror
-                                    <p class="text-xs text-gray-500">
-                                        <i class="fas fa-info-circle mr-1"></i>
-                                        @if($this->datesCompleted)
-                                            Selecciona una o más habitaciones disponibles para las fechas seleccionadas
-                                        @else
-                                            Completa las fechas para ver las habitaciones disponibles
-                                        @endif
-                                    </p>
                                 </div>
-                            @endif
+
+                                @error('room_id')
+                                    <span class="mt-1 text-xs font-medium text-red-600 flex items-center">
+                                        <i class="fas fa-exclamation-circle mr-1.5"></i> {{ $message }}
+                                    </span>
+                                @enderror
+                                @error('room_ids')
+                                    <span class="mt-1 text-xs font-medium text-red-600 flex items-center">
+                                        <i class="fas fa-exclamation-circle mr-1.5"></i> {{ $message }}
+                                    </span>
+                                @enderror
+
+                                <!-- Chips seleccionadas -->
+                                @if(!$this->showMultiRoomSelector && $this->selectedRoom)
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="inline-flex items-center px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-100">
+                                            <i class="fas fa-bed mr-2"></i>
+                                            Habitación {{ $this->selectedRoom['number'] ?? $this->selectedRoom['room_number'] ?? '' }}
+                                        </span>
+                                    </div>
+                                @endif
+
+                                @if($this->showMultiRoomSelector && is_array($this->selectedRoomIds) && count($this->selectedRoomIds) > 0)
+                                    <!-- Intentionally hidden: user requested no counter/summary below in multi mode -->
+                                @endif
+                            </div>
                         </div>
 
                         <!-- Detalles Habitación (modo una habitación) -->
@@ -415,64 +414,10 @@
                             </div>
                         @endif
 
-                        <!-- Lista de Habitaciones Seleccionadas (modo múltiples) -->
-                        @if($this->showMultiRoomSelector && is_array($this->selectedRoomIds) && count($this->selectedRoomIds) > 0)
-                            <div class="space-y-3">
-                                @foreach($this->selectedRoomIds as $roomId)
-                                    @php
-                                        $room = $this->getRoomById($roomId);
-                                        $guestCount = $this->getRoomGuestsCount($roomId);
-                                    @endphp
-                                    @if($room)
-                                        <div class="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                                            <div class="flex items-center justify-between mb-3">
-                                                <div class="flex items-center space-x-2">
-                                                    <i class="fas fa-bed text-emerald-500"></i>
-                                                    <span class="font-bold text-gray-900">Habitación {{ $room['number'] ?? $roomId }}</span>
-                                                    <span class="text-xs text-gray-500">
-                                                        (Capacidad: {{ $room['capacity'] ?? 0 }} pers.)
-                                                    </span>
-                                                </div>
-                                                <button type="button" wire:click="removeRoom({{ $roomId }})"
-                                                        class="text-red-500 hover:text-red-700 text-xs">
-                                                    <i class="fas fa-times"></i>
-                                                </button>
-                                            </div>
-                                            <div class="text-xs text-gray-600 mb-2">
-                                                Precio por noche: <span class="font-bold">${{ number_format($this->calculatePriceForRoom($room, $guestCount), 0, ',', '.') }}</span>
-                                                @if($guestCount > 0)
-                                                    <span class="text-[10px] text-gray-500 ml-2 italic">
-                                                        (Precio total para {{ $guestCount }} {{ $guestCount === 1 ? 'persona' : 'personas' }})
-                                                    </span>
-                                                @else
-                                                    <span class="text-[10px] text-gray-500 ml-2 italic">
-                                                        (Precio base - 1 persona)
-                                                    </span>
-                                                @endif
-                                            </div>
-                                        </div>
-                                    @endif
-                                @endforeach
-                            </div>
-                        @endif
+                        <!-- Intentionally hidden: user requested no selected-rooms list below in multi mode -->
                     </div>
 
-                    <!-- Total de Personas (solo para modo múltiples habitaciones, calculado automáticamente) -->
-                    @if($this->showMultiRoomSelector)
-                        <div class="pt-4 border-t border-gray-50">
-                            <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Total de Personas</label>
-                                <div class="relative">
-                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                                        <i class="fas fa-users text-sm"></i>
-                                    </div>
-                                    <input type="number" value="{{ $this->calculateTotalGuestsCount() }}" readonly
-                                           class="block w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm bg-gray-100 text-gray-600">
-                                </div>
-                                <p class="mt-1 text-xs text-gray-500">Calculado automáticamente según las asignaciones por habitación</p>
-                            </div>
-                        </div>
-                    @endif
+                    <!-- Intentionally hidden: user requested no "Total de Personas" UI in multi mode -->
                 </div>
             </div>
 
@@ -727,6 +672,7 @@
                         @php
                             $totalGuestsSingleRoom = $this->getRoomGuestsCount($this->roomId);
                         @endphp
+                        <input type="hidden" name="room_id" value="{{ $this->roomId }}">
                         <input type="hidden" name="guests_count" value="{{ $totalGuestsSingleRoom }}">
                         @foreach($this->assignedGuests as $index => $guest)
                             @if(isset($guest['id']))
@@ -1611,7 +1557,7 @@
     function validateFormBeforeSubmit(event) {
         const form = event.target;
         const customerId = form.querySelector('input[name="customer_id"]')?.value;
-        const roomId = form.querySelector('select[name="room_id"]')?.value;
+        const roomId = form.querySelector('input[name="room_id"]')?.value;
         const roomIds = Array.from(form.querySelectorAll('input[name="room_ids[]"]')).filter(input => input.checked || input.type === 'hidden').map(input => input.value);
         const checkInDate = form.querySelector('input[name="check_in_date"]')?.value;
         const checkOutDate = form.querySelector('input[name="check_out_date"]')?.value;

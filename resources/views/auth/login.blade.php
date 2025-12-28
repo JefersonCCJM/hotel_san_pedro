@@ -5,23 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iniciar Sesión - Hotel San Pedro</title>
     <link rel="icon" type="image/png" href="{{ asset('assets/img/backgrounds/logo-Photoroom.png') }}">
-    
+
     {{-- SEO Meta Tags --}}
     <meta name="title" content="Iniciar Sesión - Hotel San Pedro">
     <meta name="description" content="Accede al sistema de gestión hotelera de Hotel San Pedro. Administra reservaciones, habitaciones, inventario y facturación electrónica.">
     <meta name="keywords" content="hotel, gestión hotelera, reservaciones, sistema hotelero, Hotel San Pedro">
     <meta name="author" content="Hotel San Pedro">
     <meta name="robots" content="index, follow">
-    
+
     <!-- TailwindCSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
+
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <style>
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -49,7 +49,7 @@
             animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
         }
     </style>
-    
+
 </head>
 <body class="min-h-screen flex items-center justify-center login-bg relative overflow-hidden">
     <div class="absolute inset-0 login-overlay"></div>
@@ -77,7 +77,7 @@
 
                 <form class="space-y-6" method="POST" action="{{ route('login') }}">
                     @csrf
-                    
+
                     <!-- Email Field -->
                     <div>
                         <label for="email" class="flex items-center text-sm font-semibold text-slate-700 mb-2 ml-1">
@@ -100,7 +100,7 @@
                             </p>
                         @enderror
                     </div>
-                    
+
                     <!-- Password Field -->
                     <div>
                         <div class="flex items-center justify-between mb-2 ml-1">
@@ -137,10 +137,10 @@
                             </a>
                         @endif
                     </div>
-                    
+
                     <!-- Submit Button -->
                     <div class="pt-2">
-                        <button type="submit" 
+                        <button type="submit"
                                 class="w-full flex justify-center items-center py-4 px-4 border border-transparent text-base font-bold rounded-2xl text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-slate-900/10 shadow-xl shadow-slate-900/20 transition-all duration-200 active:scale-[0.98]">
                             <i class="fas fa-sign-in-alt mr-2"></i>
                             Entrar al Sistema
@@ -166,7 +166,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Footer -->
         <div class="mt-8 text-center">
             <p class="text-white/60 text-xs font-semibold tracking-widest uppercase">

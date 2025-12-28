@@ -157,6 +157,9 @@
                                          'beds_count' => $room->beds_count . ($room->beds_count == 1 ? ' Cama' : ' Camas'),
                                          'check_in' => $reservation->check_in_date ? $reservation->check_in_date->format('d/m/Y') : 'N/A',
                                          'check_out' => $reservation->check_out_date ? $reservation->check_out_date->format('d/m/Y') : 'N/A',
+                                         'check_in_time' => $reservation->check_in_time ? substr((string) $reservation->check_in_time, 0, 5) : 'N/A',
+                                         'guests_count' => (int) ($reservation->guests_count ?? 0),
+                                         'payment_method' => $reservation->payment_method ? (string) $reservation->payment_method : 'N/A',
                                          'total' => number_format($reservation->total_amount, 0, ',', '.'),
                                          'deposit' => number_format($reservation->deposit, 0, ',', '.'),
                                          'balance' => number_format($reservation->total_amount - $reservation->deposit, 0, ',', '.'),
@@ -257,9 +260,9 @@
                                 </a>
                                 <button type="button"
                                         onclick="openDeleteModal({{ $reservation->id }})"
-                                        class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                        title="Eliminar">
-                                    <i class="fas fa-trash"></i>
+                                        class="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                                        title="Cancelar">
+                                    <i class="fas fa-ban"></i>
                                 </button>
                             </div>
                         </td>
@@ -321,6 +324,30 @@
                 </div>
             </div>
 
+            <div class="grid grid-cols-3 gap-4">
+                <div class="space-y-1">
+                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Hora de ingreso</span>
+                    <div class="flex items-center text-gray-900">
+                        <i class="fas fa-clock mr-2 text-emerald-500"></i>
+                        <span class="font-bold" id="modal-checkin-time"></span>
+                    </div>
+                </div>
+                <div class="space-y-1">
+                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Huéspedes</span>
+                    <div class="flex items-center text-gray-900">
+                        <i class="fas fa-users mr-2 text-emerald-500"></i>
+                        <span class="font-bold" id="modal-guests-count"></span>
+                    </div>
+                </div>
+                <div class="space-y-1 text-right">
+                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Método de pago</span>
+                    <div class="flex items-center justify-end text-gray-900">
+                        <i class="fas fa-credit-card mr-2 text-emerald-500"></i>
+                        <span class="font-bold" id="modal-payment-method"></span>
+                    </div>
+                </div>
+            </div>
+
             <div class="p-6 bg-gray-50 rounded-3xl space-y-4 border border-gray-100 shadow-inner">
                 <div class="flex justify-between items-center pb-3 border-b border-gray-200">
                     <span class="text-xs font-bold text-gray-500 uppercase">Total de Reserva</span>
@@ -352,30 +379,30 @@
                     <span class="text-[10px] font-black uppercase">PDF</span>
                 </a>
                 <button id="modal-delete-btn" onclick="" class="flex flex-col items-center justify-center p-4 bg-orange-50 text-orange-600 rounded-2xl hover:bg-orange-100 transition-all group">
-                    <i class="fas fa-trash mb-2 group-hover:scale-110 transition-transform"></i>
-                    <span class="text-[10px] font-black uppercase">Eliminar</span>
+                    <i class="fas fa-ban mb-2 group-hover:scale-110 transition-transform"></i>
+                    <span class="text-[10px] font-black uppercase">Cancelar</span>
                 </button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Modal de Eliminación -->
+<!-- Modal de Cancelación -->
 <div id="delete-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
     <div class="relative top-20 mx-auto p-5 border w-96 shadow-xl rounded-xl bg-white">
         <div class="mt-3 text-center">
             <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
                 <i class="fas fa-exclamation-triangle text-red-600"></i>
             </div>
-            <h3 class="text-lg leading-6 font-medium text-gray-900">Eliminar Reserva</h3>
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Cancelar Reserva</h3>
             <div class="mt-2 px-7 py-3">
-                <p class="text-sm text-gray-500">¿Estás seguro de eliminar esta reserva? Esta acción no se puede deshacer.</p>
+                <p class="text-sm text-gray-500">¿Estás seguro de cancelar esta reserva? Esta acción no se puede deshacer.</p>
             </div>
             <div class="items-center px-4 py-3">
                 <form id="delete-form" method="POST" onsubmit="event.preventDefault(); confirmDeleteWithPin(this);">
                     @csrf
                     @method('DELETE')
-                    <button type="submit" class="px-4 py-2 bg-red-600 text-white text-base font-medium rounded-lg w-full shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-300">Eliminar</button>
+                    <button type="submit" class="px-4 py-2 bg-orange-600 text-white text-base font-medium rounded-lg w-full shadow-sm hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300">Cancelar</button>
                     <button type="button" onclick="closeDeleteModal()" class="mt-3 px-4 py-2 bg-white text-gray-700 text-base font-medium rounded-lg w-full border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300">Cancelar</button>
                 </form>
             </div>
@@ -392,6 +419,9 @@ function openReservationDetail(data) {
     document.getElementById('modal-reservation-id').innerText = 'Reserva #' + data.id;
     document.getElementById('modal-room-info').innerText = 'Hab. ' + data.room_number + ' (' + data.beds_count + ')';
     document.getElementById('modal-dates').innerText = data.check_in + ' - ' + data.check_out;
+    document.getElementById('modal-checkin-time').innerText = data.check_in_time;
+    document.getElementById('modal-guests-count').innerText = data.guests_count;
+    document.getElementById('modal-payment-method').innerText = data.payment_method;
     document.getElementById('modal-total').innerText = '$' + data.total;
     document.getElementById('modal-deposit').innerText = '$' + data.deposit;
     document.getElementById('modal-balance').innerText = '$' + data.balance;

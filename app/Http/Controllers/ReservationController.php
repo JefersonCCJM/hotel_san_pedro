@@ -359,16 +359,16 @@ class ReservationController extends Controller
 
         \App\Models\AuditLog::create([
             'user_id' => auth()->id(),
-            'event' => 'reservation_deleted',
-            'description' => "Eliminó la reserva #{$reservationId} del cliente {$customerName}",
+            'event' => 'reservation_cancelled',
+            'description' => "Canceló la reserva #{$reservationId} del cliente {$customerName}",
             'ip_address' => request()->ip(),
             'user_agent' => request()->userAgent(),
         ]);
 
         // Dispatch Livewire event for stats update
-        $this->safeLivewireDispatch('reservation-deleted');
+        $this->safeLivewireDispatch('reservation-cancelled');
 
-        return redirect()->route('reservations.index')->with('success', 'Reserva eliminada correctamente.');
+        return redirect()->route('reservations.index')->with('success', 'Reserva cancelada correctamente.');
     }
 
     /**
@@ -566,6 +566,7 @@ class ReservationController extends Controller
         $existsInPivot = DB::table('reservation_rooms')
             ->join('reservations', 'reservation_rooms.reservation_id', '=', 'reservations.id')
             ->where('reservation_rooms.room_id', $roomId)
+            ->whereNull('reservations.deleted_at')
             ->where(function ($query) use ($checkIn, $checkOut) {
                 $query->where('reservations.check_in_date', '<', $checkOut)
                       ->where('reservations.check_out_date', '>', $checkIn);
