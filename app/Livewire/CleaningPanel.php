@@ -320,34 +320,10 @@ class CleaningPanel extends Component
     #[On('room-status-updated')]
     public function onRoomStatusUpdated(int $roomId): void
     {
-        $today = Carbon::today();
-        $roomIndex = array_search($roomId, array_column($this->rooms, 'id'));
-        
-        if ($roomIndex !== false) {
-            // Room is in memory - check if we really need to reload
-            // Use cache to avoid query if we just updated it
-            $cacheKey = "room_updated_{$roomId}";
-            $justUpdated = Cache::get($cacheKey, false);
-            
-            if (!$justUpdated) {
-                // Reload only this room
-            $room = Room::with([
-                'reservations' => function($query) use ($today) {
-                    $query->where('check_in_date', '<=', $today)
-                          ->where('check_out_date', '>=', $today);
-                }
-            ])->find($roomId);
-            
-            if ($room) {
-                $this->rooms[$roomIndex] = $this->transformRoomToArray($room, $today);
-                }
-            }
-        } else {
-            // Room not in memory - full reload (rare case)
-            $this->loadRooms();
-        }
-        
-        // Update hash and cooldown
+        // Cargar siempre para asegurar sincronización completa (evitamos estados obsoletos)
+        $this->loadRooms();
+
+        // Actualizar hash y cooldown (el polling se saltará durante el cooldown)
         $this->dataHash = $this->calculateDataHash();
         $this->lastEventUpdate = now()->timestamp;
     }
