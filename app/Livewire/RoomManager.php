@@ -9,6 +9,7 @@ use App\Models\Reservation;
 use App\Models\ReservationSale;
 use App\Models\Product;
 use App\Enums\RoomStatus;
+use App\Enums\VentilationType;
 use Carbon\Carbon;
 use Livewire\WithPagination;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ class RoomManager extends Component
     public $date;
     public $search = '';
     public $status = '';
+    public $ventilation_type = '';
     public $refreshTrigger = 0;
     
     /**
@@ -58,6 +60,7 @@ class RoomManager extends Component
     protected $queryString = [
         'search' => ['except' => ''],
         'status' => ['except' => ''],
+        'ventilation_type' => ['except' => ''],
         'date' => ['except' => ''],
     ];
 
@@ -69,6 +72,7 @@ class RoomManager extends Component
 
     public function updatedSearch() { $this->resetPage(); }
     public function updatedStatus() { $this->resetPage(); }
+    public function updatedVentilationType() { $this->resetPage(); }
 
     public function changeDate($newDate)
     {
@@ -739,6 +743,9 @@ class RoomManager extends Component
         if ($this->status) {
             $query->where('status', $this->status);
         }
+        if ($this->ventilation_type) {
+            $query->where('ventilation_type', $this->ventilation_type);
+        }
 
         // Eager load reservations for the month range to optimize queries
         // We load a buffer (month range) to support calendar navigation, but
@@ -833,6 +840,7 @@ class RoomManager extends Component
         return view('livewire.room-manager', [
             'rooms' => $rooms,
             'statuses' => RoomStatus::cases(),
+            'ventilationTypes' => VentilationType::cases(),
             'daysInMonth' => $daysInMonth,
             'currentDate' => $date
         ]);
