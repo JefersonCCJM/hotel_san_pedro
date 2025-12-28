@@ -50,8 +50,18 @@ Route::get('/measurement-units/search', function (Request $request) {
 
 Route::get('/customers/search', function (Request $request) {
     $term = $request->query('q', '');
+    $excludeOccupied = $request->query('exclude_occupied', false);
 
     $query = \App\Models\Customer::active()->with('taxProfile.identificationDocument');
+
+    // Filter out customers with active reservations if requested
+    if ($excludeOccupied) {
+        $today = now()->startOfDay();
+        $query->whereDoesntHave('reservations', function($q) use ($today) {
+            $q->where('check_in_date', '<=', $today)
+              ->where('check_out_date', '>', $today);
+        });
+    }
 
     if (strlen($term) >= 2) {
         $query->where(function ($q) use ($term) {

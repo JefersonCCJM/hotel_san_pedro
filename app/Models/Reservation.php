@@ -80,4 +80,12 @@ class Reservation extends Model
                     ->withTimestamps()
                     ->withTrashed();
     }
+
+    /**
+     * Get the deposit payments for this reservation.
+     */
+    public function reservationDeposits()
+    {
+        return $this->hasMany(ReservationDeposit::class);
+    }
 }
