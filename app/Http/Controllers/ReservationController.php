@@ -11,6 +11,7 @@ use App\Models\DianLegalOrganization;
 use App\Models\DianCustomerTribute;
 use App\Models\DianMunicipality;
 use App\Http\Requests\StoreReservationRequest;
+use App\Services\AuditService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Collection;
@@ -20,6 +21,9 @@ use Throwable;
 
 class ReservationController extends Controller
 {
+    public function __construct(
+        private AuditService $auditService
+    ) {}
     /**
      * Livewire browser-events are not safe to dispatch from Controllers in all Livewire versions.
      * In some installations, LivewireManager::dispatch() does not exist and will throw a fatal Error,
@@ -283,6 +287,9 @@ class ReservationController extends Controller
                 Room::whereIn('id', $roomIds)->update(['status' => \App\Enums\RoomStatus::OCUPADA]);
             }
 
+            // Audit log for reservation creation
+            $this->auditService->logReservationCreated($reservation, $request, $roomIds);
+
             // Dispatch Livewire event for stats update
             $this->safeLivewireDispatch('reservation-created');
 
@@ -342,7 +349,24 @@ class ReservationController extends Controller
             return back()->withInput()->withErrors(['room_id' => 'La habitación ya está reservada para las fechas seleccionadas.']);
         }
 
+        // Capture old values for audit
+        $oldValues = [
+            'room_id' => $reservation->room_id,
+            'check_in_date' => $reservation->check_in_date?->format('Y-m-d'),
+            'check_out_date' => $reservation->check_out_date?->format('Y-m-d'),
+            'total_amount' => (float) $reservation->total_amount,
+            'deposit' => (float) $reservation->deposit,
+            'guests_count' => (int) $reservation->guests_count,
+            'payment_method' => $reservation->payment_method,
+        ];
+
         $reservation->update($request->validated());
+
+        // Refresh to get updated values
+        $reservation->refresh();
+
+        // Audit log for reservation update
+        $this->auditService->logReservationUpdated($reservation, $request, $oldValues);
 
         // Dispatch Livewire event for stats update
         $this->safeLivewireDispatch('reservation-updated');
@@ -355,18 +379,10 @@ class ReservationController extends Controller
      */
     public function destroy(Reservation $reservation)
     {
-        $reservationId = $reservation->id;
-        $customerName = $reservation->customer->name;
-
         $reservation->delete();
 
-        \App\Models\AuditLog::create([
-            'user_id' => auth()->id(),
-            'event' => 'reservation_cancelled',
-            'description' => "Canceló la reserva #{$reservationId} del cliente {$customerName}",
-            'ip_address' => request()->ip(),
-            'user_agent' => request()->userAgent(),
-        ]);
+        // Audit log for reservation cancellation
+        $this->auditService->logReservationCancelled($reservation, request());
 
         // Dispatch Livewire event for stats update
         $this->safeLivewireDispatch('reservation-cancelled');
