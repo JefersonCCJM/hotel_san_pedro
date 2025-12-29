@@ -66,6 +66,24 @@
 
             <!-- Login Card -->
             <div class="glass-card pt-14 pb-10 px-8 sm:px-12 rounded-[2.5rem] shadow-2xl overflow-hidden">
+                @if(session('error'))
+                    <div class="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl animate-in fade-in slide-in-from-top-2">
+                        <div class="flex items-center text-red-700 text-sm font-bold">
+                            <i class="fas fa-exclamation-circle mr-2 text-red-500"></i>
+                            {{ session('error') }}
+                        </div>
+                    </div>
+                @endif
+
+                @if(session('success'))
+                    <div class="mb-6 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl animate-in fade-in slide-in-from-top-2">
+                        <div class="flex items-center text-emerald-700 text-sm font-bold">
+                            <i class="fas fa-check-circle mr-2 text-emerald-500"></i>
+                            {{ session('success') }}
+                        </div>
+                    </div>
+                @endif
+
                 <!-- Logo -->
                 <div class="text-center mb-8">
                     <div class="inline-flex items-center justify-center mb-4">
@@ -78,22 +96,22 @@
                 <form class="space-y-6" method="POST" action="{{ route('login') }}">
                     @csrf
                     
-                    <!-- Email Field -->
+                    <!-- Email/Username Field -->
                     <div>
-                        <label for="email" class="flex items-center text-sm font-semibold text-slate-700 mb-2 ml-1">
+                        <label for="login" class="flex items-center text-sm font-semibold text-slate-700 mb-2 ml-1">
                             <i class="fas fa-envelope-open mr-2 text-slate-400"></i>
                             Email o Usuario
                         </label>
                         <div class="relative group">
-                            <input id="email" name="email" type="email" required autocomplete="email"
+                            <input id="login" name="login" type="text" required autocomplete="username"
                                    class="block w-full pl-4 pr-12 py-4 bg-slate-50/50 border border-slate-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all duration-200 text-base"
-                                   placeholder="admin@hotel.com"
-                                   value="{{ old('email') }}">
+                                   placeholder="admin@hotel.com o admin"
+                                   value="{{ old('login') }}">
                             <div class="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
                                 <i class="fas fa-check text-slate-400 opacity-0 group-focus-within:opacity-100 transition-opacity"></i>
                             </div>
                         </div>
-                        @error('email')
+                        @error('login')
                             <p class="mt-2 text-xs text-red-500 flex items-center font-medium">
                                 <i class="fas fa-circle-exclamation mr-1.5"></i>
                                 {{ $message }}
@@ -113,9 +131,6 @@
                             <input id="password" name="password" type="password" required autocomplete="current-password"
                                    class="block w-full pl-4 pr-12 py-4 bg-slate-50/50 border border-slate-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all duration-200 text-base"
                                    placeholder="••••••••">
-                            <div class="absolute inset-y-0 right-0 pr-4 flex items-center cursor-pointer text-slate-400 hover:text-slate-900">
-                                <i class="fas fa-eye-slash"></i>
-                            </div>
                         </div>
                         @error('password')
                             <p class="mt-2 text-xs text-red-500 flex items-center font-medium">
@@ -123,19 +138,6 @@
                                 {{ $message }}
                             </p>
                         @enderror
-                    </div>
-
-                    <div class="flex items-center justify-between px-1">
-                        <label class="flex items-center cursor-pointer">
-                            <input type="checkbox" name="remember" class="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900 transition-all">
-                            <span class="ml-2 text-sm text-slate-600 font-medium select-none">Recordar sesión</span>
-                        </label>
-                        @if (Route::has('password.request'))
-                            <a href="{{ route('password.request') }}" class="text-sm font-bold text-slate-700 hover:text-slate-900 transition-colors flex items-center">
-                                ¿Recuperar acceso?
-                                <i class="fas fa-chevron-right ml-1.5 text-[10px]"></i>
-                            </a>
-                        @endif
                     </div>
                     
                     <!-- Submit Button -->
@@ -148,22 +150,6 @@
                     </div>
                 </form>
 
-                <!-- Divider -->
-                <div class="relative my-8">
-                    <div class="absolute inset-0 flex items-center">
-                        <div class="w-full border-t border-slate-100"></div>
-                    </div>
-                    <div class="relative flex justify-center text-sm">
-                        <span class="px-4 bg-white/50 text-slate-400 font-medium backdrop-blur-sm">Otras opciones</span>
-                    </div>
-                </div>
-
-                <div class="text-center">
-                    <a href="{{ route('register') }}" class="inline-flex items-center justify-center px-6 py-2.5 text-sm font-bold text-slate-700 bg-slate-100 rounded-xl border border-slate-200 hover:bg-slate-200 transition-all duration-200 w-full sm:w-auto">
-                        <i class="fas fa-user-plus mr-2 text-xs"></i>
-                        Registrar nuevo usuario
-                    </a>
-                </div>
             </div>
         </div>
         

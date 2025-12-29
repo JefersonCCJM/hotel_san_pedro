@@ -49,7 +49,7 @@ class UserSeeder extends Seeder
             $receptionistData['username'] = 'recepcionista.dia';
         }
 
-        $receptionist = User::firstOrCreate(
+        $receptionist = User::updateOrCreate(
             ['email' => 'recepcionista.dia@hotel.com'],
             $receptionistData
         );
@@ -70,7 +70,7 @@ class UserSeeder extends Seeder
             $nightData['username'] = 'recepcionista.noche';
         }
 
-        $night = User::firstOrCreate(
+        $night = User::updateOrCreate(
             ['email' => 'recepcionista.noche@hotel.com'],
             $nightData
         );

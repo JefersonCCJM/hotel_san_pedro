@@ -54,10 +54,17 @@ class RoleSeeder extends Seeder
             'edit_shifts',
             'delete_shifts',
             'view_shift_reports',
+            'manage_shift_handovers',
+            'view_shift_handovers',
+            'create_shift_cash_outs',
+            'view_shift_cash_outs',
             
             // Reportes
             'view_reports',
             'export_reports',
+            
+            // Salidas de Dinero
+            'manage_cash_outflows',
             
             // Usuarios y roles
             'view_users',
@@ -83,43 +90,41 @@ class RoleSeeder extends Seeder
         $adminRole->givePermissionTo(Permission::all());
 
         // Asignar permisos al Recepcionista Día
-        $receptionistDayRole->givePermissionTo([
-            'view_products',
-            'view_categories',
+        $receptionistDayRole->syncPermissions([
+            'view_shifts',
             'view_customers',
             'create_customers',
             'edit_customers',
-            'view_reservations',
-            'create_reservations',
-            'edit_reservations',
             'view_sales',
             'create_sales',
             'edit_sales',
-            'generate_invoices',
-            'download_invoices',
-            'view_shifts',
-            'create_shifts',
-            'view_reports',
+            'view_reservations',
+            'create_reservations',
+            'edit_reservations',
+            'manage_cash_outflows',
+            'manage_shift_handovers',
+            'view_shift_handovers',
+            'create_shift_cash_outs',
+            'view_shift_cash_outs',
         ]);
 
         // Asignar permisos al Recepcionista Noche
-        $receptionistNightRole->givePermissionTo([
-            'view_products',
-            'view_categories',
+        $receptionistNightRole->syncPermissions([
+            'view_shifts',
             'view_customers',
             'create_customers',
             'edit_customers',
-            'view_reservations',
-            'create_reservations',
-            'edit_reservations',
             'view_sales',
             'create_sales',
             'edit_sales',
-            'generate_invoices',
-            'download_invoices',
-            'view_shifts',
-            'create_shifts',
-            'view_reports',
+            'view_reservations',
+            'create_reservations',
+            'edit_reservations',
+            'manage_cash_outflows',
+            'manage_shift_handovers',
+            'view_shift_handovers',
+            'create_shift_cash_outs',
+            'view_shift_cash_outs',
         ]);
     }
 }

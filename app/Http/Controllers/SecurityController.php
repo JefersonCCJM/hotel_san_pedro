@@ -114,29 +114,6 @@ class SecurityController extends Controller
     }
 
     /**
-     * Display audit logs.
-     */
-    public function auditLogs(Request $request)
-    {
-        $this->authorize('manage_roles');
-
-        $query = AuditLog::with('user')->latest();
-
-        if ($request->filled('event')) {
-            $query->where('event', $request->event);
-        }
-
-        if ($request->filled('user_id')) {
-            $query->where('user_id', $request->user_id);
-        }
-
-        $logs = $query->paginate(20);
-        $users = User::all();
-
-        return view('admin.security.audit', compact('logs', 'users'));
-    }
-
-    /**
      * Verify the user's security PIN for critical actions.
      */
     public function verifyPin(Request $request)

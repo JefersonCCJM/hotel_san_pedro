@@ -24,53 +24,32 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
+            'login' => 'required|string',
             'password' => 'required',
         ]);
 
-        if (Auth::attempt($request->only('email', 'password'), $request->boolean('remember'))) {
-            $request->session()->regenerate();
+        $loginValue = trim($request->login);
 
-            return redirect()->intended(route('dashboard'));
+        // Determinar si el valor ingresado es un email o un username
+        $loginType = filter_var($loginValue, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
+
+        $credentials = [
+            $loginType => $loginValue,
+            'password' => $request->password,
+        ];
+
+        // Intentar autenticación
+        if (Auth::attempt($credentials, true)) {
+            $request->session()->regenerate();
+            return redirect()->route('dashboard');
         }
 
+        // Si falla, registrar en el log para depuración (solo durante pruebas)
+        \Log::warning("Fallo de login para: {$loginValue} (Tipo: {$loginType})");
+
         throw ValidationException::withMessages([
-            'email' => ['Las credenciales proporcionadas no coinciden con nuestros registros.'],
+            'login' => ['Las credenciales proporcionadas no coinciden con nuestros registros.'],
         ]);
-    }
-
-    /**
-     * Show the registration form.
-     */
-    public function showRegistrationForm()
-    {
-        return view('auth.register');
-    }
-
-    /**
-     * Handle a registration request for the application.
-     */
-    public function register(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8|confirmed',
-        ]);
-
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-        ]);
-
-        // Asignar rol de cliente por defecto
-        $user->assignRole('Cliente');
-
-        Auth::login($user);
-        $request->session()->regenerate();
-
-        return redirect()->route('dashboard');
     }
 
     /**

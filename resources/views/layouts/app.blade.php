@@ -79,7 +79,7 @@
                     <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Menú Principal</p>
                 </div>
                 
-                <a href="{{ route('dashboard') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('dashboard') ? 'bg-gray-700 text-white' : '' }}">
+                <a href="{{ route('dashboard') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('dashboard*') ? 'bg-gray-700 text-white' : '' }}">
                     <i class="fas fa-tachometer-alt w-5"></i>
                     <span class="ml-3">Dashboard</span>
                 </a>
@@ -90,16 +90,35 @@
                 </a>
                 
                 @can('view_products')
-                <a href="{{ route('products.index') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('products.*') ? 'bg-gray-700 text-white' : '' }}">
-                    <i class="fas fa-boxes w-5"></i>
+                @if(Auth::user()->hasRole('Administrador'))
+                <a href="{{ route('products.index') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('products.index') ? 'bg-gray-700 text-white' : '' }}">
+                    <i class="fas fa-boxes w-5 text-center"></i>
                     <span class="ml-3">Inventario</span>
                 </a>
+                <div class="pl-4 space-y-1">
+                    <a href="{{ route('products.history') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-2 text-sm text-gray-400 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('products.history') ? 'text-white font-bold' : '' }}">
+                        <i class="fas fa-history w-5 text-center"></i>
+                        <span class="ml-3">Historial</span>
+                    </a>
+                    <a href="{{ route('products.adjustments') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-2 text-sm text-gray-400 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('products.adjustments') ? 'text-white font-bold' : '' }}">
+                        <i class="fas fa-exchange-alt w-5 text-center"></i>
+                        <span class="ml-3">Movimientos</span>
+                    </a>
+                </div>
+                @endif
                 @endcan
 
                 @can('view_sales')
                 <a href="{{ route('sales.index') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('sales.*') ? 'bg-gray-700 text-white' : '' }}">
                     <i class="fas fa-shopping-cart w-5"></i>
                     <span class="ml-3">Ventas</span>
+                </a>
+                @endcan
+
+                @can('manage_cash_outflows')
+                <a href="{{ route('cash-outflows.index') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('cash-outflows.*') ? 'bg-gray-700 text-white' : '' }}">
+                    <i class="fas fa-money-bill-wave w-5"></i>
+                    <span class="ml-3">Gastos (Caja)</span>
                 </a>
                 @endcan
 
@@ -116,18 +135,43 @@
                 </a>
                 
                 @can('generate_invoices')
+                @if(Auth::user()->hasRole('Administrador'))
                 <a href="{{ route('electronic-invoices.index') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('electronic-invoices.*') ? 'bg-gray-700 text-white' : '' }}">
                     <i class="fas fa-file-invoice-dollar w-5"></i>
                     <span class="ml-3">Facturas Electrónicas</span>
                 </a>
+                @endif
                 @endcan
                 
                 @can('view_reports')
+                @if(Auth::user()->hasRole('Administrador'))
                 <a href="{{ route('reports.index') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('reports.*') ? 'bg-gray-700 text-white' : '' }}">
                     <i class="fas fa-chart-bar w-5"></i>
                     <span class="ml-3">Reportes</span>
                 </a>
+                @endif
                 @endcan
+
+                @if(auth()->user()->can('view_shift_handovers') || auth()->user()->can('manage_shift_handovers') || auth()->user()->can('view_shift_cash_outs') || auth()->user()->can('create_shift_cash_outs'))
+                <div class="px-4 mt-4 mb-2">
+                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Gestión de Turnos</p>
+                </div>
+
+                    {{-- Historial: solo Administrador (aunque recepcionistas puedan entregar/recibir desde sus dashboards) --}}
+                    @if(auth()->user()->hasRole('Administrador'))
+                <a href="{{ route('shift-handovers.index') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('shift-handovers.*') ? 'bg-gray-700 text-white' : '' }}">
+                    <i class="fas fa-exchange-alt w-5"></i>
+                    <span class="ml-3">Historial Turnos</span>
+                </a>
+                    @endif
+
+                    @can('view_shift_cash_outs')
+                <a href="{{ route('shift-cash-outs.index') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('shift-cash-outs.*') ? 'bg-gray-700 text-white' : '' }}">
+                    <i class="fas fa-wallet w-5"></i>
+                            <span class="ml-3">Retiros de Caja (Turno)</span>
+                </a>
+                @endcan
+                @endif
 
                 @can('manage_roles')
                 <div class="px-4 mt-4 mb-2">
@@ -430,6 +474,30 @@
                     this.loading = false;
                 }
             }
+        }
+    }
+    </script>
+    <script>
+    function formatNumberInput(input) {
+        // Remove non-numeric characters except for the decimal point
+        let value = input.value.replace(/\D/g, "");
+        
+        // Format with dots as thousand separators
+        if (value !== "") {
+            input.value = new Intl.NumberFormat('de-DE').format(value);
+        } else {
+            input.value = "";
+        }
+
+        // Update a hidden input or the raw value if needed by the framework
+        // This is a helper for vanilla HTML inputs
+    }
+
+    // Helper for Livewire inputs to keep raw value in sync
+    function maskCurrency(event) {
+        let value = event.target.value.replace(/\D/g, "");
+        if (value !== "") {
+            event.target.value = new Intl.NumberFormat('de-DE').format(value);
         }
     }
     </script>
