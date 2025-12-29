@@ -79,19 +79,17 @@ class Room extends Model
     public function isOccupied(?\Carbon\Carbon $date = null): bool
     {
         $date = $date ?? \Carbon\Carbon::today();
-        
-        // Normalize date to start of day for consistent comparison
-        $normalizedDate = $date->copy()->startOfDay();
+        $date = \Carbon\Carbon::parse($date)->startOfDay();
 
         // Room is occupied if: check_in <= date AND check_out > date
         // If checkout is today, room is NOT occupied (guest leaves today)
-        // Validate that checkout is after checkin (data integrity)
+        
+        // Always query the database directly to ensure accuracy
+        // Use whereDate() which is specifically designed for date column comparisons
+        // This ensures Laravel correctly compares only the date portion, ignoring time
         return $this->reservations()
-            ->where(function($query) use ($normalizedDate) {
-                $query->where('check_in_date', '<=', $normalizedDate->toDateString())
-                      ->where('check_out_date', '>', $normalizedDate->toDateString());
-            })
-            ->whereColumn('check_out_date', '>', 'check_in_date') // Validate data integrity
+            ->whereDate('check_in_date', '<=', $date)
+            ->whereDate('check_out_date', '>', $date)
             ->exists();
     }
 
@@ -104,10 +102,14 @@ class Room extends Model
     public function getActiveReservation(?\Carbon\Carbon $date = null): ?\App\Models\Reservation
     {
         $date = $date ?? \Carbon\Carbon::today();
+        $date = \Carbon\Carbon::parse($date)->startOfDay();
 
+        // Always query the database directly to ensure accuracy
+        // Use whereDate() which is specifically designed for date column comparisons
+        // This ensures Laravel correctly compares only the date portion, ignoring time
         return $this->reservations()
-            ->where('check_in_date', '<=', $date)
-            ->where('check_out_date', '>', $date)
+            ->whereDate('check_in_date', '<=', $date)
+            ->whereDate('check_out_date', '>', $date)
             ->orderBy('check_in_date', 'asc')
             ->first();
     }
@@ -146,7 +148,17 @@ class Room extends Model
     public function cleaningStatus(?\Carbon\Carbon $date = null): array
     {
         $date = $date ?? \Carbon\Carbon::today();
+        $date = \Carbon\Carbon::parse($date)->startOfDay();
+        $isTodayOrFuture = $date->isToday() || $date->isFuture();
         
+        // IMPORTANT: Cleaning status (Pendiente por Aseo) should only be shown for today or future dates
+        // For past dates, we cannot determine the historical cleaning status, so we show "Limpia" as default
+        if (!$isTodayOrFuture) {
+            // For past dates, always show "Limpia" (we can't know the historical cleaning status)
+            return $this->getCleanStatus();
+        }
+        
+        // For today or future dates, check cleaning status
         // If never cleaned or explicitly marked as needing cleaning (last_cleaned_at is NULL)
         if (!$this->last_cleaned_at) {
             return $this->getPendingCleaningStatus();
@@ -229,17 +241,40 @@ class Room extends Model
     public function getDisplayStatus(?\Carbon\Carbon $date = null): RoomStatus
     {
         $date = $date ?? \Carbon\Carbon::today();
-        $normalizedDate = $date->copy()->startOfDay();
+        $date = \Carbon\Carbon::parse($date)->startOfDay();
+        $isTodayOrFuture = $date->isToday() || $date->isFuture();
 
         // Priority 1: Maintenance blocks everything
-        if ($this->isInMaintenance()) {
+        // NOTE: Only check maintenance status for current date or future dates
+        // For past dates, maintenance status should not be considered as it represents current state, not historical
+        if ($isTodayOrFuture && $this->isInMaintenance()) {
             return RoomStatus::MANTENIMIENTO;
         }
 
-        // Priority 2: Active reservation means occupied
-        // Use the validated isOccupied method
-        if ($this->isOccupied($normalizedDate)) {
+        // Priority 2: Check for reservations and distinguish between RESERVADA and OCUPADA
+        // RESERVADA: check_in_date is in the future (reservation exists but check-in hasn't happened yet)
+        // OCUPADA: check_in_date is in the past AND check_out_date > date (check-in already happened, room is occupied)
+        // IMPORTANT: OCUPADA takes priority over RESERVADA. If room is already occupied, show OCUPADA even if there are future reservations.
+        // IMPORTANT: For past dates, if there's no reservation covering that date, show LIBRE (not RESERVADA based on future reservations).
+        
+        // Check if room is actually occupied (OCUPADA) - this has priority
+        // A room is OCUPADA if check_in_date <= date AND check_out_date > date (check-in already happened)
+        if ($this->isOccupied($date)) {
             return RoomStatus::OCUPADA;
+        }
+        
+        // Check for future reservations (RESERVADA) - only if not already occupied AND date is today or future
+        // For past dates without reservations, we should show LIBRE, not RESERVADA
+        // A room is RESERVADA if there's a reservation where check_in_date > date AND date is today or future
+        if ($isTodayOrFuture) {
+            $hasFutureReservation = $this->reservations()
+                ->whereDate('check_in_date', '>', $date)
+                ->whereDate('check_out_date', '>', $date)
+                ->exists();
+            
+            if ($hasFutureReservation) {
+                return RoomStatus::RESERVADA;
+            }
         }
 
         // Priority 3: Check if reservation ends today or starts today (Pendiente Checkout)
@@ -253,9 +288,11 @@ class Room extends Model
         
         // Case 1: Was occupied yesterday, checkout today
         if ($wasOccupiedYesterday) {
+            // Always query the database directly to ensure accuracy
+            // Use whereDate() which is specifically designed for date column comparisons
             $reservationEndingToday = $this->reservations()
-                ->where('check_in_date', '<=', $previousDay)
-                ->where('check_out_date', '=', $date->toDateString())
+                ->whereDate('check_in_date', '<=', $previousDay)
+                ->whereDate('check_out_date', '=', $date)
                 ->exists();
             
             if ($reservationEndingToday) {
@@ -264,10 +301,11 @@ class Room extends Model
         }
         
         // Case 2: Reservation starts today and is one-day reservation (check-in today, check-out tomorrow)
+        // Always query the database directly to ensure accuracy
+        // Use whereDate() which is specifically designed for date column comparisons
         $oneDayReservationStartingToday = $this->reservations()
-            ->where('check_in_date', '=', $normalizedDate->toDateString())
-            ->where('check_out_date', '=', $tomorrow->toDateString())
-            ->whereColumn('check_out_date', '>', 'check_in_date') // Validate data integrity
+            ->whereDate('check_in_date', '=', $date)
+            ->whereDate('check_out_date', '=', $tomorrow)
             ->exists();
         
         if ($oneDayReservationStartingToday) {
@@ -275,10 +313,11 @@ class Room extends Model
         }
         
         // Case 3: Reservation has one day remaining (check-out tomorrow)
+        // Always query the database directly to ensure accuracy
+        // Use whereDate() which is specifically designed for date column comparisons
         $reservationEndingTomorrow = $this->reservations()
-            ->where('check_in_date', '<=', $normalizedDate->toDateString())
-            ->where('check_out_date', '=', $tomorrow->toDateString())
-            ->whereColumn('check_out_date', '>', 'check_in_date') // Validate data integrity
+            ->whereDate('check_in_date', '<=', $date)
+            ->whereDate('check_out_date', '=', $tomorrow)
             ->exists();
         
         if ($reservationEndingTomorrow) {
@@ -286,7 +325,10 @@ class Room extends Model
         }
 
         // Priority 4: If status is SUCIA, show as SUCIA
-        if ($this->status === RoomStatus::SUCIA) {
+        // NOTE: Only use $this->status for current date or future dates
+        // For past dates, we should not use the current status as it represents the current state, not historical
+        // For historical accuracy, past dates should be based only on reservations
+        if ($isTodayOrFuture && $this->status === RoomStatus::SUCIA) {
             return RoomStatus::SUCIA;
         }
 
@@ -304,6 +346,7 @@ class Room extends Model
     public function getPendingCheckoutReservation(?\Carbon\Carbon $date = null): ?\App\Models\Reservation
     {
         $date = $date ?? \Carbon\Carbon::today();
+        $date = \Carbon\Carbon::parse($date)->startOfDay();
         
         // If not in Pendiente Checkout status, return null
         if ($this->getDisplayStatus($date) !== RoomStatus::PENDIENTE_CHECKOUT) {
@@ -314,9 +357,11 @@ class Room extends Model
         $tomorrow = $date->copy()->addDay();
         
         // Case 1: Was occupied yesterday, checkout today
+        // Always query the database directly to ensure accuracy
+        // Use whereDate() which is specifically designed for date column comparisons
         $reservationEndingToday = $this->reservations()
-            ->where('check_in_date', '<=', $previousDay)
-            ->where('check_out_date', '=', $date->toDateString())
+            ->whereDate('check_in_date', '<=', $previousDay)
+            ->whereDate('check_out_date', '=', $date)
             ->first();
         
         if ($reservationEndingToday) {
@@ -324,9 +369,11 @@ class Room extends Model
         }
         
         // Case 2: Reservation starts today and is one-day reservation (check-in today, check-out tomorrow)
+        // Always query the database directly to ensure accuracy
+        // Use whereDate() which is specifically designed for date column comparisons
         $oneDayReservationStartingToday = $this->reservations()
-            ->where('check_in_date', '=', $date->toDateString())
-            ->where('check_out_date', '=', $tomorrow->toDateString())
+            ->whereDate('check_in_date', '=', $date)
+            ->whereDate('check_out_date', '=', $tomorrow)
             ->first();
         
         if ($oneDayReservationStartingToday) {
@@ -334,9 +381,11 @@ class Room extends Model
         }
         
         // Case 3: Reservation has one day remaining (check-out tomorrow)
+        // Always query the database directly to ensure accuracy
+        // Use whereDate() which is specifically designed for date column comparisons
         $reservationEndingTomorrow = $this->reservations()
-            ->where('check_in_date', '<=', $date)
-            ->where('check_out_date', '=', $tomorrow->toDateString())
+            ->whereDate('check_in_date', '<=', $date)
+            ->whereDate('check_out_date', '=', $tomorrow)
             ->first();
         
         return $reservationEndingTomorrow;
@@ -346,11 +395,29 @@ class Room extends Model
      * Accessor for display_status attribute.
      * Uses getDisplayStatus() with today's date by default.
      * This allows using $room->display_status in views.
+     * 
+     * NOTE: If display_status was explicitly set (e.g., in RoomManager render),
+     * it will use that value instead of recalculating.
      *
      * @return RoomStatus
      */
     public function getDisplayStatusAttribute(): RoomStatus
     {
+        // If display_status was explicitly set as an attribute, use that value
+        // This happens in RoomManager::render() when calculating status for a specific date
+        if (array_key_exists('display_status', $this->attributes)) {
+            $value = $this->attributes['display_status'];
+            // If it's already a RoomStatus enum, return it
+            if ($value instanceof RoomStatus) {
+                return $value;
+            }
+            // If it's a string, try to convert it
+            if (is_string($value)) {
+                return RoomStatus::from($value);
+            }
+        }
+        
+        // Otherwise, calculate using today's date (default behavior)
         return $this->getDisplayStatus();
     }
 

@@ -207,7 +207,7 @@
                                 <i class="fas fa-exclamation-triangle text-yellow-600 mt-0.5 mr-3"></i>
                                 <div class="text-sm text-yellow-800">
                                     <p class="font-semibold mb-1">No hay municipios disponibles</p>
-                                    <p class="text-xs">Ejecuta el comando <code class="bg-yellow-100 px-1 rounded">php artisan factus:sync-municipalities</code> para sincronizar los municipios desde Factus.</p>
+                                    <p class="text-xs">Por favor, contacte al administrador del sistema para configurar los municipios necesarios para la facturación electrónica.</p>
                                 </div>
                             </div>
                         </div>
