@@ -87,6 +87,14 @@ class Customer extends Model
     }
 
     /**
+     * Get the reservations for the customer.
+     */
+    public function reservations(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Reservation::class);
+    }
+
+    /**
      * Check if customer requires electronic invoice.
      */
     public function requiresElectronicInvoice(): bool
