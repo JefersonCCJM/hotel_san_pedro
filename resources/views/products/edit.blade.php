@@ -1,3 +1,20 @@
+@php
+    $aseoKeywords = ['aseo', 'limpieza', 'amenities', 'insumo', 'papel', 'jabon', 'cloro', 'mantenimiento'];
+    $aseoCats = $categories->filter(function($cat) use ($aseoKeywords) {
+        $name = strtolower($cat->name);
+        foreach ($aseoKeywords as $kw) if (str_contains($name, $kw)) return true;
+        return false;
+    })->values();
+    $ventaCats = $categories->diff($aseoCats)->values();
+    
+    // Identificar grupo del producto actual
+    $currentGroupId = '';
+    if ($product->category_id) {
+        if ($aseoCats->contains('id', $product->category_id)) $currentGroupId = 'aseo';
+        else $currentGroupId = 'ventas';
+    }
+@endphp
+
 @extends('layouts.app')
 
 @section('title', 'Editar Producto')
@@ -6,7 +23,7 @@
 @section('content')
 <div class="max-w-4xl mx-auto space-y-4 sm:space-y-6">
     <!-- Header -->
-    <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
+    <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-sm">
         <div class="flex items-center space-x-3 sm:space-x-4">
             <div class="p-2.5 sm:p-3 rounded-xl bg-indigo-50 text-indigo-600">
                 <i class="fas fa-edit text-lg sm:text-xl"></i>
@@ -18,11 +35,26 @@
         </div>
     </div>
 
-    <form method="POST" action="{{ route('products.update', $product) }}" id="product-form" x-data="{ loading: false }" @submit="loading = true">
+    <form method="POST" action="{{ route('products.update', $product) }}" id="product-form" 
+          x-data="{ 
+            loading: false, 
+            price: {{ old('price', $product->price ?? 0) }},
+            selectedGroup: '{{ old('group', $currentGroupId) }}',
+            aseoCats: {{ $aseoCats->toJson() }},
+            ventaCats: {{ $ventaCats->toJson() }},
+            get filteredCategories() {
+                if (this.selectedGroup === 'aseo') return this.aseoCats;
+                if (this.selectedGroup === 'ventas') return this.ventaCats;
+                return [];
+            }
+          }" 
+          @submit="loading = true">
         @csrf
         @method('PUT')
 
-        <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
+        <div class="space-y-4 sm:space-y-6">
+            <!-- Información Básica -->
+            <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-sm">
             <div class="flex items-center space-x-2 sm:space-x-3 mb-4 sm:mb-6">
                 <div class="p-2 rounded-xl bg-blue-50 text-blue-600">
                     <i class="fas fa-info text-sm"></i>
@@ -56,9 +88,31 @@
                     @enderror
                 </div>
 
+                <!-- Selección de Grupo y Categoría -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
-                    <!-- Categoría -->
-                    <div>
+                    <!-- Grupo -->
+                    <div :class="selectedGroup === 'ventas' ? '' : 'col-span-full'">
+                        <label class="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
+                            Grupo de Inventario <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
+                                <i class="fas fa-layer-group text-gray-400 text-sm"></i>
+                            </div>
+                            <select x-model="selectedGroup"
+                                    @change="if(selectedGroup === 'aseo' && aseoCats.length > 0) document.getElementById('category_id').value = aseoCats[0].id"
+                                    class="block w-full pl-10 sm:pl-11 pr-10 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white transition-all">
+                                <option value="ventas">PRODUCTOS DE VENTA</option>
+                                <option value="aseo">INSUMOS DE ASEO</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <i class="fas fa-chevron-down text-gray-400 text-xs"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Categoría (Solo para Ventas) -->
+                    <div x-show="selectedGroup === 'ventas'" x-transition>
                         <label for="category_id" class="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
                             Categoría <span class="text-red-500">*</span>
                         </label>
@@ -69,22 +123,15 @@
                             <select id="category_id"
                                     name="category_id"
                                     class="block w-full pl-10 sm:pl-11 pr-10 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white transition-all @error('category_id') border-red-300 focus:ring-red-500 @enderror"
-                                    required>
-                                <option value="">Seleccionar categoría...</option>
-                                @foreach($categories as $category)
-                                    <option value="{{ $category->id }}"
-                                        {{ old('category_id', $product->category_id) == $category->id ? 'selected' : '' }}>
-                                        {{ $category->name }}
-                                    </option>
-                                @endforeach
+                                    x-bind:required="selectedGroup === 'ventas'">
+                                <template x-for="cat in ventaCats" :key="cat.id">
+                                    <option :value="cat.id" :selected="cat.id == '{{ old('category_id', $product->category_id) }}'" x-text="cat.name"></option>
+                                </template>
                             </select>
                             <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                 <i class="fas fa-chevron-down text-gray-400 text-xs"></i>
                             </div>
                         </div>
-                        <p class="mt-1.5 text-xs text-gray-500">
-                            Bebidas o Mecato
-                        </p>
                         @error('category_id')
                             <p class="mt-1.5 text-xs text-red-600 flex items-center">
                                 <i class="fas fa-exclamation-circle mr-1.5"></i>
@@ -92,6 +139,12 @@
                             </p>
                         @enderror
                     </div>
+                </div>
+
+                <!-- Input oculto para Categoría automática si es Aseo -->
+                <template x-if="selectedGroup === 'aseo'">
+                    <input type="hidden" name="category_id" :value="aseoCats.length > 0 ? aseoCats[0].id : ''">
+                </template>
 
                     <!-- Stock actual -->
                     <div>
@@ -123,13 +176,12 @@
                                 {{ $message }}
                             </p>
                         @enderror
-                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Precios -->
-        <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
+            <!-- Precios (Solo visible si es Ventas) -->
+            <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-sm" x-show="selectedGroup === 'ventas'" x-transition>
             <div class="flex items-center space-x-2 sm:space-x-3 mb-4 sm:mb-6">
                 <div class="p-2 rounded-xl bg-emerald-50 text-emerald-600">
                     <i class="fas fa-dollar-sign text-sm"></i>
@@ -138,8 +190,6 @@
             </div>
 
             <div class="space-y-5 sm:space-y-6">
-                <div>
-                    <!-- Precio de venta -->
                     <div>
                         <label for="price" class="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
                             Precio al público <span class="text-red-500">*</span>
@@ -148,16 +198,14 @@
                             <div class="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
                                 <span class="text-gray-500 text-sm">$</span>
                             </div>
-                            <input type="number"
+                            <input type="text"
                                    id="price"
                                    name="price"
-                                   x-model.number="price"
-                                   value="{{ old('price', $product->price) }}"
-                                   class="block w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all @error('price') border-red-300 focus:ring-red-500 @enderror"
-                                   step="0.01"
-                                   min="0"
-                                   placeholder="0.00"
-                                   required>
+                                   value="{{ number_format(old('price', $product->price), 0, ',', '.') }}"
+                                   oninput="formatNumberInput(this)"
+                                   x-bind:required="selectedGroup === 'ventas'"
+                                   class="block w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all @error('price') border-red-300 focus:ring-red-500 @enderror"
+                                   placeholder="0">
                         </div>
                         @error('price')
                             <p class="mt-1.5 text-xs text-red-600 flex items-center">
@@ -168,10 +216,14 @@
                     </div>
                 </div>
             </div>
-        </div>
+
+            <!-- Campo oculto para precio si es Aseo -->
+            <template x-if="selectedGroup === 'aseo'">
+                <input type="hidden" name="price" value="0">
+            </template>
 
         <!-- Estado del Producto -->
-        <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
+            <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-sm">
             <div class="flex items-center space-x-2 sm:space-x-3 mb-4 sm:mb-6">
                 <div class="p-2 rounded-xl bg-violet-50 text-violet-600">
                     <i class="fas fa-toggle-on text-sm"></i>
@@ -217,6 +269,7 @@
         </div>
 
         <!-- Botones de Acción -->
+            <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 shadow-sm">
         <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-4 border-t border-gray-100">
             <div class="text-xs sm:text-sm text-gray-500 flex items-center">
                 <i class="fas fa-info-circle mr-1.5"></i>
@@ -233,25 +286,22 @@
                 <button type="submit"
                         class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-indigo-600 bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 hover:border-indigo-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm hover:shadow-md"
                         :disabled="loading">
-                    <template x-if="!loading">
-                        <i class="fas fa-save mr-2"></i>
-                    </template>
-                    <template x-if="loading">
-                        <i class="fas fa-spinner fa-spin mr-2"></i>
-                    </template>
+                            <i class="fas fa-save mr-2" x-show="!loading"></i>
+                            <i class="fas fa-spinner fa-spin mr-2" x-show="loading"></i>
                     <span x-text="loading ? 'Procesando...' : 'Actualizar Producto'">Actualizar Producto</span>
                 </button>
+                    </div>
+                </div>
             </div>
         </div>
     </form>
 </div>
+@endsection
 
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Formateo de precios al perder el foco
     const priceInput = document.getElementById('price');
-
     if (priceInput) {
         priceInput.addEventListener('blur', function() {
             if (this.value) {
@@ -262,4 +312,3 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 @endpush
-@endsection

@@ -33,8 +33,8 @@ class StoreProductRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => 'required|string|max:255',
-            'category_id' => 'required|exists:categories,id',
+            'name' => 'required|string|max:255|unique:products,name',
+            'category_id' => 'nullable|exists:categories,id',
             'quantity' => 'required|integer|min:0',
             'price' => 'required|numeric|min:0',
             'status' => 'required|in:active,inactive,discontinued',
@@ -50,7 +50,7 @@ class StoreProductRequest extends FormRequest
     {
         return [
             'name.required' => 'El nombre del producto es obligatorio.',
-            'category_id.required' => 'La categoría es obligatoria.',
+            'name.unique' => 'Ya existe un producto registrado con este nombre.',
             'category_id.exists' => 'La categoría seleccionada no existe.',
             'quantity.required' => 'La cantidad (stock) es obligatoria.',
             'quantity.min' => 'La cantidad no puede ser negativa.',

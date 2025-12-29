@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Auth;
 
 class Product extends Model
 {
@@ -65,6 +66,58 @@ class Product extends Model
     public function hasLowStock()
     {
         return $this->quantity <= $this->low_stock_threshold && $this->quantity > 0;
+    }
+
+    /**
+     * Get the movements for the product.
+     */
+    public function movements()
+    {
+        return $this->hasMany(InventoryMovement::class);
+    }
+
+    public function shiftOuts()
+    {
+        return $this->hasMany(ShiftProductOut::class);
+    }
+
+    /**
+     * Record a new movement for this product.
+     */
+    public function recordMovement(int $quantity, string $type, string $reason = null, ?int $roomId = null): InventoryMovement
+    {
+        $previousStock = $this->quantity;
+        
+        // El stock ya debería haber sido actualizado en el modelo antes de llamar a este método
+        // o este método lo hace. Para consistencia, lo haremos aquí.
+        $this->quantity += $quantity;
+        $this->save();
+
+        $movement = $this->movements()->create([
+            'user_id' => auth()->id() ?? 1, // Fallback a user ID 1 si no hay auth (ej. seeders o consola)
+            'room_id' => $roomId,
+            'quantity' => $quantity,
+            'type' => $type,
+            'reason' => $reason,
+            'previous_stock' => $previousStock,
+            'current_stock' => $this->quantity,
+        ]);
+
+        AuditLog::create([
+            'user_id' => auth()->id() ?? 1,
+            'event' => 'inventory_movement',
+            'description' => "Movimiento de inventario ({$type}): {$this->name}. Cantidad: {$quantity}. Motivo: {$reason}",
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'metadata' => [
+                'product_id' => $this->id,
+                'movement_id' => $movement->id,
+                'type' => $type,
+                'quantity' => $quantity
+            ]
+        ]);
+
+        return $movement;
     }
 
     /**

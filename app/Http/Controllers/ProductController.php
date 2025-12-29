@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
 use App\Repositories\ProductRepository;
+use App\Models\AuditLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
@@ -82,13 +83,61 @@ class ProductController extends Controller
     public function store(StoreProductRequest $request): RedirectResponse
     {
         $data = $request->validated();
+        
+        // Sanitize price (remove thousand separators)
+        if (isset($data['price'])) {
+            $data['price'] = str_replace('.', '', $data['price']);
+            $data['price'] = (float) str_replace(',', '.', $data['price']);
+        }
+
         $data['status'] = 'active'; // Set status as active by default
 
-        \App\Models\Product::create($data);
+        // Guardar la cantidad inicial para el movimiento, pero crear el producto con 0
+        $initialQuantity = $data['quantity'] ?? 0;
+        $data['quantity'] = 0;
+
+        // Si no viene categoría (caso Aseo), asignar una por defecto
+        if (empty($data['category_id'])) {
+            $data['category_id'] = $this->getDefaultAseoCategoryId();
+        }
+
+        $product = \App\Models\Product::create($data);
+        
+        // Registrar movimiento inicial si hay stock (esto sumará al 0 inicial)
+        if ($initialQuantity > 0) {
+            $product->recordMovement($initialQuantity, 'input', 'Carga inicial de inventario');
+        }
+
         $this->productRepository->clearCache();
 
         return redirect()->route('products.index')
             ->with('success', 'Producto creado exitosamente.');
+    }
+
+    /**
+     * Get default Aseo category ID.
+     */
+    private function getDefaultAseoCategoryId(): int
+    {
+        $keywords = ['aseo', 'limpieza', 'insumo'];
+        
+        $category = \App\Models\Category::where(function($q) use ($keywords) {
+            foreach ($keywords as $kw) {
+                $q->orWhere('name', 'like', "%{$kw}%");
+            }
+        })->first();
+
+        // Si no existe, crear una categoría por defecto
+        if (!$category) {
+            $category = \App\Models\Category::create([
+                'name' => 'Insumos de Aseo',
+                'description' => 'Categoría automática para productos de limpieza',
+                'color' => '#6366f1',
+                'is_active' => true
+            ]);
+        }
+
+        return $category->id;
     }
 
     /**
@@ -117,7 +166,32 @@ class ProductController extends Controller
      */
     public function update(UpdateProductRequest $request, \App\Models\Product $product): RedirectResponse
     {
-        $product->update($request->validated());
+        $data = $request->validated();
+        $newQuantity = $data['quantity'];
+        
+        // Sanitize price (remove thousand separators)
+        if (isset($data['price'])) {
+            $data['price'] = str_replace('.', '', $data['price']);
+            $data['price'] = (float) str_replace(',', '.', $data['price']);
+        }
+
+        // Quitar quantity del array para que update() no lo guarde directamente
+        unset($data['quantity']);
+
+        // Si no viene categoría (caso Aseo), asignar una por defecto
+        if (empty($data['category_id'])) {
+            $data['category_id'] = $this->getDefaultAseoCategoryId();
+        }
+
+        $oldQuantity = $product->quantity;
+        $product->update($data);
+        
+        // Registrar ajuste si la cantidad cambió manualmente
+        if ($oldQuantity != $newQuantity) {
+            $diff = $newQuantity - $oldQuantity;
+            $product->recordMovement($diff, 'adjustment', 'Actualización manual desde edición de producto');
+        }
+
         $this->productRepository->clearCache();
 
         return redirect()->route('products.index')
@@ -129,10 +203,24 @@ class ProductController extends Controller
      */
     public function destroy(\App\Models\Product $product): RedirectResponse
     {
+        $this->auditLog('inventory_delete', "Producto eliminado: {$product->name} (SKU: {$product->sku})", ['product_id' => $product->id]);
+        
         $product->delete();
         $this->productRepository->clearCache();
 
         return redirect()->route('products.index')
             ->with('success', 'Producto eliminado exitosamente.');
+    }
+
+    private function auditLog($event, $description, $metadata = [])
+    {
+        AuditLog::create([
+            'user_id' => auth()->id(),
+            'event' => $event,
+            'description' => $description,
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'metadata' => $metadata
+        ]);
     }
 }
