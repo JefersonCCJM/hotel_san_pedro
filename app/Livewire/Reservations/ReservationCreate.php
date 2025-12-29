@@ -1984,7 +1984,7 @@ class ReservationCreate extends Component
         }
     }
 
-    private function hasDateValidationErrors(): bool
+    protected function hasDateValidationErrors(): bool
     {
         $errors = $this->getErrorBag();
         return $errors->has('checkIn') || $errors->has('checkOut');
@@ -2730,5 +2730,30 @@ class ReservationCreate extends Component
     public function render()
     {
         return view('livewire.reservations.reservation-create');
+    }
+
+    public function getFormActionProperty(): string
+    {
+        return route('reservations.store');
+    }
+
+    public function getFormMethodProperty(): string
+    {
+        return 'POST';
+    }
+
+    public function getPageTitleProperty(): string
+    {
+        return 'Nueva Reserva';
+    }
+
+    public function getSubmitButtonTextProperty(): string
+    {
+        return 'Confirmar Reserva';
+    }
+
+    public function getReservationDateValueProperty(): string
+    {
+        return now()->format('Y-m-d');
     }
 }

@@ -326,12 +326,90 @@ class ReservationController extends Controller
      */
     public function edit(Reservation $reservation)
     {
-        $customers = Customer::withoutGlobalScopes()
-            ->with('taxProfile')
-            ->orderBy('name')
-            ->get();
-        $rooms = Room::all(); // Show all rooms for edit
-        return view('reservations.edit', compact('reservation', 'customers', 'rooms'));
+        try {
+            $reservation->load([
+                'customer.taxProfile',
+                'rooms',
+                'reservationRooms.room',
+                'reservationRooms.guests.taxProfile',
+                'guests.taxProfile',
+            ]);
+
+            $customers = Customer::withoutGlobalScopes()
+                ->with('taxProfile')
+                ->orderBy('name')
+                ->get();
+
+            $rooms = Room::where('status', '!=', \App\Enums\RoomStatus::MANTENIMIENTO)->get();
+
+            $roomsData = $this->prepareRoomsData($rooms);
+
+            $customersArray = $customers->map(function ($customer) {
+                return [
+                    'id' => (int) $customer->id,
+                    'name' => (string) ($customer->name ?? ''),
+                    'phone' => (string) ($customer->phone ?? 'S/N'),
+                    'email' => $customer->email ? (string) $customer->email : null,
+                    'taxProfile' => $customer->taxProfile ? [
+                        'identification' => (string) ($customer->taxProfile->identification ?? 'S/N'),
+                        'dv' => $customer->taxProfile->dv ? (string) $customer->taxProfile->dv : null,
+                    ] : null,
+                ];
+            })->toArray();
+
+            if (!is_array($customersArray)) {
+                $customersArray = [];
+            }
+
+            $roomsArray = $rooms->map(function ($room) {
+                return [
+                    'id' => (int) $room->id,
+                    'room_number' => (string) ($room->room_number ?? ''),
+                    'beds_count' => (int) ($room->beds_count ?? 0),
+                    'max_capacity' => (int) ($room->max_capacity ?? 0),
+                ];
+            })->toArray();
+
+            if (!is_array($roomsArray)) {
+                $roomsArray = [];
+            }
+
+            if (!is_array($roomsData)) {
+                $roomsData = [];
+            }
+
+            $dianCatalogs = $this->getDianCatalogs();
+            $dianCatalogsArray = [
+                'identificationDocuments' => $dianCatalogs['identificationDocuments']->toArray(),
+                'legalOrganizations' => $dianCatalogs['legalOrganizations']->toArray(),
+                'tributes' => $dianCatalogs['tributes']->toArray(),
+                'municipalities' => $dianCatalogs['municipalities']->toArray(),
+            ];
+
+            foreach ($dianCatalogsArray as $key => $value) {
+                if (!is_array($value)) {
+                    $dianCatalogsArray[$key] = [];
+                }
+            }
+
+            return view('reservations.edit', array_merge(
+                [
+                    'reservation' => $reservation,
+                    'customers' => $customersArray,
+                    'rooms' => $roomsArray,
+                    'roomsData' => $roomsData,
+                ],
+                $dianCatalogsArray
+            ));
+        } catch (\Exception $e) {
+            \Log::error('Error in ReservationController::edit(): ' . $e->getMessage(), [
+                'exception' => $e,
+                'trace' => $e->getTraceAsString(),
+                'reservation_id' => $reservation->id,
+            ]);
+
+            return back()->withErrors(['error' => 'Error al cargar los datos. Por favor, recarga la página.']);
+        }
     }
 
     /**
@@ -339,41 +417,156 @@ class ReservationController extends Controller
      */
     public function update(StoreReservationRequest $request, Reservation $reservation)
     {
-        $exists = Reservation::where('room_id', $request->room_id)
-            ->where('id', '!=', $reservation->id)
-            ->where(function ($query) use ($request) {
-                $query->where('check_in_date', '<', $request->check_out_date)
-                      ->where('check_out_date', '>', $request->check_in_date);
-            })
-            ->exists();
+        try {
+            $data = $request->validated();
 
-        if ($exists) {
-            return back()->withInput()->withErrors(['room_id' => 'La habitación ya está reservada para las fechas seleccionadas.']);
+            $roomIds = $request->has('room_ids') && is_array($request->room_ids)
+                ? $request->room_ids
+                : ($request->room_id ? [$request->room_id] : []);
+
+            if (empty($roomIds)) {
+                return back()->withInput()->withErrors(['room_id' => 'Debe seleccionar al menos una habitación.']);
+            }
+
+            $checkInDate = Carbon::parse($request->check_in_date);
+            $checkOutDate = Carbon::parse($request->check_out_date);
+
+            $dateValidation = $this->validateDates($checkInDate, $checkOutDate);
+            if (!$dateValidation['valid']) {
+                return back()->withInput()->withErrors($dateValidation['errors']);
+            }
+
+            $availabilityErrors = $this->validateRoomsAvailabilityForUpdate(
+                $roomIds,
+                $checkInDate,
+                $checkOutDate,
+                (int) $reservation->id
+            );
+            if (!empty($availabilityErrors)) {
+                return back()->withInput()->withErrors($availabilityErrors);
+            }
+
+            $roomGuests = $request->room_guests ?? [];
+            $normalizedRoomGuests = [];
+            foreach ($roomGuests as $roomId => $assignedGuestIds) {
+                $roomIdInt = is_numeric($roomId) ? (int) $roomId : 0;
+                if ($roomIdInt > 0) {
+                    $normalizedRoomGuests[$roomIdInt] = $assignedGuestIds;
+                }
+            }
+
+            $rooms = Room::whereIn('id', $roomIds)->get()->keyBy('id');
+            $guestValidationErrors = $this->validateGuestAssignment($normalizedRoomGuests, $rooms);
+            if (!empty($guestValidationErrors)) {
+                return back()->withInput()->withErrors($guestValidationErrors);
+            }
+
+            if (!isset($data['payment_method']) || empty($data['payment_method'])) {
+                unset($data['payment_method']);
+            }
+
+            $oldValues = [
+                'room_id' => $reservation->room_id,
+                'check_in_date' => $reservation->check_in_date?->format('Y-m-d'),
+                'check_out_date' => $reservation->check_out_date?->format('Y-m-d'),
+                'total_amount' => (float) $reservation->total_amount,
+                'deposit' => (float) $reservation->deposit,
+                'guests_count' => (int) $reservation->guests_count,
+                'payment_method' => $reservation->payment_method,
+            ];
+
+            DB::beginTransaction();
+
+            // Backward compatibility: use first room id as the reservation room_id.
+            $data['room_id'] = $roomIds[0];
+            $reservation->update($data);
+
+            // Rebuild room assignments and room guests.
+            $reservation->reservationRooms()->delete();
+
+            foreach ($roomIds as $roomId) {
+                $reservationRoom = ReservationRoom::create([
+                    'reservation_id' => $reservation->id,
+                    'room_id' => $roomId,
+                ]);
+
+                $roomIdInt = is_numeric($roomId) ? (int) $roomId : 0;
+                $this->assignGuestsToRoom($reservationRoom, $normalizedRoomGuests[$roomIdInt] ?? []);
+            }
+
+            // Legacy guests (single room): sync to avoid duplicate rows.
+            if ($request->has('guest_ids') && is_array($request->guest_ids) && !$request->has('room_guests')) {
+                $this->syncGuestsToReservationLegacy($reservation, $request->guest_ids);
+            }
+
+            if ($checkInDate->isToday()) {
+                Room::whereIn('id', $roomIds)->update(['status' => \App\Enums\RoomStatus::OCUPADA]);
+            }
+
+            $reservation->refresh();
+
+            $this->auditService->logReservationUpdated($reservation, $request, $oldValues);
+            $this->safeLivewireDispatch('reservation-updated');
+
+            DB::commit();
+
+            return redirect()->route('reservations.index')->with('success', 'Reserva actualizada correctamente.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error updating reservation: ' . $e->getMessage(), [
+                'request_data' => $request->all(),
+                'reservation_id' => $reservation->id,
+                'exception' => $e,
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return back()->withInput()->withErrors(['error' => 'Error al actualizar la reserva: ' . $e->getMessage()]);
+        }
+    }
+
+    private function validateRoomsAvailabilityForUpdate(
+        array $roomIds,
+        Carbon $checkIn,
+        Carbon $checkOut,
+        int $excludeReservationId
+    ): array {
+        $errors = [];
+
+        foreach ($roomIds as $roomId) {
+            $roomIdInt = is_numeric($roomId) ? (int) $roomId : 0;
+            if ($roomIdInt <= 0) {
+                continue;
+            }
+
+            if (!$this->isRoomAvailable($roomIdInt, $checkIn, $checkOut, $excludeReservationId)) {
+                $room = Room::find($roomIdInt);
+                $roomNumber = $room ? $room->room_number : $roomIdInt;
+                $errors['room_ids'][] = "La habitación {$roomNumber} ya está reservada para las fechas seleccionadas.";
+            }
         }
 
-        // Capture old values for audit
-        $oldValues = [
-            'room_id' => $reservation->room_id,
-            'check_in_date' => $reservation->check_in_date?->format('Y-m-d'),
-            'check_out_date' => $reservation->check_out_date?->format('Y-m-d'),
-            'total_amount' => (float) $reservation->total_amount,
-            'deposit' => (float) $reservation->deposit,
-            'guests_count' => (int) $reservation->guests_count,
-            'payment_method' => $reservation->payment_method,
-        ];
+        return $errors;
+    }
 
-        $reservation->update($request->validated());
+    private function syncGuestsToReservationLegacy(Reservation $reservation, array $guestIds): void
+    {
+        $validGuestIds = array_filter($guestIds, function ($id): bool {
+            return !empty($id) && is_numeric($id) && $id > 0;
+        });
 
-        // Refresh to get updated values
-        $reservation->refresh();
+        if (empty($validGuestIds)) {
+            $reservation->guests()->sync([]);
+            return;
+        }
 
-        // Audit log for reservation update
-        $this->auditService->logReservationUpdated($reservation, $request, $oldValues);
+        $validGuestIds = Customer::withoutGlobalScopes()
+            ->whereIn('id', $validGuestIds)
+            ->pluck('id')
+            ->toArray();
 
-        // Dispatch Livewire event for stats update
-        $this->safeLivewireDispatch('reservation-updated');
-
-        return redirect()->route('reservations.index')->with('success', 'Reserva actualizada correctamente.');
+        $reservation->guests()->sync($validGuestIds);
     }
 
     /**

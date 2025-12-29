@@ -7,7 +7,7 @@
                     <i class="fas fa-calendar-plus text-2xl"></i>
                 </div>
                 <div>
-                    <h1 class="text-2xl font-bold text-gray-900 leading-tight">Nueva Reserva</h1>
+                    <h1 class="text-2xl font-bold text-gray-900 leading-tight">{{ $this->pageTitle }}</h1>
                     <p class="text-sm text-gray-500">Configura la estancia y pagos del huésped</p>
                 </div>
             </div>
@@ -20,15 +20,18 @@
                         @if($this->loading) disabled @endif
                         class="px-6 py-2 text-sm font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all flex items-center">
                     <i class="fas fa-save mr-2"></i>
-                    Confirmar Reserva
+                    {{ $this->submitButtonText }}
                 </button>
             </div>
         </div>
     </div>
 
 
-    <form id="reservation-form" method="POST" action="{{ route('reservations.store') }}" class="grid grid-cols-1 lg:grid-cols-3 gap-6" onsubmit="return validateFormBeforeSubmit(event)">
+    <form id="reservation-form" method="POST" action="{{ $this->formAction }}" class="grid grid-cols-1 lg:grid-cols-3 gap-6" onsubmit="return validateFormBeforeSubmit(event)">
         @csrf
+        @if($this->formMethod !== 'POST')
+            @method($this->formMethod)
+        @endif
 
         <!-- Columna Principal (2/3) -->
         <div class="lg:col-span-2 space-y-6">
@@ -665,7 +668,7 @@
 
                 <!-- Footer del Resumen -->
                 <div class="px-6 py-4 bg-black/20 text-center">
-                    <input type="hidden" name="reservation_date" value="{{ date('Y-m-d') }}">
+                    <input type="hidden" name="reservation_date" value="{{ $this->reservationDateValue }}">
 
                     <!-- Single room mode: guest_ids (backward compatibility) -->
                     @if(!$this->showMultiRoomSelector)
