@@ -8,6 +8,7 @@ use App\Models\Room;
 use App\Models\Reservation;
 use App\Models\ReservationSale;
 use App\Models\Product;
+use App\Models\RoomDailyStatus;
 use App\Enums\RoomStatus;
 use App\Enums\VentilationType;
 use Carbon\Carbon;
@@ -78,6 +79,7 @@ class RoomManager extends Component
     {
         $this->date = $newDate;
         $this->rentForm['check_out'] = Carbon::parse($newDate)->addDay()->format('Y-m-d');
+        $this->resetPage();
         if ($this->roomDetailModal) {
             $this->openRoomDetail($this->selectedRoomId);
         }
@@ -723,11 +725,33 @@ class RoomManager extends Component
         $this->lastEventUpdate = now()->timestamp;
     }
 
+    private function mapCleaningFromCode(string $code): array
+    {
+        if ($code === 'pendiente') {
+            return [
+                'code' => 'pendiente',
+                'label' => 'Pendiente por Aseo',
+                'color' => 'bg-yellow-100 text-yellow-800',
+                'icon' => 'fa-broom',
+            ];
+        }
+
+        return [
+            'code' => 'limpia',
+            'label' => 'Limpia',
+            'color' => 'bg-green-100 text-green-800',
+            'icon' => 'fa-check-circle',
+        ];
+    }
+
     public function render()
     {
-        $date = Carbon::parse($this->date)->startOfDay();
-        $startOfMonth = $date->copy()->startOfMonth();
-        $endOfMonth = $date->copy()->endOfMonth();
+        $selectedDate = Carbon::parse($this->date)->startOfDay();
+        $today = Carbon::today();
+        $isPast = $selectedDate->lt($today);
+        $isFuture = $selectedDate->gt($today);
+        $startOfMonth = $selectedDate->copy()->startOfMonth();
+        $endOfMonth = $selectedDate->copy()->endOfMonth();
 
         $daysInMonth = [];
         $tempDate = $startOfMonth->copy();
@@ -763,89 +787,88 @@ class RoomManager extends Component
             'rates'
         ])->orderBy('room_number')->paginate(30);
 
-        $rooms->getCollection()->transform(function($room) use ($date) {
-            // Note: Reservations are eager loaded above with fresh query from DB
-            // After releaseRoom() transaction commits, the next render() will load
-            // fresh reservations data automatically via eager loading
-            // We don't need to reload here because render() is called after releaseRoom()
-            // completes, ensuring the eager loading query sees the updated check_out_date values
+        $snapshots = collect();
+        if ($isPast) {
+            $snapshots = RoomDailyStatus::with(['reservation.customer'])
+                ->whereDate('date', $selectedDate->toDateString())
+                ->get()
+                ->keyBy('room_id');
+        }
 
-            $isFuture = $date->isAfter(now()->endOfDay());
-            $reservation = null;
+        $rooms->setCollection(
+            $rooms->getCollection()->map(function($room) use ($selectedDate, $isPast, $isFuture, $snapshots) {
+                if ($isPast) {
+                    $snapshot = $snapshots->get($room->id);
+                    $displayStatus = $snapshot
+                        ? ($snapshot->status instanceof RoomStatus ? $snapshot->status : RoomStatus::from($snapshot->status))
+                        : $room->getDisplayStatus($selectedDate);
+                    $cleaningStatus = $snapshot
+                        ? $this->mapCleaningFromCode($snapshot->cleaning_status)
+                        : $room->cleaningStatus($selectedDate);
+                    $reservation = $snapshot?->reservation;
 
-            // Solo buscamos reservas si NO es una fecha futura
-            // Buscamos reservas activas (ocupadas) Y reservas que terminan hoy (para botón continuar)
-            // Normalizar fechas a startOfDay para comparación consistente
-            if (!$isFuture) {
-                // First, try to find active reservation (check_out_date > $date)
-                // After releaseRoom(), check_out_date should equal $date, so this should return null
-                $reservation = $room->reservations->first(function($res) use ($date) {
-                    $checkIn = Carbon::parse($res->check_in_date)->startOfDay();
-                    $checkOut = Carbon::parse($res->check_out_date)->startOfDay();
-                    // Habitación ocupada si: check_in_date <= $date AND check_out_date > $date
-                    return $checkIn->lte($date) && $checkOut->gt($date);
-                });
-                
-                // If no active reservation, check for reservation ending today or starting today (for continue/cancel buttons)
+                    return [
+                        'id' => $room->id,
+                        'room_number' => $room->room_number,
+                        'beds_count' => $room->beds_count,
+                        'max_capacity' => $room->max_capacity,
+                        'ventilation_type' => $room->ventilation_type,
+                        'display_status' => $displayStatus,
+                        'cleaning_status' => $cleaningStatus,
+                        'current_reservation' => $reservation ?: null,
+                        'is_night_paid' => false,
+                        'total_debt' => 0,
+                        'active_prices' => $room->getPricesForDate($selectedDate),
+                    ];
+                }
+
+                $reservation = $room->getActiveReservation($selectedDate);
                 if (!$reservation) {
-                    $reservation = $room->reservations->first(function($res) use ($date) {
-                        $checkIn = Carbon::parse($res->check_in_date)->startOfDay();
-                        $checkOut = Carbon::parse($res->check_out_date)->startOfDay();
-                        $tomorrow = $date->copy()->addDay()->startOfDay();
-                        // Reservation ending today: check_in_date <= $date AND check_out_date == $date
-                        // Or reservation starting today (one day): check_in_date == $date AND check_out_date == tomorrow
-                        // Or reservation ending tomorrow: check_in_date <= $date AND check_out_date == tomorrow
-                        return ($checkIn->lte($date) && $checkOut->eq($date)) ||
-                               ($checkIn->eq($date) && $checkOut->eq($tomorrow)) ||
-                               ($checkIn->lte($date) && $checkOut->eq($tomorrow));
-                    });
+                    $reservation = $room->getPendingCheckoutReservation($selectedDate);
+                }
+
+                $isNightPaid = false;
+                $totalDebt = 0.0;
+
+                if ($reservation) {
+                    $checkIn = Carbon::parse($reservation->check_in_date);
+                    $checkOut = Carbon::parse($reservation->check_out_date);
+                    $daysTotal = max(1, $checkIn->diffInDays($checkOut));
+                    $dailyPrice = (float)$reservation->total_amount / $daysTotal;
+
+                    $daysUntilSelected = $checkIn->diffInDays($selectedDate);
+                    $costUntilSelected = $dailyPrice * ($daysUntilSelected + 1);
+                    $costUntilSelected = min((float)$reservation->total_amount, $costUntilSelected);
+
+                    $isNightPaid = ($reservation->deposit >= $costUntilSelected);
+
+                    $stayDebt = (float)($reservation->total_amount - $reservation->deposit);
+                    $salesDebt = (float)$reservation->sales->where('is_paid', false)->sum('total');
+                    $totalDebt = $stayDebt + $salesDebt;
                 }
                 
-                // Also check if status is Pendiente Checkout and get the reservation
-                if (!$reservation && $room->getDisplayStatus($date) === \App\Enums\RoomStatus::PENDIENTE_CHECKOUT) {
-                    $reservation = $room->getPendingCheckoutReservation($date);
-                }
-            }
-            
-            // Store current reservation for display purposes
-            // This includes both active reservations and reservations ending today
-            $room->current_reservation = $reservation;
-            
-            if ($reservation) {
-                $checkIn = Carbon::parse($reservation->check_in_date);
-                $checkOut = Carbon::parse($reservation->check_out_date);
-                $daysTotal = max(1, $checkIn->diffInDays($checkOut));
-                $dailyPrice = (float)$reservation->total_amount / $daysTotal;
-
-                $daysUntilSelected = $checkIn->diffInDays($date);
-                $costUntilSelected = $dailyPrice * ($daysUntilSelected + 1);
-                $costUntilSelected = min((float)$reservation->total_amount, $costUntilSelected);
-
-                $room->is_night_paid = ($reservation->deposit >= $costUntilSelected);
-
-                $stay_debt = (float)($reservation->total_amount - $reservation->deposit);
-                $sales_debt = (float)$reservation->sales->where('is_paid', false)->sum('total');
-                $room->total_debt = $stay_debt + $sales_debt;
-            } else {
-                $room->current_reservation = null;
-                $room->total_debt = 0;
-            }
-            
-            // Use getDisplayStatus() with the selected date to get correct status
-            // This overrides the accessor which uses today() by default
-            // After releaseRoom(), isOccupied($date) should return false, so display_status
-            // will be PENDIENTE_ASEO (if cleaning needed) or LIBRE
-            $room->display_status = $room->getDisplayStatus($date);
-            $room->active_prices = $room->getPricesForDate($date);
-            return $room;
-        });
+                return [
+                    'id' => $room->id,
+                    'room_number' => $room->room_number,
+                    'beds_count' => $room->beds_count,
+                    'max_capacity' => $room->max_capacity,
+                    'ventilation_type' => $room->ventilation_type,
+                    'display_status' => $room->getDisplayStatus($selectedDate),
+                    'cleaning_status' => $room->cleaningStatus($selectedDate),
+                    'current_reservation' => $reservation ?: null,
+                    'is_night_paid' => $isNightPaid,
+                    'total_debt' => $totalDebt,
+                    'active_prices' => $room->getPricesForDate($selectedDate),
+                ];
+            })
+        );
 
         return view('livewire.room-manager', [
             'rooms' => $rooms,
             'statuses' => RoomStatus::cases(),
             'ventilationTypes' => VentilationType::cases(),
             'daysInMonth' => $daysInMonth,
-            'currentDate' => $date
+            'currentDate' => $selectedDate
         ]);
     }
 }

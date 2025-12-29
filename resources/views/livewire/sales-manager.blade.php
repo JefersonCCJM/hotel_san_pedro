@@ -184,8 +184,8 @@
 
                     <div class="lg:col-span-9 space-y-2">
                         <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">DÍAS DEL MES</label>
-                        <div class="overflow-x-auto pb-2 custom-scrollbar">
-                            <div class="flex space-x-2 min-w-max">
+                        <div class="pb-2">
+                            <div class="flex flex-wrap gap-2">
                                 @foreach($daysInMonth as $day)
                                     @php 
                                         $isCurrent = $day->isSameDay($currentDate);
@@ -195,9 +195,9 @@
                                     @endphp
                                     <button type="button" 
                                             wire:click="changeDate('{{ $dayKey }}')"
-                                            class="flex flex-col items-center justify-center min-w-[42px] h-14 rounded-xl transition-all border
-                                            {{ $isCurrent ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-gray-50 border-gray-100 text-gray-400 hover:border-green-200 hover:text-green-600' }}">
-                                        <span class="text-[8px] font-bold uppercase tracking-tighter">{{ substr($day->translatedFormat('D'), 0, 1) }}</span>
+                                            class="flex flex-col items-center justify-center w-12 h-14 rounded-xl transition-all border
+                                            {{ $isCurrent ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-gray-50 border-gray-100 text-gray-500 hover:border-green-200 hover:text-green-600' }}">
+                                        <span class="text-[9px] font-bold uppercase tracking-tighter">{{ substr($day->translatedFormat('D'), 0, 1) }}</span>
                                         <span class="text-sm font-bold mt-0.5">{{ $day->day }}</span>
                                         @if($isToday && !$isCurrent)
                                             <span class="w-1 h-1 bg-green-500 rounded-full mt-1"></span>
