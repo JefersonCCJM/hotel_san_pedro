@@ -11,14 +11,14 @@
          wire:poll.5s.keep-alive.visible="refresh"
      @endif>
     <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-6 max-w-7xl">
-        <!-- Header
+        <!-- Header -->
         <div class="bg-white rounded-2xl shadow-lg border-2 border-gray-200 p-6 mb-6">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div class="flex items-center space-x-4">
-                    <div class="p-4 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md">
-                        <i class="fas fa-broom text-3xl"></i>
+                    <div class="flex-shrink-0">
+                        <img src="{{ asset('assets/img/backgrounds/logo-Photoroom.png') }}" alt="Hotel San Pedro Suite" class="h-16 w-auto object-contain">
                     </div>
-<div>
+                    <div>
                         <h1 class="text-3xl sm:text-4xl font-black text-gray-900 leading-tight">Panel de Aseo</h1>
                         <p class="text-base sm:text-lg text-gray-600 mt-1 font-medium">Sistema de Gestión de Limpieza</p>
                     </div>
