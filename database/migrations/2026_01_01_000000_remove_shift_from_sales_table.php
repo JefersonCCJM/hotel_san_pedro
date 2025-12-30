@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -13,9 +14,14 @@ return new class extends Migration
     {
         Schema::table('sales', function (Blueprint $table) {
             // Eliminar el índice antes de la columna si existe
-            $table->dropIndex(['sale_date', 'shift']);
             $table->dropColumn('shift');
         });
+
+        // Eliminar el índice si existe
+        $indexes = DB::select("SHOW INDEXES FROM sales WHERE key_name = 'sales_sale_date_shift_index'");
+        if (count($indexes) > 0) {
+            DB::statement("ALTER TABLE sales DROP INDEX sales_sale_date_shift_index");
+        }
     }
 
     /**
