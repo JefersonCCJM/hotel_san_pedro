@@ -6,12 +6,8 @@ use Livewire\Component;
 use Livewire\Attributes\On;
 use App\Models\Room;
 use App\Models\Reservation;
-use App\Models\ReservationRoom;
-use App\Models\ReservationDeposit;
 use App\Models\ReservationSale;
 use App\Models\Product;
-use App\Models\RoomDailyStatus;
-use App\Models\Customer;
 use App\Enums\RoomStatus;
 use App\Enums\VentilationType;
 use Carbon\Carbon;
@@ -22,28 +18,19 @@ class RoomManager extends Component
 {
     use WithPagination;
 
-    public $customerId;
     public $date;
     public $search = '';
     public $status = '';
     public $ventilation_type = '';
     public $refreshTrigger = 0;
-
+    
     /**
      * Timestamp de la última actualización por evento.
      * Se usa para que el polling NO ejecute si ya hubo un evento reciente (< 6s).
      * Esto evita renders innecesarios y que el polling sobrescriba cambios recientes.
      */
     public $lastEventUpdate = 0;
-
-    // Customer selector properties
-    public $customerSearchTerm = '';
-    public $showCustomerDropdown = false;
-    public $customers = [];
-
-    // Quick rent guests assignment
-    public $quickRentGuests = [];
-
+    
     // Selection and Modals
     public $selectedRoomId = null;
     public $detailData = null;
@@ -70,29 +57,6 @@ class RoomManager extends Component
         'payment_method' => 'pendiente'
     ];
 
-    // New customer modal
-    public $newCustomerModalOpen = false;
-    public $newCustomer = [
-        'name' => '',
-        'identification' => '',
-        'phone' => '',
-        'email' => '',
-        'address' => '',
-        'requiresElectronicInvoice' => false,
-        'identificationDocumentId' => '',
-        'dv' => '',
-        'company' => '',
-        'tradeName' => '',
-        'municipalityId' => '',
-        'legalOrganizationId' => '',
-        'tributeId' => ''
-    ];
-    public $creatingCustomer = false;
-    public $customerIdentificationMessage = '';
-    public $customerIdentificationExists = false;
-    public $customerRequiresDV = false;
-    public $customerIsJuridicalPerson = false;
-
     protected $queryString = [
         'search' => ['except' => ''],
         'status' => ['except' => ''],
@@ -100,39 +64,10 @@ class RoomManager extends Component
         'date' => ['except' => ''],
     ];
 
-    private function loadCustomers(): void
-    {
-        try {
-            $customers = Customer::withoutGlobalScopes()
-                                 ->with('taxProfile')
-                                 ->orderBy('created_at', 'desc')
-                                 ->get();
-            
-            $this->customers = $customers->map(function($customer) {
-                return [
-                    'id' => (int) $customer->id,
-                    'name' => (string) ($customer->name ?? ''),
-                    'phone' => (string) ($customer->phone ?? 'S/N'),
-                    'email' => $customer->email ? (string) $customer->email : null,
-                    'taxProfile' => $customer->taxProfile ? [
-                        'identification' => (string) ($customer->taxProfile->identification ?? 'S/N'),
-                        'dv' => $customer->taxProfile->dv ? (string) $customer->taxProfile->dv : null,
-                    ] : null,
-                ];
-            })->values()->toArray();
-        } catch (\Exception $e) {
-            \Log::error('Error loading customers in RoomManager: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
-            ]);
-            $this->customers = [];
-        }
-    }
-
     public function mount()
     {
         $this->date = $this->date ?: now()->format('Y-m-d');
         $this->rentForm['check_out'] = Carbon::parse($this->date)->addDay()->format('Y-m-d');
-        $this->loadCustomers();
     }
 
     public function updatedSearch() { $this->resetPage(); }
@@ -143,7 +78,6 @@ class RoomManager extends Component
     {
         $this->date = $newDate;
         $this->rentForm['check_out'] = Carbon::parse($newDate)->addDay()->format('Y-m-d');
-        $this->resetPage();
         if ($this->roomDetailModal) {
             $this->openRoomDetail($this->selectedRoomId);
         }
@@ -160,20 +94,12 @@ class RoomManager extends Component
     private function loadRoomDetail()
     {
         $room = Room::find($this->selectedRoomId);
-        $date = Carbon::parse($this->date)->startOfDay();
+        $date = Carbon::parse($this->date);
 
         $reservation = $room->reservations()
-            ->whereDate('check_in_date', '<=', $date)
-            ->whereDate('check_out_date', '>', $date)
-            ->with([
-                'customer.taxProfile', 
-                'sales.product',
-                'reservationRooms.guests.taxProfile',
-                'guests.taxProfile', // Fallback for legacy reservations
-                'reservationDeposits' => function($query) {
-                    $query->orderBy('created_at', 'desc');
-                }
-            ])
+            ->where('check_in_date', '<=', $date)
+            ->where('check_out_date', '>', $date)
+            ->with(['customer.taxProfile', 'sales.product'])
             ->first();
 
         if (!$reservation) {
@@ -217,55 +143,11 @@ class RoomManager extends Component
                 if ($isPaid) $paidAmount -= $dailyPrice;
             }
 
-            // Get guests assigned to this specific room in the reservation
-            // First try to get from ReservationRoom (new structure)
-            $reservationRoom = $reservation->reservationRooms()
-                ->where('room_id', $room->id)
-                ->first();
-            
-            $guests = [];
-            
-            if ($reservationRoom) {
-                // Load guests with taxProfile for the reservation room
-                $reservationRoom->load('guests.taxProfile');
-                
-                if ($reservationRoom->guests->count() > 0) {
-                    // New structure: guests are in ReservationRoom
-                    $guests = $reservationRoom->guests->map(function($guest) {
-                        return [
-                            'id' => $guest->id,
-                            'name' => $guest->name,
-                            'phone' => $guest->phone ?? 'S/N',
-                            'email' => $guest->email,
-                            'identification' => $guest->taxProfile?->identification ?? 'S/N',
-                        ];
-                    })->toArray();
-                }
-            }
-            
-            // Fallback: use legacy reservation->guests() relationship for backward compatibility
-            // Only if no guests found in ReservationRoom
-            if (empty($guests)) {
-                $reservation->load('guests.taxProfile');
-                if ($reservation->guests->count() > 0) {
-                    $guests = $reservation->guests->map(function($guest) {
-                        return [
-                            'id' => $guest->id,
-                            'name' => $guest->name,
-                            'phone' => $guest->phone ?? 'S/N',
-                            'email' => $guest->email,
-                            'identification' => $guest->taxProfile?->identification ?? 'S/N',
-                        ];
-                    })->toArray();
-                }
-            }
-
             $this->detailData = [
                 'room' => $room->toArray(),
                 'reservation' => $reservation->toArray(),
                 'customer' => $reservation->customer->toArray(),
                 'identification' => $reservation->customer->taxProfile?->identification ?? 'N/A',
-                'guests' => $guests,
                 'total_hospedaje' => $total_hospedaje,
                 'abono_realizado' => $abono,
                 'sales_total' => $consumos_pagados + $consumos_pendientes,
@@ -273,15 +155,6 @@ class RoomManager extends Component
                 'total_debt' => $total_debt,
                 'sales' => $reservation->sales->toArray(),
                 'stay_history' => $stay_history,
-                'deposit_history' => $reservation->reservationDeposits->map(function($deposit) {
-                    return [
-                        'id' => $deposit->id,
-                        'amount' => $deposit->amount,
-                        'payment_method' => $deposit->payment_method,
-                        'notes' => $deposit->notes,
-                        'created_at' => $deposit->created_at->format('d/m/Y H:i'),
-                    ];
-                })->toArray(),
                 'customer_history' => Reservation::where('customer_id', $reservation->customer_id)
                     ->where('id', '!=', $reservation->id)
                     ->with('room')
@@ -338,12 +211,11 @@ class RoomManager extends Component
         ]);
 
         $room = Room::find($this->selectedRoomId);
-        $date = Carbon::parse($this->date)->startOfDay();
-        $dateString = $date->toDateString(); // Format as Y-m-d
+        $date = Carbon::parse($this->date);
 
         $reservation = $room->reservations()
-            ->where('check_in_date', '<=', $dateString)
-            ->where('check_out_date', '>', $dateString)
+            ->where('check_in_date', '<=', $date)
+            ->where('check_out_date', '>', $date)
             ->first();
 
         if (!$reservation) {
@@ -366,14 +238,7 @@ class RoomManager extends Component
             'is_paid' => $this->newSale['payment_method'] !== 'pendiente',
         ]);
 
-        // Descontar del inventario y registrar movimiento histórico
-        $product->recordMovement(
-            -$this->newSale['quantity'], 
-            'room_consumption', 
-            "Consumo Habitación #{$room->room_number}", 
-            $room->id
-        );
-
+        $product->decrement('quantity', $this->newSale['quantity']);
         $this->newSale = ['product_id' => '', 'quantity' => 1, 'payment_method' => 'pendiente'];
         $this->loadRoomDetail();
         $this->dispatch('notify', type: 'success', message: 'Consumo cargado.');
@@ -421,78 +286,6 @@ class RoomManager extends Component
         $this->dispatch('notify', type: 'success', message: 'Abono actualizado.');
     }
 
-    public function addDeposit($reservationId, $amount, $paymentMethod, $notes = null)
-    {
-        $reservation = Reservation::findOrFail($reservationId);
-
-        // Validate amount
-        if ($amount <= 0) {
-            $this->dispatch('notify', type: 'error', message: 'El monto debe ser mayor a 0.');
-            return;
-        }
-
-        // Create deposit record
-        ReservationDeposit::create([
-            'reservation_id' => $reservationId,
-            'amount' => $amount,
-            'payment_method' => $paymentMethod,
-            'notes' => $notes,
-        ]);
-
-        // Update total deposit in reservation
-        $reservation->increment('deposit', $amount);
-
-        $this->loadRoomDetail();
-        $this->dispatch('notify', type: 'success', message: 'Abono registrado correctamente.');
-    }
-
-    public function editDepositRecord($depositId, $amount, $paymentMethod, $notes = null)
-    {
-        $deposit = ReservationDeposit::findOrFail($depositId);
-        $reservation = $deposit->reservation;
-
-        // Validate amount
-        if ($amount <= 0) {
-            $this->dispatch('notify', type: 'error', message: 'El monto debe ser mayor a 0.');
-            return;
-        }
-
-        // Calculate difference to update reservation deposit
-        $oldAmount = $deposit->amount;
-        $difference = $amount - $oldAmount;
-
-        // Update deposit record
-        $deposit->update([
-            'amount' => $amount,
-            'payment_method' => $paymentMethod,
-            'notes' => $notes,
-        ]);
-
-        // Update total deposit in reservation
-        $newDepositTotal = max(0, $reservation->deposit + $difference);
-        $reservation->update(['deposit' => $newDepositTotal]);
-
-        $this->loadRoomDetail();
-        $this->dispatch('notify', type: 'success', message: 'Abono actualizado correctamente.');
-    }
-
-    public function deleteDepositRecord($depositId)
-    {
-        $deposit = ReservationDeposit::findOrFail($depositId);
-        $reservation = $deposit->reservation;
-        $amount = $deposit->amount;
-
-        // Delete deposit record
-        $deposit->delete();
-
-        // Update total deposit in reservation (subtract the deleted amount)
-        $newDepositTotal = max(0, $reservation->deposit - $amount);
-        $reservation->update(['deposit' => $newDepositTotal]);
-
-        $this->loadRoomDetail();
-        $this->dispatch('notify', type: 'success', message: 'Abono eliminado correctamente.');
-    }
-
     public function releaseRoom($roomId, $targetStatus)
     {
         $date = Carbon::parse($this->date)->startOfDay();
@@ -513,40 +306,50 @@ class RoomManager extends Component
             // Always release reservation when in releaseRoom method
             // All three options (libre, pendiente_aseo, limpia) should release the room
             if ($shouldRelease) {
-                // Find active reservation for the selected date
-                // We query directly from DB (not cached relations) to get fresh data
-                // Use whereDate() which is specifically designed for date column comparisons
-                $reservation = $room->reservations()
-                    ->whereDate('check_in_date', '<=', $date)
-                    ->whereDate('check_out_date', '>', $date)
-                    ->orderBy('check_in_date', 'asc')
-                    ->first();
+            // Find active reservation for the selected date
+            // We query directly from DB (not cached relations) to get fresh data
+            $reservation = $room->reservations()
+                ->where('check_in_date', '<=', $date)
+                    ->where('check_out_date', '>', $date)
+                ->orderBy('check_in_date', 'asc')
+                ->first();
 
-                if ($reservation) {
-                    $end = Carbon::parse($reservation->check_out_date)->startOfDay();
+            if ($reservation) {
+                $start = Carbon::parse($reservation->check_in_date)->startOfDay();
+                $end = Carbon::parse($reservation->check_out_date)->startOfDay();
 
-                    if ($end->gt($date)) {
-                        $newRes = $reservation->replicate();
-                        $newRes->check_in_date = $date->copy()->addDay()->toDateString();
-                        $newRes->check_out_date = $reservation->check_out_date;
-                        $newRes->save();
-                    }
-
-                    $reservation->delete();
+                // When releasing a room, we DELETE the active reservation completely
+                // This ensures the reservation disappears from the reservations module
+                // and the room shows as "Pendiente por Aseo" or "Libre" immediately
+                // Future reservations (starting after the selected date) are preserved automatically
+                
+                // If reservation has future days (after selected date), create new reservation for those days
+                // Then delete the current reservation
+                if ($end->gt($date)) {
+                    // Reservation extends beyond selected date -> Create new reservation for future days
+                    $newRes = $reservation->replicate();
+                    $newRes->check_in_date = $date->copy()->addDay()->toDateString();
+                    $newRes->check_out_date = $reservation->check_out_date;
+                    $newRes->save();
+                }
+                
+                // DELETE the active reservation completely
+                // This makes the room available immediately and removes it from reservations module
+                $reservation->delete();
                 }
             }
 
             // After modifying reservations, refresh the room model to get updated state
             // This ensures the next query (in render()) will see the changes
             $room->refresh();
-
+            
             // Clear cached relations to force fresh data on next query
             // This is critical: without this, render() might use stale reservation data
             $room->unsetRelation('reservations');
 
             // Update cleaning status based on selected option
             $updateData = [];
-
+            
             if ($shouldMarkClean) {
                 // Mark as clean (libre or limpia option)
                 $updateData['last_cleaned_at'] = now();
@@ -563,7 +366,7 @@ class RoomManager extends Component
                 if (in_array($targetStatus, ['libre', 'limpia'])) {
                     if ($room->status === RoomStatus::SUCIA) {
                         $updateData['status'] = RoomStatus::LIBRE;
-                    }
+                }
                 }
             }
 
@@ -587,7 +390,7 @@ class RoomManager extends Component
         // Force immediate refresh of room list to reflect changes
         // This will query fresh data from database, bypassing any cached relations
         $this->refreshRooms();
-
+        
         // Force Livewire to re-render by updating a property
         // This ensures the component updates even if pagination didn't change
         $this->refreshTrigger = now()->timestamp;
@@ -596,10 +399,10 @@ class RoomManager extends Component
         // MECANISMO PRINCIPAL: Si CleaningPanel está montado, recibirá este evento inmediatamente (<1s)
         // FALLBACK: Si no está montado, el polling cada 5s capturará el cambio en ≤5s
         $this->dispatch('room-status-updated', roomId: $room->id);
-
+        
         // Marcar que hubo una actualización por evento (evita que el polling ejecute innecesariamente)
         $this->lastEventUpdate = now()->timestamp;
-
+        
         // Generate appropriate success message based on action
         $message = match($targetStatus) {
             'libre' => "Habitación #{$room->room_number} liberada y marcada como limpia.",
@@ -607,7 +410,7 @@ class RoomManager extends Component
             'limpia' => "Habitación #{$room->room_number} liberada y marcada como limpia.",
             default => "Habitación #{$room->room_number} actualizada.",
         };
-
+        
         $this->dispatch('notify', type: 'success', message: $message);
     }
 
@@ -620,8 +423,8 @@ class RoomManager extends Component
         $reservation = $room->getPendingCheckoutReservation($date);
 
         if (!$reservation) {
-            $this->dispatch('notify',
-                type: 'error',
+            $this->dispatch('notify', 
+                type: 'error', 
                 message: "No se encontró una reserva pendiente de checkout para esta habitación."
             );
             return;
@@ -630,7 +433,7 @@ class RoomManager extends Component
         // Delete the reservation and mark room as free
         DB::transaction(function() use ($reservation, $room, $date) {
             $reservation->delete();
-
+            
             // Mark room as clean and free (only if date is today)
             if ($date->isToday()) {
                 $room->update([
@@ -667,17 +470,17 @@ class RoomManager extends Component
 
         // First, try to get reservation from Pendiente Checkout status
         $reservation = $room->getPendingCheckoutReservation($date);
-
+        
         // If not found, find active reservation or reservation ending today
         if (!$reservation) {
-            $reservation = $room->reservations()
-                ->whereDate('check_in_date', '<=', $date)
-                ->where(function($query) use ($date) {
-                    $query->whereDate('check_out_date', '>', $date)
-                          ->orWhereDate('check_out_date', '=', $date);
-                })
-                ->orderBy('check_out_date', 'desc')
-                ->first();
+        $reservation = $room->reservations()
+            ->where('check_in_date', '<=', $date)
+            ->where(function($query) use ($date) {
+                $query->where('check_out_date', '>', $date)
+                      ->orWhere('check_out_date', '=', $date->toDateString());
+            })
+            ->orderBy('check_out_date', 'desc')
+            ->first();
         }
 
         if (!$reservation) return;
@@ -693,7 +496,7 @@ class RoomManager extends Component
                 'check_out_date' => $newCheckOut,
                 'total_amount' => $reservation->total_amount + $additionalPrice
             ]);
-
+            
             // Mark room as needing cleaning (set last_cleaned_at to NULL)
             // This ensures that when the room is eventually released, it will be "Pendiente por Aseo"
             $room->update(['last_cleaned_at' => null]);
@@ -711,7 +514,7 @@ class RoomManager extends Component
         // MECANISMO PRINCIPAL: Si CleaningPanel está montado, recibirá este evento inmediatamente (<1s)
         // FALLBACK: Si no está montado, el polling cada 5s capturará el cambio en ≤5s
         $this->dispatch('room-status-updated', roomId: $room->id);
-
+        
         // Marcar que hubo una actualización por evento (evita que el polling ejecute innecesariamente)
         $this->lastEventUpdate = now()->timestamp;
 
@@ -736,66 +539,13 @@ class RoomManager extends Component
             'customer_id' => ''
         ];
 
-        // Ensure customers are loaded when opening modal
-        if (empty($this->customers)) {
-            $this->loadCustomers();
-        }
-
         $this->quickRentModal = true;
-        // Reset customer selection when opening modal
-        $this->customerSearchTerm = '';
-        // Don't show dropdown automatically, let user click to open it
-        $this->showCustomerDropdown = false;
-        // Reset guests when opening modal
-        $this->quickRentGuests = [];
+        $this->dispatch('quickRentOpened');
     }
 
     public function updatedRentForm($value, $key)
     {
-        if ($key === 'people') {
-            $maxCapacity = (int)$this->rentForm['max_capacity'];
-
-            // Handle empty or null values
-            if ($value === '' || $value === null || $value === 0) {
-                $this->rentForm['people'] = 1;
-                $people = 1;
-            } else {
-                $people = (int)$value;
-
-                // Validate people count against max capacity
-                if ($people > $maxCapacity) {
-                    $this->addError('rentForm.people', "La capacidad máxima de esta habitación es de {$maxCapacity} persona(s).");
-                    $this->rentForm['people'] = $maxCapacity;
-                    $people = $maxCapacity;
-                } elseif ($people < 1) {
-                    $this->addError('rentForm.people', 'Debe haber al menos 1 persona.');
-                    $this->rentForm['people'] = 1;
-                    $people = 1;
-                }
-                // If value is valid (between 1 and maxCapacity), Livewire will automatically clear errors
-            }
-
-            // Always ensure guests array matches people count exactly
-            // Re-index array first to ensure sequential indices (0, 1, 2, ...)
-            $this->quickRentGuests = array_values($this->quickRentGuests);
-            
-            // If we have more guests than people count, keep only first N guests
-            if (count($this->quickRentGuests) > $people) {
-                $this->quickRentGuests = array_slice($this->quickRentGuests, 0, $people);
-            }
-            // Array is already properly indexed and sized correctly
-            
-            // Clear errors when valid
-            $this->resetErrorBag('rentForm.people');
-            $this->resetErrorBag('quickRentGuests');
-
-            // Calculate total with validated people count
-            $basePrice = $this->rentForm['prices'][$people] ?? ($this->rentForm['prices'][$maxCapacity] ?? 0);
-            $start = Carbon::parse($this->date);
-            $end = Carbon::parse($this->rentForm['check_out']);
-            $diffDays = max(1, $start->diffInDays($end));
-            $this->rentForm['total'] = $basePrice * $diffDays;
-        } elseif ($key === 'check_out') {
+        if (in_array($key, ['people', 'check_out'])) {
             $p = (int)$this->rentForm['people'];
             $basePrice = $this->rentForm['prices'][$p] ?? ($this->rentForm['prices'][$this->rentForm['max_capacity']] ?? 0);
             $start = Carbon::parse($this->date);
@@ -807,26 +557,14 @@ class RoomManager extends Component
 
     public function storeQuickRent()
     {
-        $maxCapacity = (int)$this->rentForm['max_capacity'];
-
         $this->validate([
             'rentForm.customer_id' => 'required|exists:customers,id',
-            'rentForm.people' => "required|integer|min:1|max:{$maxCapacity}",
+            'rentForm.people' => 'required|integer|min:1|max:'.$this->rentForm['max_capacity'],
             'rentForm.check_out' => 'required|date|after:'.$this->date,
             'rentForm.total' => 'required|numeric|min:0',
             'rentForm.deposit' => 'required|numeric|min:0',
             'rentForm.payment_method' => 'required|in:efectivo,transferencia',
-        ], [
-            'rentForm.people.required' => 'El número de personas es obligatorio.',
-            'rentForm.people.integer' => 'El número de personas debe ser un número entero.',
-            'rentForm.people.min' => 'Debe haber al menos 1 persona.',
-            "rentForm.people.max" => "La capacidad máxima de esta habitación es de {$maxCapacity} persona(s).",
-            'rentForm.customer_id.required' => 'Debe seleccionar un huésped.',
-            'rentForm.customer_id.exists' => 'El huésped seleccionado no es válido.',
-            'rentForm.check_out.required' => 'La fecha de salida es obligatoria.',
-            'rentForm.check_out.date' => 'La fecha de salida debe ser una fecha válida.',
-            'rentForm.check_out.after' => 'La fecha de salida debe ser posterior a la fecha de entrada.',
-        ], [
+        ], [], [
             'rentForm.check_out' => 'fecha de salida',
         ]);
 
@@ -841,7 +579,7 @@ class RoomManager extends Component
 
         // Create reservation within transaction for atomicity
         $reservation = DB::transaction(function() {
-            $reservation = Reservation::create([
+            return Reservation::create([
                 'room_id' => $this->rentForm['room_id'],
                 'customer_id' => $this->rentForm['customer_id'],
                 'check_in_date' => $this->date,
@@ -854,38 +592,8 @@ class RoomManager extends Component
                 'is_paid' => $this->rentForm['deposit'] >= $this->rentForm['total'],
                 'status' => 'confirmed'
             ]);
-
-            // Create ReservationRoom and attach guests
-            $reservationRoom = ReservationRoom::create([
-                'reservation_id' => $reservation->id,
-                'room_id' => $this->rentForm['room_id'],
-            ]);
-
-            // Attach guests to the reservation room if any
-            if (!empty($this->quickRentGuests)) {
-                $guestIds = array_column($this->quickRentGuests, 'id');
-                $validGuestIds = array_filter($guestIds, function ($id): bool {
-                    return !empty($id) && is_numeric($id) && $id > 0;
-                });
-
-                if (!empty($validGuestIds)) {
-                    $validGuestIds = Customer::withoutGlobalScopes()
-                        ->whereIn('id', $validGuestIds)
-                        ->pluck('id')
-                        ->toArray();
-
-                    if (!empty($validGuestIds)) {
-                        $reservationRoom->guests()->attach($validGuestIds);
-                    }
-                }
-            }
-
-            return $reservation;
         });
-
-        // Close modal immediately for better UX
-        $this->quickRentModal = false;
-
+        
         // Dispatch notifications first (non-blocking)
         $this->dispatch('notify', type: 'success', message: 'Reserva creada exitosamente.');
         
@@ -893,10 +601,10 @@ class RoomManager extends Component
         // MECANISMO PRINCIPAL: Si CleaningPanel está montado, recibirá este evento inmediatamente (<1s)
         // FALLBACK: Si no está montado, el polling cada 5s capturará el cambio en ≤5s
         $this->dispatch('room-status-updated', roomId: $this->rentForm['room_id']);
-
+        
         // Marcar que hubo una actualización por evento (evita que el polling ejecute innecesariamente)
         $this->lastEventUpdate = now()->timestamp;
-
+        
         // Refresh rooms list (this will trigger render() automatically)
         // Using refreshRooms() which is optimized and preserves pagination
         $this->refreshRooms();
@@ -904,22 +612,22 @@ class RoomManager extends Component
 
     /**
      * Método centralizado para refrescar datos de habitaciones desde la BD.
-     *
+     * 
      * USADO POR:
      * 1. Polling fallback (wire:poll.5s) - ejecutado cada 5s automáticamente (si no hay evento reciente)
      * 2. Métodos de acción (releaseRoom, continueStay, storeQuickRent) - cuando el usuario hace cambios
-     *
+     * 
      * ROL COMO POLLING FALLBACK:
      * - Se ejecuta automáticamente cada 5s mediante wire:poll.5s
      * - PERO solo ejecuta si NO hubo un evento reciente (< 6s)
      * - Garantiza que cambios externos se reflejen en ≤5s si el evento Livewire se pierde
      * - NO es el mecanismo principal (los eventos Livewire son más rápidos e inmediatos)
-     *
+     * 
      * OPTIMIZACIÓN:
      * - Preserva paginación, filtros y búsqueda automáticamente
      * - render() usa eager loading (single query, sin N+1)
      * - Verifica $lastEventUpdate antes de ejecutar para evitar renders innecesarios
-     *
+     * 
      * NOTA: Si ambos componentes están montados, los eventos Livewire actualizan
      * inmediatamente (<300ms) y marcan $lastEventUpdate, haciendo que el polling
      * se salte hasta 6s después. Esto elimina renders duplicados y mejora UX.
@@ -928,31 +636,31 @@ class RoomManager extends Component
     {
         // Store current page to restore if needed
         $currentPage = $this->getPage();
-
+        
         // Reset pagination to force complete re-render
         // This triggers render() which queries fresh data from database
         // The eager loading in render() will fetch updated reservations from DB
         // Preserves $this->search, $this->status, $this->date automatically
         $this->resetPage();
-
+        
         // If we were on a page > 1, restore it to maintain user's view
         if ($currentPage > 1) {
             $this->setPage($currentPage);
         }
-
+        
         // Force re-render by updating trigger (ensures update even if page didn't change)
         // This property change forces Livewire to re-execute render() with fresh DB queries
         $this->refreshTrigger = now()->timestamp;
     }
-
+    
     /**
      * Método de polling inteligente (ejecutado cada 5s automáticamente).
-     *
+     * 
      * ROL: Mecanismo de sincronización FALLBACK INTELIGENTE
      * - Se ejecuta automáticamente cada 5s mediante wire:poll.5s
      * - PERO solo ejecuta refreshRooms() si NO hubo un evento reciente (< 6s)
      * - Esto evita renders innecesarios y que el polling sobrescriba cambios recientes
-     *
+     * 
      * OPTIMIZACIÓN:
      * - Verifica $lastEventUpdate antes de ejecutar queries pesadas
      * - Si hubo evento reciente (< 6s), se salta la ejecución (evita renders innecesarios)
@@ -967,33 +675,33 @@ class RoomManager extends Component
             // No hacer nada, el evento ya actualizó todo
             return;
         }
-
+        
         // Solo ejecutar polling si realmente no hubo evento reciente (fallback real)
         $this->refreshRooms();
     }
 
     /**
      * Listener para eventos de actualización de estado de habitaciones.
-     *
+     * 
      * MECANISMO PRINCIPAL de sincronización en tiempo real.
-     *
+     * 
      * ROL: Sincronización INMEDIATA cuando ambos componentes están montados
      * - Se ejecuta cuando otro componente (ej: CleaningPanel) dispatch 'room-status-updated'
      * - Latencia: <300ms (inmediato, optimizado)
      * - Funciona SOLO si ambos componentes están montados en la misma sesión del navegador
-     *
+     * 
      * OPTIMIZACIÓN O(1):
      * - En lugar de ejecutar refreshRooms() que dispara render() completo (150-500ms),
      *   actualiza SOLO el refreshTrigger para forzar re-render mínimo
      * - El render() siguiente verá los datos actualizados vía eager loading
      * - Si el detalle está abierto, lo recarga
      * - Marca $lastEventUpdate para evitar que el polling ejecute inmediatamente después
-     *
+     * 
      * FLUJO:
      * 1. CleaningPanel marca habitación como limpia → dispatch evento
      * 2. Este listener recibe el evento → actualiza refreshTrigger (fuerza re-render mínimo)
      * 3. UI se actualiza automáticamente sin recargar página
-     *
+     * 
      * FALLBACK:
      * - Si este listener NO se ejecuta (componente no montado), el polling (refreshRoomsPolling())
      *   capturará el cambio en ≤5s
@@ -1010,42 +718,16 @@ class RoomManager extends Component
         if ($this->selectedRoomId == $roomId) {
             $this->loadRoomDetail();
         }
-
+        
         // Marcar que hubo actualización por evento (evita que el polling ejecute inmediatamente)
         $this->lastEventUpdate = now()->timestamp;
     }
 
-    private function mapCleaningFromCode(?string $code): array
-    {
-        if ($code === 'pendiente') {
-            return [
-                'code' => 'pendiente',
-                'label' => 'Pendiente por Aseo',
-                'color' => 'bg-yellow-100 text-yellow-800',
-                'icon' => 'fa-broom',
-            ];
-        }
-
-        return [
-            'code' => 'limpia',
-            'label' => 'Limpia',
-            'color' => 'bg-green-100 text-green-800',
-            'icon' => 'fa-check-circle',
-        ];
-    }
-
     public function render()
     {
-        if (empty($this->customers)) {
-            $this->loadCustomers();
-        }
-
-        $selectedDate = Carbon::parse($this->date)->startOfDay();
-        $today = Carbon::today();
-        $isPast = $selectedDate->lt($today);
-        $isFuture = $selectedDate->gt($today);
-        $startOfMonth = $selectedDate->copy()->startOfMonth();
-        $endOfMonth = $selectedDate->copy()->endOfMonth();
+        $date = Carbon::parse($this->date)->startOfDay();
+        $startOfMonth = $date->copy()->startOfMonth();
+        $endOfMonth = $date->copy()->endOfMonth();
 
         $daysInMonth = [];
         $tempDate = $startOfMonth->copy();
@@ -1068,635 +750,101 @@ class RoomManager extends Component
             $query->where('ventilation_type', $this->ventilation_type);
         }
 
+        // Eager load reservations for the month range to optimize queries
+        // We load a buffer (month range) to support calendar navigation, but
+        // the transform will filter to the specific selected date
         $rooms = $query->with([
             'reservations' => function($q) use ($startOfMonth, $endOfMonth) {
-                $q->whereDate('check_in_date', '<=', $endOfMonth)
-                  ->whereDate('check_out_date', '>=', $startOfMonth)
+                $q->where('check_in_date', '<=', $endOfMonth)
+                  ->where('check_out_date', '>=', $startOfMonth)
                   ->with('customer');
             },
             'reservations.sales',
             'rates'
         ])->orderBy('room_number')->paginate(30);
 
-        $snapshots = collect();
-        if ($isPast) {
-            $snapshots = RoomDailyStatus::with(['reservation.customer'])
-                ->whereDate('date', $selectedDate->toDateString())
-                ->get()
-                ->keyBy('room_id');
-        }
+        $roomsView = $rooms->getCollection()->map(function($room) use ($date) {
+            $isFuture = $date->isAfter(now()->endOfDay());
+            $reservation = null;
 
-        $rooms->setCollection(
-            $rooms->getCollection()->map(function($room) use ($selectedDate, $isPast, $isFuture, $snapshots) {
-                if ($isPast) {
-                    $snapshot = $snapshots->get($room->id);
-                    $displayStatus = $snapshot
-                        ? ($snapshot->status instanceof RoomStatus ? $snapshot->status : RoomStatus::from($snapshot->status))
-                        : $room->getDisplayStatus($selectedDate);
-                    $cleaningStatus = $this->mapCleaningFromCode($snapshot?->cleaning_status ?? 'limpia');
-                    $reservation = $snapshot?->reservation;
+            if (!$isFuture) {
+                $reservation = $room->reservations->first(function($res) use ($date) {
+                    $checkIn = Carbon::parse($res->check_in_date)->startOfDay();
+                    $checkOut = Carbon::parse($res->check_out_date)->startOfDay();
+                    return $checkIn->lte($date) && $checkOut->gt($date);
+                });
 
-                    return [
-                        'id' => $room->id,
-                        'room_number' => $room->room_number,
-                        'beds_count' => $room->beds_count,
-                        'max_capacity' => $room->max_capacity,
-                        'ventilation_type' => $room->ventilation_type,
-                        'display_status' => $displayStatus,
-                        'cleaning_status' => $cleaningStatus,
-                        'current_reservation' => $reservation,
-                        'is_night_paid' => false,
-                        'total_debt' => 0,
-                        'active_prices' => $room->getPricesForDate($selectedDate),
-                    ];
-                }
-
-                $reservation = null;
-                if (!$isFuture) {
-                    $reservation = $room->reservations->first(function($res) use ($selectedDate) {
+                if (!$reservation) {
+                    $reservation = $room->reservations->first(function($res) use ($date) {
                         $checkIn = Carbon::parse($res->check_in_date)->startOfDay();
                         $checkOut = Carbon::parse($res->check_out_date)->startOfDay();
-                        return $checkIn->lte($selectedDate) && $checkOut->gt($selectedDate);
+                        $tomorrow = $date->copy()->addDay()->startOfDay();
+                        return ($checkIn->lte($date) && $checkOut->eq($date)) ||
+                               ($checkIn->eq($date) && $checkOut->eq($tomorrow)) ||
+                               ($checkIn->lte($date) && $checkOut->eq($tomorrow));
                     });
-
-                    if (!$reservation) {
-                        $reservation = $room->getPendingCheckoutReservation($selectedDate);
-                    }
                 }
 
-                $isNightPaid = false;
-                $totalDebt = 0.0;
-
-                if ($reservation) {
-                    $checkIn = Carbon::parse($reservation->check_in_date);
-                    $checkOut = Carbon::parse($reservation->check_out_date);
-                    $daysTotal = max(1, $checkIn->diffInDays($checkOut));
-                    $dailyPrice = (float)$reservation->total_amount / $daysTotal;
-
-                    $daysUntilSelected = $checkIn->diffInDays($selectedDate);
-                    $costUntilSelected = $dailyPrice * ($daysUntilSelected + 1);
-                    $costUntilSelected = min((float)$reservation->total_amount, $costUntilSelected);
-
-                    $isNightPaid = ($reservation->deposit >= $costUntilSelected);
-
-                    $stayDebt = (float)($reservation->total_amount - $reservation->deposit);
-                    $salesDebt = (float)$reservation->sales->where('is_paid', false)->sum('total');
-                    $totalDebt = $stayDebt + $salesDebt;
+                if (!$reservation && $room->getDisplayStatus($date) === \App\Enums\RoomStatus::PENDIENTE_CHECKOUT) {
+                    $reservation = $room->getPendingCheckoutReservation($date);
                 }
+            }
 
-                return [
-                    'id' => $room->id,
-                    'room_number' => $room->room_number,
-                    'beds_count' => $room->beds_count,
-                    'max_capacity' => $room->max_capacity,
-                    'ventilation_type' => $room->ventilation_type,
-                    'display_status' => $room->getDisplayStatus($selectedDate),
-                    'cleaning_status' => $room->cleaningStatus($selectedDate),
-                    'current_reservation' => $reservation,
-                    'is_night_paid' => $isNightPaid,
-                    'total_debt' => $totalDebt,
-                    'active_prices' => $room->getPricesForDate($selectedDate),
-                ];
-            })
-        );
+            $totalDebt = 0;
+            $isNightPaid = false;
 
-        if ($this->status) {
-            $filteredCollection = $rooms->getCollection()->filter(function($room) {
-                return $room['display_status']->value === $this->status;
-            });
-            $rooms->setCollection($filteredCollection);
-        }
+            if ($reservation) {
+                $checkIn = Carbon::parse($reservation->check_in_date);
+                $checkOut = Carbon::parse($reservation->check_out_date);
+                $daysTotal = max(1, $checkIn->diffInDays($checkOut));
+                $dailyPrice = (float)$reservation->total_amount / $daysTotal;
 
-        $identificationDocuments = \App\Models\DianIdentificationDocument::orderBy('name')->get()->toArray();
-        $municipalities = \App\Models\DianMunicipality::orderBy('department')->orderBy('name')->get()->toArray();
-        $legalOrganizations = \App\Models\DianLegalOrganization::orderBy('name')->get()->toArray();
-        $tributes = \App\Models\DianCustomerTribute::orderBy('name')->get()->toArray();
+                $daysUntilSelected = $checkIn->diffInDays($date);
+                $costUntilSelected = $dailyPrice * ($daysUntilSelected + 1);
+                $costUntilSelected = min((float)$reservation->total_amount, $costUntilSelected);
+
+                $isNightPaid = ($reservation->deposit >= $costUntilSelected);
+
+                $stay_debt = (float)($reservation->total_amount - $reservation->deposit);
+                $sales_debt = (float)$reservation->sales->where('is_paid', false)->sum('total');
+                $totalDebt = $stay_debt + $sales_debt;
+            }
+
+            $displayStatus = $room->getDisplayStatus($date);
+            $activePrices = $room->getPricesForDate($date);
+            $cleaningStatus = $room->cleaningStatus($date);
+            $ventilationLabel = match (true) {
+                $room->ventilation_type instanceof \App\Enums\VentilationType => $room->ventilation_type->label(),
+                is_string($room->ventilation_type) && $room->ventilation_type !== '' => \App\Enums\VentilationType::from($room->ventilation_type)->label(),
+                default => null,
+            };
+
+            return (object) [
+                'id' => $room->id,
+                'room_number' => $room->room_number,
+                'beds_count' => $room->beds_count,
+                'max_capacity' => $room->max_capacity,
+                'ventilation_type' => $room->ventilation_type,
+                'ventilation_label' => $ventilationLabel,
+                'status' => $room->status,
+                'last_cleaned_at' => $room->last_cleaned_at,
+                'display_status' => $displayStatus,
+                'active_prices' => $activePrices,
+                'cleaning_status' => $cleaningStatus,
+                'current_reservation' => $reservation,
+                'total_debt' => $totalDebt,
+                'is_night_paid' => $isNightPaid,
+            ];
+        });
+
+        $rooms->setCollection($roomsView);
 
         return view('livewire.room-manager', [
             'rooms' => $rooms,
             'statuses' => RoomStatus::cases(),
             'ventilationTypes' => VentilationType::cases(),
             'daysInMonth' => $daysInMonth,
-            'currentDate' => $selectedDate,
-            'identificationDocuments' => $identificationDocuments,
-            'municipalities' => $municipalities,
-            'legalOrganizations' => $legalOrganizations,
-            'tributes' => $tributes,
+            'currentDate' => $date
         ]);
-    }
-
-    public function updatedNewCustomer($value, $key): void
-    {
-        if ($key === 'identification') {
-            $this->checkCustomerIdentification();
-        } elseif ($key === 'identificationDocumentId') {
-            $this->updateCustomerRequiredFields();
-        }
-    }
-
-    public function updateCustomerRequiredFields(): void
-    {
-        $documentId = $this->newCustomer['identificationDocumentId'] ?? '';
-
-        if (empty($documentId)) {
-            $this->customerRequiresDV = false;
-            $this->customerIsJuridicalPerson = false;
-            $this->newCustomer['dv'] = '';
-            return;
-        }
-
-        $document = \App\Models\DianIdentificationDocument::find($documentId);
-
-        if ($document) {
-            $this->customerRequiresDV = $document->requires_dv ?? false;
-            $this->customerIsJuridicalPerson = in_array($document->code ?? '', ['NI', 'NIT'], true);
-
-            if ($this->customerRequiresDV && !empty($this->newCustomer['identification'])) {
-                $this->newCustomer['dv'] = $this->calculateVerificationDigit($this->newCustomer['identification']);
-            } else {
-                $this->newCustomer['dv'] = '';
-            }
-        } else {
-            $this->customerRequiresDV = false;
-            $this->customerIsJuridicalPerson = false;
-            $this->newCustomer['dv'] = '';
-        }
-    }
-
-    private function calculateVerificationDigit(string $nit): string
-    {
-        $nit = preg_replace('/\D/', '', $nit);
-        $weights = [71, 67, 59, 53, 47, 43, 41, 37, 29, 23, 19, 17, 13, 7, 3];
-        $sum = 0;
-        $nitLength = strlen($nit);
-
-        for ($i = 0; $i < $nitLength; $i++) {
-            $sum += (int)$nit[$nitLength - 1 - $i] * $weights[$i];
-        }
-
-        $remainder = $sum % 11;
-        if ($remainder < 2) {
-            return (string)$remainder;
-        }
-
-        return (string)(11 - $remainder);
-    }
-
-    public function checkCustomerIdentification(): void
-    {
-        $identification = $this->newCustomer['identification'] ?? '';
-
-        if (empty($identification)) {
-            $this->customerIdentificationMessage = '';
-            $this->customerIdentificationExists = false;
-            return;
-        }
-
-        $exists = Customer::withoutGlobalScopes()
-            ->whereHas('taxProfile', function ($query) use ($identification) {
-                $query->where('identification', $identification);
-            })
-            ->exists();
-
-        if ($exists) {
-            $this->customerIdentificationExists = true;
-            $this->customerIdentificationMessage = 'Esta identificación ya está registrada.';
-        } else {
-            $this->customerIdentificationExists = false;
-            $this->customerIdentificationMessage = 'Identificación disponible.';
-        }
-
-        if ($this->customerRequiresDV && !empty($identification)) {
-            $this->newCustomer['dv'] = $this->calculateVerificationDigit($identification);
-        }
-    }
-
-    public function createCustomer(): void
-    {
-        $requiresElectronicInvoice = $this->newCustomer['requiresElectronicInvoice'] ?? false;
-
-        $rules = [
-            'newCustomer.name' => 'required|string|max:255',
-            'newCustomer.identification' => 'required|string|max:10',
-            'newCustomer.phone' => 'required|string|max:20',
-            'newCustomer.email' => 'nullable|email|max:255',
-            'newCustomer.address' => 'nullable|string|max:500',
-        ];
-
-        $messages = [
-            'newCustomer.name.required' => 'El nombre es obligatorio.',
-            'newCustomer.name.max' => 'El nombre no puede exceder 255 caracteres.',
-            'newCustomer.identification.required' => 'La identificación es obligatoria.',
-            'newCustomer.identification.max' => 'La identificación no puede exceder 10 dígitos.',
-            'newCustomer.phone.required' => 'El teléfono es obligatorio.',
-            'newCustomer.phone.max' => 'El teléfono no puede exceder 20 caracteres.',
-            'newCustomer.email.email' => 'El email debe tener un formato válido.',
-            'newCustomer.email.max' => 'El email no puede exceder 255 caracteres.',
-            'newCustomer.address.max' => 'La dirección no puede exceder 500 caracteres.',
-        ];
-
-        if ($requiresElectronicInvoice) {
-            $rules['newCustomer.identificationDocumentId'] = 'required|exists:dian_identification_documents,id';
-            $rules['newCustomer.municipalityId'] = 'required|exists:dian_municipalities,factus_id';
-
-            $messages['newCustomer.identificationDocumentId.required'] = 'El tipo de documento es obligatorio para facturación electrónica.';
-            $messages['newCustomer.identificationDocumentId.exists'] = 'El tipo de documento seleccionado no es válido.';
-            $messages['newCustomer.municipalityId.required'] = 'El municipio es obligatorio para facturación electrónica.';
-            $messages['newCustomer.municipalityId.exists'] = 'El municipio seleccionado no es válido.';
-
-            if ($this->customerIsJuridicalPerson) {
-                $rules['newCustomer.company'] = 'required|string|max:255';
-                $messages['newCustomer.company.required'] = 'La razón social es obligatoria para personas jurídicas (NIT).';
-                $messages['newCustomer.company.max'] = 'La razón social no puede exceder 255 caracteres.';
-            }
-        }
-
-        $this->validate($rules, $messages);
-
-        $this->checkCustomerIdentification();
-        if ($this->customerIdentificationExists) {
-            $this->addError('newCustomer.identification', 'Esta identificación ya está registrada.');
-            return;
-        }
-
-        $this->creatingCustomer = true;
-
-        try {
-            $customer = Customer::create([
-                'name' => mb_strtoupper($this->newCustomer['name']),
-                'phone' => $this->newCustomer['phone'],
-                'email' => $this->newCustomer['email'] ?? null,
-                'address' => $this->newCustomer['address'] ?? null,
-                'is_active' => true,
-                'requires_electronic_invoice' => $requiresElectronicInvoice,
-            ]);
-
-            // Use default values when electronic invoice is not required
-            $municipalityId = $requiresElectronicInvoice
-                ? ($this->newCustomer['municipalityId'] ?? null)
-                : (\App\Models\CompanyTaxSetting::first()?->municipality_id
-                    ?? \App\Models\DianMunicipality::first()?->factus_id
-                    ?? 149); // Bogotá Factus ID as fallback
-
-            $taxProfileData = [
-                'identification' => $this->newCustomer['identification'],
-                'dv' => $this->newCustomer['dv'] ?? null,
-                'identification_document_id' => $requiresElectronicInvoice
-                    ? ($this->newCustomer['identificationDocumentId'] ?? null)
-                    : 3, // Default to CC (Cédula de Ciudadanía)
-                'legal_organization_id' => $requiresElectronicInvoice
-                    ? ($this->newCustomer['legalOrganizationId'] ?? null)
-                    : 2, // Default to Persona Natural
-                'tribute_id' => $requiresElectronicInvoice
-                    ? ($this->newCustomer['tributeId'] ?? null)
-                    : 21, // Default to No responsable de IVA
-                'municipality_id' => $municipalityId,
-                'company' => $requiresElectronicInvoice && $this->customerIsJuridicalPerson ? ($this->newCustomer['company'] ?? null) : null,
-                'trade_name' => $requiresElectronicInvoice ? ($this->newCustomer['tradeName'] ?? null) : null,
-            ];
-
-            $customer->taxProfile()->create($taxProfileData);
-
-            // Add customer to the list at the beginning (most recent first)
-            $newCustomerArray = [
-                'id' => $customer->id,
-                'name' => $customer->name,
-                'phone' => $customer->phone ?? 'S/N',
-                'email' => $customer->email ?? null,
-                'taxProfile' => $customer->taxProfile ? [
-                    'identification' => $customer->taxProfile->identification ?? 'S/N',
-                    'dv' => $customer->taxProfile->dv ?? null,
-                ] : null,
-            ];
-            
-            // Ensure customers array exists and prepend new customer
-            if (!is_array($this->customers)) {
-                $this->customers = [];
-            }
-            array_unshift($this->customers, $newCustomerArray);
-
-            // Select the newly created customer
-            $this->rentForm['customer_id'] = (string) $customer->id;
-            $this->customerId = (string) $customer->id;
-
-            // Reset form and close modal
-            $this->resetNewCustomerForm();
-            $this->newCustomerModalOpen = false;
-            $this->showCustomerDropdown = false;
-            $this->customerSearchTerm = '';
-
-            // Refresh customer select
-            $this->dispatch('notify', type: 'success', message: 'Cliente creado exitosamente.');
-        } catch (\Exception $e) {
-            \Log::error('Error creating customer: ' . $e->getMessage(), [
-                'exception' => $e,
-                'data' => $this->newCustomer
-            ]);
-            $this->addError('newCustomer.name', 'Error al crear el cliente. Por favor intente nuevamente.');
-        } finally {
-            $this->creatingCustomer = false;
-        }
-    }
-
-    public function openNewCustomerModal(): void
-    {
-        $this->newCustomerModalOpen = true;
-    }
-
-    public function closeNewCustomerModal(): void
-    {
-        $this->newCustomerModalOpen = false;
-        $this->resetNewCustomerForm();
-    }
-
-    private function resetNewCustomerForm(): void
-    {
-        $this->newCustomer = [
-            'name' => '',
-            'identification' => '',
-            'phone' => '',
-            'email' => '',
-            'address' => '',
-            'requiresElectronicInvoice' => false,
-            'identificationDocumentId' => '',
-            'dv' => '',
-            'company' => '',
-            'tradeName' => '',
-            'municipalityId' => '',
-            'legalOrganizationId' => '',
-            'tributeId' => ''
-        ];
-        $this->customerIdentificationMessage = '';
-        $this->customerIdentificationExists = false;
-        $this->customerRequiresDV = false;
-        $this->customerIsJuridicalPerson = false;
-    }
-
-    /**
-     * Customer selector methods
-     */
-    public function updatedCustomerSearchTerm($value): void
-    {
-        // Keep dropdown open when typing (debounced in view)
-        // No need to reload customers - filtering happens in computed property
-        $this->showCustomerDropdown = true;
-    }
-
-    public function openCustomerDropdown(): void
-    {
-        // Ensure customers are loaded before showing dropdown
-        if (empty($this->customers) || !is_array($this->customers)) {
-            $this->loadCustomers();
-        }
-        // Always show dropdown when clicked
-        $this->showCustomerDropdown = true;
-    }
-
-    public function closeCustomerDropdown(): void
-    {
-        $this->showCustomerDropdown = false;
-    }
-
-    public function selectCustomer($customerId): void
-    {
-        $this->rentForm['customer_id'] = (string) $customerId;
-        $this->customerId = (string) $customerId;
-        $this->customerSearchTerm = '';
-        $this->showCustomerDropdown = false;
-
-        // Add customer as first guest automatically if not already in list
-        $customer = collect($this->customers)->first(function($customer) use ($customerId) {
-            return (string)($customer['id'] ?? '') === (string)$customerId;
-        });
-
-        if ($customer) {
-            // Check if customer is already in guests list
-            $existingIndex = null;
-            foreach ($this->quickRentGuests as $index => $guest) {
-                if ((int)($guest['id'] ?? 0) === (int)$customerId) {
-                    $existingIndex = $index;
-                    break;
-                }
-            }
-
-            // If not in list, add as first guest
-            if ($existingIndex === null) {
-                $taxProfile = $customer['taxProfile'] ?? null;
-                $guestData = [
-                    'id' => (int)$customerId,
-                    'name' => $customer['name'] ?? '',
-                    'identification' => ($taxProfile && isset($taxProfile['identification'])) ? $taxProfile['identification'] : 'S/N',
-                    'phone' => $customer['phone'] ?? 'S/N',
-                    'email' => $customer['email'] ?? null,
-                ];
-                
-                // Add at position 0
-                array_unshift($this->quickRentGuests, $guestData);
-                $this->quickRentGuests = array_values($this->quickRentGuests);
-                
-                // Ensure we don't exceed max capacity
-                $maxCapacity = (int)($this->rentForm['max_capacity'] ?? 1);
-                if (count($this->quickRentGuests) > $maxCapacity) {
-                    $this->quickRentGuests = array_slice($this->quickRentGuests, 0, $maxCapacity);
-                }
-            } else {
-                // If already in list but not first, move to first position
-                if ($existingIndex > 0) {
-                    $guest = $this->quickRentGuests[$existingIndex];
-                    unset($this->quickRentGuests[$existingIndex]);
-                    array_unshift($this->quickRentGuests, $guest);
-                    $this->quickRentGuests = array_values($this->quickRentGuests);
-                }
-            }
-        }
-    }
-
-    public function addQuickRentGuest($customer, ?int $targetIndex = null): void
-    {
-        $maxCapacity = (int)($this->rentForm['max_capacity'] ?? 1);
-        $peopleCount = (int)($this->rentForm['people'] ?? 1);
-
-        // Check if already added
-        $customerId = (int)($customer['id'] ?? 0);
-        $existingIds = array_column($this->quickRentGuests, 'id');
-        if (in_array($customerId, $existingIds, true)) {
-            $this->addError('quickRentGuests', 'Este cliente ya está asignado como huésped.');
-            return;
-        }
-
-        // Validate against people count
-        if (count($this->quickRentGuests) >= $peopleCount) {
-            $this->addError('quickRentGuests', "Ya has asignado {$peopleCount} huésped(es). Aumenta la cantidad de personas para agregar más.");
-            return;
-        }
-
-        // Validate against max capacity
-        if (count($this->quickRentGuests) >= $maxCapacity) {
-            $this->addError('quickRentGuests', "La habitación ha alcanzado su capacidad máxima de {$maxCapacity} persona(s).");
-            return;
-        }
-
-        // Add guest
-        $taxProfile = $customer['taxProfile'] ?? null;
-        $guestData = [
-            'id' => $customerId,
-            'name' => $customer['name'] ?? '',
-            'identification' => ($taxProfile && isset($taxProfile['identification'])) ? $taxProfile['identification'] : 'S/N',
-            'phone' => $customer['phone'] ?? 'S/N',
-            'email' => $customer['email'] ?? null,
-        ];
-        
-        // Simply append the guest - the view will match by index in the @for loop
-        // We maintain sequential array (0, 1, 2, ...) so slots match correctly
-        $this->quickRentGuests[] = $guestData;
-        
-        // Ensure sequential indexing (this should already be the case, but be safe)
-        $this->quickRentGuests = array_values($this->quickRentGuests);
-        
-        // Clear any previous errors
-        $this->resetErrorBag('quickRentGuests');
-    }
-
-    public function removeQuickRentGuest($index): void
-    {
-        if (isset($this->quickRentGuests[$index])) {
-            unset($this->quickRentGuests[$index]);
-            $this->quickRentGuests = array_values($this->quickRentGuests);
-            
-            // Don't update people count automatically - let user control it
-            // If people count is greater than guests count, empty slots will be shown
-        }
-    }
-
-    public function addGuestToQuickRent($customerId, ?int $targetIndex = null): void
-    {
-        $customer = collect($this->customers)->first(function($customer) use ($customerId) {
-            return (string)($customer['id'] ?? '') === (string)$customerId;
-        });
-
-        if ($customer) {
-            $this->addQuickRentGuest($customer, $targetIndex);
-            $this->customerSearchTerm = '';
-            $this->showCustomerDropdown = false;
-        }
-    }
-
-    public function clearCustomerSelection(): void
-    {
-        $customerIdToRemove = (int)$this->customerId;
-        
-        $this->rentForm['customer_id'] = '';
-        $this->customerId = '';
-        $this->customerSearchTerm = '';
-        $this->showCustomerDropdown = false;
-        
-        // Remove customer from guests list if it exists
-        if ($customerIdToRemove > 0 && !empty($this->quickRentGuests)) {
-            $this->quickRentGuests = array_filter($this->quickRentGuests, function($guest) use ($customerIdToRemove) {
-                return (int)($guest['id'] ?? 0) !== $customerIdToRemove;
-            });
-            $this->quickRentGuests = array_values($this->quickRentGuests);
-        }
-    }
-
-    public function getFilteredCustomersProperty(): array
-    {
-        // Ensure customers are loaded
-        if (empty($this->customers) || !is_array($this->customers)) {
-            $this->loadCustomers();
-        }
-        
-        $allCustomers = is_array($this->customers) ? $this->customers : [];
-
-        // Get customer IDs that are already assigned as guests in active reservations for the selected date
-        $assignedGuestIds = $this->getAssignedGuestIdsForDate();
-
-        // Filter out already assigned guests
-        $availableCustomers = array_filter($allCustomers, function($customer) use ($assignedGuestIds) {
-            $customerId = (int)($customer['id'] ?? 0);
-            return !in_array($customerId, $assignedGuestIds, true);
-        });
-
-        // If no search term, return first 5 available customers
-        if (empty($this->customerSearchTerm)) {
-            return array_slice($availableCustomers, 0, 5);
-        }
-
-        $searchTerm = trim($this->customerSearchTerm);
-        if (empty($searchTerm)) {
-            return array_slice($availableCustomers, 0, 5);
-        }
-
-        $searchTermLower = mb_strtolower($searchTerm);
-        $filtered = [];
-        $limit = 20;
-
-        foreach ($availableCustomers as $customer) {
-            // Optimized: check most common fields first and use early returns
-            $name = $customer['name'] ?? '';
-            if (!empty($name) && str_contains(mb_strtolower($name), $searchTermLower)) {
-                $filtered[] = $customer;
-                if (count($filtered) >= $limit) {
-                    break;
-                }
-                continue;
-            }
-
-            $taxProfile = $customer['taxProfile'] ?? null;
-            $identification = ($taxProfile && isset($taxProfile['identification'])) ? $taxProfile['identification'] : '';
-            if (!empty($identification) && str_contains($identification, $searchTerm)) {
-                $filtered[] = $customer;
-                if (count($filtered) >= $limit) {
-                    break;
-                }
-                continue;
-            }
-
-            $phone = $customer['phone'] ?? '';
-            if (!empty($phone) && $phone !== 'S/N' && str_contains(mb_strtolower($phone), $searchTermLower)) {
-                $filtered[] = $customer;
-                if (count($filtered) >= $limit) {
-                    break;
-                }
-            }
-        }
-
-        return $filtered;
-    }
-
-    /**
-     * Get customer IDs that are already assigned as guests in active reservations for the selected date
-     */
-    private function getAssignedGuestIdsForDate(): array
-    {
-        try {
-            $date = Carbon::parse($this->date)->startOfDay();
-            // Use whereRaw with DATE() function for raw query builder
-            // whereDate() doesn't work with DB::table, so we use DATE() function
-            $dateString = $date->toDateString();
-            $guestIdsFromRoomGuests = DB::table('reservation_room_guests')
-                ->join('reservation_rooms', 'reservation_room_guests.reservation_room_id', '=', 'reservation_rooms.id')
-                ->join('reservations', 'reservation_rooms.reservation_id', '=', 'reservations.id')
-                ->whereRaw('DATE(reservations.check_in_date) <= ?', [$dateString])
-                ->whereRaw('DATE(reservations.check_out_date) > ?', [$dateString])
-                ->pluck('reservation_room_guests.customer_id')
-                ->unique()
-                ->toArray();
-
-            // Get guest IDs from reservation_guests (legacy structure)
-            $guestIdsFromReservations = DB::table('reservation_guests')
-                ->join('reservations', 'reservation_guests.reservation_id', '=', 'reservations.id')
-                ->whereRaw('DATE(reservations.check_in_date) <= ?', [$dateString])
-                ->whereRaw('DATE(reservations.check_out_date) > ?', [$dateString])
-                ->pluck('reservation_guests.customer_id')
-                ->unique()
-                ->toArray();
-
-            // Merge and return unique customer IDs
-            return array_values(array_unique(array_merge($guestIdsFromRoomGuests, $guestIdsFromReservations)));
-        } catch (\Exception $e) {
-            \Log::error('Error getting assigned guest IDs: ' . $e->getMessage());
-            return [];
-        }
     }
 }

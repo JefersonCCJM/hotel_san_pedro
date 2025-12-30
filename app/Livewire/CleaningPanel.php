@@ -321,8 +321,8 @@ class CleaningPanel extends Component
     public function onRoomStatusUpdated(int $roomId): void
     {
         // Cargar siempre para asegurar sincronización completa (evitamos estados obsoletos)
-        $this->loadRooms();
-
+            $this->loadRooms();
+        
         // Actualizar hash y cooldown (el polling se saltará durante el cooldown)
         $this->dataHash = $this->calculateDataHash();
         $this->lastEventUpdate = now()->timestamp;

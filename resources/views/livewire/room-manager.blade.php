@@ -32,20 +32,19 @@
                 </div>
             </div>
             
-            @if(Auth::user()->hasRole('Administrador'))
             <a href="{{ route('rooms.create') }}" 
+               wire:navigate
                class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-blue-600 bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 hover:border-blue-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-sm hover:shadow-md">
                 <i class="fas fa-plus mr-2"></i>
                 <span>Nueva Habitación</span>
             </a>
-            @endif
         </div>
     </div>
 
     <!-- 2. BLOQUE FILTROS -->
     <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
         <div class="space-y-6">
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                     <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Buscar</label>
                     <div class="relative">
@@ -73,6 +72,22 @@
                         </div>
                     </div>
                 </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Ventilación</label>
+                    <div class="relative">
+                        <select wire:model.live="ventilation_type"
+                                class="block w-full pl-3 pr-10 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white">
+                            <option value="">Todos los tipos</option>
+                            @foreach($ventilationTypes as $vt)
+                                <option value="{{ $vt->value }}">{{ $vt->label() }}</option>
+                            @endforeach
+                        </select>
+                        <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                            <i class="fas fa-chevron-down text-gray-400 text-xs"></i>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- BLOQUE CALENDARIO -->
@@ -93,7 +108,9 @@
 
                     <div class="lg:col-span-9 space-y-2">
                         <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">DÍAS DEL MES</label>
-                        <div class="overflow-x-auto pb-2 custom-scrollbar">
+
+                        <!-- Vista móvil: scroll horizontal -->
+                        <div class="lg:hidden overflow-x-auto pb-2 custom-scrollbar">
                             <div class="flex space-x-2 min-w-max">
                                 @foreach($daysInMonth as $day)
                                     @php 
@@ -101,10 +118,31 @@
                                         $isToday = $day->isToday();
                                     @endphp
                                     <button type="button" wire:click="changeDate('{{ $day->format('Y-m-d') }}')"
-                                        class="flex flex-col items-center justify-center min-w-[42px] h-14 rounded-xl transition-all border
-                                        {{ $isCurrent ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-gray-50 border-gray-100 text-gray-400 hover:border-blue-200 hover:text-blue-600' }}">
-                                        <span class="text-[8px] font-bold uppercase tracking-tighter">{{ substr($day->translatedFormat('D'), 0, 1) }}</span>
+                                        class="flex flex-col items-center justify-center min-w-[50px] h-14 rounded-xl transition-all border
+                                        {{ $isCurrent ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-gray-50 border-gray-100 text-gray-500 hover:border-blue-200 hover:text-blue-600' }}">
+                                        <span class="text-[9px] font-bold uppercase tracking-tight">{{ substr($day->translatedFormat('D'), 0, 1) }}</span>
                                         <span class="text-sm font-bold mt-0.5">{{ $day->day }}</span>
+                                        @if($isToday && !$isCurrent)
+                                            <span class="w-1 h-1 bg-blue-500 rounded-full mt-1"></span>
+                                        @endif
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+
+                        <!-- Vista desktop: grilla 7 columnas, sin scroll -->
+                        <div class="hidden lg:block">
+                            <div class="grid grid-cols-7 gap-1">
+                                @foreach($daysInMonth as $day)
+                                    @php 
+                                        $isCurrent = $day->isSameDay($currentDate);
+                                        $isToday = $day->isToday();
+                                    @endphp
+                                    <button type="button" wire:click="changeDate('{{ $day->format('Y-m-d') }}')"
+                                        class="flex flex-col items-center justify-center h-12 w-12 rounded-lg transition-all border
+                                        {{ $isCurrent ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-gray-50 border-gray-100 text-gray-500 hover:border-blue-200 hover:text-blue-600' }}">
+                                        <span class="text-[10px] font-bold uppercase tracking-tight leading-none">{{ substr($day->translatedFormat('D'), 0, 1) }}</span>
+                                        <span class="text-sm font-bold mt-0.5 leading-tight">{{ $day->day }}</span>
                                         @if($isToday && !$isCurrent)
                                             <span class="w-1 h-1 bg-blue-500 rounded-full mt-1"></span>
                                         @endif
@@ -127,6 +165,7 @@
                         <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Habitación</th>
                         <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
                         <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado de Limpieza</th>
+                        <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Ventilación</th>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Huésped Actual / Info</th>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Cuenta</th>
                         <th class="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
@@ -134,43 +173,53 @@
                 </thead>
                 <tbody class="divide-y divide-gray-200">
                     @forelse($rooms as $room)
-                    <tr wire:key="room-{{ $room['id'] }}-{{ $currentDate->format('Y-m-d') }}"
-                        class="{{ $room['display_status']->cardBgColor() }} transition-colors duration-150 group">
+                    <tr class="{{ $room->display_status->cardBgColor() }} transition-colors duration-150 group">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 <div class="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center mr-3 text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
                                     <i class="fas fa-door-closed"></i>
                                 </div>
-                                <div wire:click="openRoomDetail({{ $room['id'] }})" class="cursor-pointer">
-                                    <div class="text-sm font-semibold text-gray-900">Hab. {{ $room['room_number'] }}</div>
+                                <div wire:click="openRoomDetail({{ $room->id }})" class="cursor-pointer">
+                                    <div class="text-sm font-semibold text-gray-900">Hab. {{ $room->room_number }}</div>
                                     <div class="text-xs text-gray-500">
-                                        {{ $room['beds_count'] }} {{ $room['beds_count'] == 1 ? 'Cama' : 'Camas' }} • Cap. {{ $room['max_capacity'] }}
+                                        {{ $room->beds_count }} {{ $room->beds_count == 1 ? 'Cama' : 'Camas' }} • Cap. {{ $room->max_capacity }}
                                     </div>
                                 </div>
                             </div>
                         </td>
 
                         <td class="px-6 py-4 whitespace-nowrap text-center">
-                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {{ $room['display_status']->color() }}">
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {{ $room->display_status->color() }}">
                                 <span class="w-1.5 h-1.5 rounded-full mr-2" style="background-color: currentColor"></span>
-                                {{ $room['display_status']->label() }}
+                                {{ $room->display_status->label() }}
                             </span>
                         </td>
 
                         <td class="px-6 py-4 whitespace-nowrap text-center">
-                            @php($cleaning = $room['cleaning_status'])
+                            @php($cleaning = $room->cleaning_status)
                             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {{ $cleaning['color'] }}">
                                 <i class="fas {{ $cleaning['icon'] }} mr-1.5"></i>
                                 {{ $cleaning['label'] }}
                             </span>
                         </td>
 
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            @if($room->ventilation_type)
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
+                                    <i class="fas fa-wind mr-1.5"></i>
+                                    {{ $room->ventilation_label }}
+                                </span>
+                            @else
+                                <span class="text-xs text-gray-400 italic">No asignado</span>
+                            @endif
+                        </td>
+
                         <td class="px-6 py-4 whitespace-nowrap">
-                            @if(isset($room['current_reservation']) && $room['current_reservation'])
+                            @if(($room->display_status === \App\Enums\RoomStatus::OCUPADA || $room->display_status === \App\Enums\RoomStatus::PENDIENTE_CHECKOUT) && isset($room->current_reservation) && $room->current_reservation)
                                 <div class="flex flex-col">
-                                    <span class="text-sm font-semibold text-gray-900">{{ $room['current_reservation']->customer->name ?? 'N/A' }}</span>
+                                    <span class="text-sm font-semibold text-gray-900">{{ $room->current_reservation->customer->name ?? 'N/A' }}</span>
                                     <span class="text-xs text-blue-600 font-medium">
-                                        Salida: {{ \Carbon\Carbon::parse($room['current_reservation']->check_out_date)->format('d/m/Y') }}
+                                        Salida: {{ \Carbon\Carbon::parse($room->current_reservation->check_out_date)->format('d/m/Y') }}
                                     </span>
                                 </div>
                             @else
@@ -179,9 +228,9 @@
                         </td>
 
                         <td class="px-6 py-4 whitespace-nowrap">
-                            @if(isset($room['current_reservation']) && $room['current_reservation'])
+                            @if(($room->display_status === \App\Enums\RoomStatus::OCUPADA || $room->display_status === \App\Enums\RoomStatus::PENDIENTE_CHECKOUT) && isset($room->current_reservation) && $room->current_reservation)
                                 <div class="flex flex-col space-y-1">
-                                    @if($room['is_night_paid'])
+                                    @if($room->is_night_paid)
                                         <span class="inline-flex items-center w-fit px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
                                             <i class="fas fa-moon mr-1"></i> NOCHE PAGA
                                         </span>
@@ -191,10 +240,10 @@
                                         </span>
                                     @endif
 
-                                    @if($room['total_debt'] > 0)
+                                    @if($room->total_debt > 0)
                                         <div class="flex flex-col">
                                             <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Saldo Total</span>
-                                            <span class="text-sm font-bold text-red-700">${{ number_format($room['total_debt'], 0, ',', '.') }}</span>
+                                            <span class="text-sm font-bold text-red-700">${{ number_format($room->total_debt, 0, ',', '.') }}</span>
                                         </div>
                                     @else
                                         <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 w-fit">
@@ -204,7 +253,7 @@
                                 </div>
                             @else
                                 <div class="flex flex-col">
-                                    <span class="text-sm font-semibold text-gray-900">${{ number_format($room['active_prices'][1] ?? 0, 0, ',', '.') }}</span>
+                                    <span class="text-sm font-semibold text-gray-900">${{ number_format($room->active_prices[1] ?? 0, 0, ',', '.') }}</span>
                                     <span class="text-xs text-gray-400">precio base</span>
                                 </div>
                             @endif
@@ -218,76 +267,74 @@
                                     class="inline-flex items-center px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 text-xs font-bold uppercase tracking-wider shadow-sm hover:border-gray-300 hover:shadow transition">
                                     <span class="text-base">⋮</span>
                                     <span class="sr-only">Acciones</span>
-                                </button>
+                                    </button>
 
                                 <div x-show="open"
                                     x-transition
                                     @click.outside="open = false"
-                                    class="origin-top-right absolute right-0 mt-2 w-56 rounded-xl bg-white shadow-lg ring-1 ring-black ring-opacity-5 z-30 divide-y divide-gray-100">
+                                    class="origin-top-right absolute right-0 mt-2 w-52 rounded-xl bg-white shadow-lg ring-1 ring-black ring-opacity-5 z-30 divide-y divide-gray-100">
                                     <div class="py-1">
-                                        @if($room['display_status'] === \App\Enums\RoomStatus::LIBRE && (!$currentDate->isPast() || $currentDate->isToday()))
-                                            <button type="button"
-                                                wire:click="openQuickRent({{ $room['id'] }})"
-                                                wire:target="openQuickRent({{ $room['id'] }})"
-                                                wire:loading.attr="disabled"
-                                                class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed">
-                                                <i class="fas fa-key text-blue-600 mr-2"></i>
-                                                <span>Ocupar habitación</span>
-                                                <i class="fas fa-spinner fa-spin ml-auto text-xs" wire:loading wire:target="openQuickRent({{ $room['id'] }})"></i>
-                                            </button>
-                                            <button type="button"
-                                                wire:click="openQuickRent({{ $room['id'] }})"
-                                                wire:target="openQuickRent({{ $room['id'] }})"
-                                                wire:loading.attr="disabled"
-                                                class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed">
-                                                <i class="fas fa-calendar-check text-emerald-600 mr-2"></i>
-                                                <span>Reservar</span>
-                                            </button>
-                                        @endif
                                         <button type="button"
-                                            @click="confirmRelease({{ $room['id'] }}, '{{ $room['room_number'] }}', {{ $room['total_debt'] ?? 0 }}, {{ $room['current_reservation']->id ?? 'null' }})"
+                                            wire:click="openQuickRent({{ $room->id }})"
+                                            wire:target="openQuickRent({{ $room->id }})"
+                                            wire:loading.attr="disabled"
+                                            class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed">
+                                            <i class="fas fa-key text-blue-600 mr-2"></i>
+                                            <span>Ocupar habitación</span>
+                                            <i class="fas fa-spinner fa-spin ml-auto text-xs" wire:loading wire:target="openQuickRent({{ $room->id }})"></i>
+                                        </button>
+                                        <button type="button"
+                                            wire:click="openQuickRent({{ $room->id }})"
+                                            wire:target="openQuickRent({{ $room->id }})"
+                                            wire:loading.attr="disabled"
+                                            class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed">
+                                            <i class="fas fa-calendar-check text-emerald-600 mr-2"></i>
+                                            <span>Reservar</span>
+                                        </button>
+                                        <button type="button"
+                                            @click="confirmRelease({{ $room->id }}, '{{ $room->room_number }}', {{ $room->total_debt ?? 0 }}, {{ $room->current_reservation->id ?? 'null' }})"
                                             class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                                             <i class="fas fa-broom text-yellow-600 mr-2"></i>
                                             <span>Marcar limpieza / liberar</span>
-                                        </button>
+                                    </button>
                                     </div>
                                     <div class="py-1">
-                                        <a href="{{ route('rooms.edit', $room['id']) }}"
+                                        <a href="{{ route('rooms.edit', $room->id) }}"
                                            class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                                             <i class="fas fa-edit text-indigo-600 mr-2"></i>
                                             <span>Editar habitación</span>
                                         </a>
                                         <button type="button"
-                                            wire:click="openRoomDetail({{ $room['id'] }})"
-                                            wire:target="openRoomDetail({{ $room['id'] }})"
+                                            wire:click="openRoomDetail({{ $room->id }})"
+                                            wire:target="openRoomDetail({{ $room->id }})"
                                             wire:loading.attr="disabled"
                                             class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed">
                                             <i class="fas fa-history text-gray-600 mr-2"></i>
                                             <span>Ver historial</span>
-                                            <i class="fas fa-spinner fa-spin ml-auto text-xs" wire:loading wire:target="openRoomDetail({{ $room['id'] }})"></i>
+                                            <i class="fas fa-spinner fa-spin ml-auto text-xs" wire:loading wire:target="openRoomDetail({{ $room->id }})"></i>
                                         </button>
-                                        @if($room['display_status'] === \App\Enums\RoomStatus::PENDIENTE_CHECKOUT && isset($room['current_reservation']) && $room['current_reservation'])
+                                        @if($room->display_status === \App\Enums\RoomStatus::PENDIENTE_CHECKOUT && isset($room->current_reservation) && $room->current_reservation)
                                             <div class="flex">
                                                 <button type="button"
-                                                    wire:click="continueStay({{ $room['id'] }})"
-                                                    wire:target="continueStay({{ $room['id'] }})"
+                                                    wire:click="continueStay({{ $room->id }})"
+                                                    wire:target="continueStay({{ $room->id }})"
                                                     wire:loading.attr="disabled"
                                                     class="w-1/2 flex items-center px-4 py-2 text-sm text-emerald-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed">
                                                     <i class="fas fa-redo-alt mr-2"></i>
                                                     <span>Continuar</span>
-                                                    <i class="fas fa-spinner fa-spin ml-auto text-xs" wire:loading wire:target="continueStay({{ $room['id'] }})"></i>
+                                                    <i class="fas fa-spinner fa-spin ml-auto text-xs" wire:loading wire:target="continueStay({{ $room->id }})"></i>
                                                 </button>
                                                 <button type="button"
-                                                    wire:click="cancelReservation({{ $room['id'] }})"
-                                                    wire:target="cancelReservation({{ $room['id'] }})"
+                                                    wire:click="cancelReservation({{ $room->id }})"
+                                                    wire:target="cancelReservation({{ $room->id }})"
                                                     wire:loading.attr="disabled"
                                                     class="w-1/2 flex items-center px-4 py-2 text-sm text-red-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed">
                                                     <i class="fas fa-times mr-2"></i>
                                                     <span>Cancelar</span>
-                                                    <i class="fas fa-spinner fa-spin ml-auto text-xs" wire:loading wire:target="cancelReservation({{ $room['id'] }})"></i>
-                                                </button>
+                                                    <i class="fas fa-spinner fa-spin ml-auto text-xs" wire:loading wire:target="cancelReservation({{ $room->id }})"></i>
+                                    </button>
                                             </div>
-                                        @endif
+                                @endif
                                     </div>
                                 </div>
                             </div>

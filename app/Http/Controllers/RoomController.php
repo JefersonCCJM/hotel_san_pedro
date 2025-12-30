@@ -113,7 +113,8 @@ class RoomController extends Controller
      */
     public function create(): View
     {
-        return view('rooms.create');
+        $statuses = RoomStatus::cases();
+        return view('rooms.create', compact('statuses'));
     }
 
     /**
