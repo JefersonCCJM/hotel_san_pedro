@@ -1,16 +1,10 @@
-{{-- 
-    SINCRONIZACIÓN EN TIEMPO REAL:
-    - Mecanismo principal: Eventos Livewire (inmediatos cuando ambos componentes están montados)
-    - Mecanismo fallback: Polling cada 5s (garantiza sincronización ≤5s si el evento se pierde)
-    - NO se usan WebSockets para mantener simplicidad y evitar infraestructura adicional
-    - El polling es eficiente porque usa eager loading y no hace N+1 queries
---}}
+
 <div class="space-y-6" 
      wire:poll.5s="refreshRoomsPolling"
      x-data="{ 
-    quickRentModal: @entangle('quickRentModal'),
-        roomDetailModal: @entangle('roomDetailModal'),
-        showCreateCustomerModal: @entangle('showCreateCustomerModal'),
+    quickRentModal: <?php if ((object) ('quickRentModal') instanceof \Livewire\WireDirective) : ?>window.Livewire.find('<?php echo e($__livewire->getId()); ?>').entangle('<?php echo e('quickRentModal'->value()); ?>')<?php echo e('quickRentModal'->hasModifier('live') ? '.live' : ''); ?><?php else : ?>window.Livewire.find('<?php echo e($__livewire->getId()); ?>').entangle('<?php echo e('quickRentModal'); ?>')<?php endif; ?>,
+        roomDetailModal: <?php if ((object) ('roomDetailModal') instanceof \Livewire\WireDirective) : ?>window.Livewire.find('<?php echo e($__livewire->getId()); ?>').entangle('<?php echo e('roomDetailModal'->value()); ?>')<?php echo e('roomDetailModal'->hasModifier('live') ? '.live' : ''); ?><?php else : ?>window.Livewire.find('<?php echo e($__livewire->getId()); ?>').entangle('<?php echo e('roomDetailModal'); ?>')<?php endif; ?>,
+        showCreateCustomerModal: <?php if ((object) ('showCreateCustomerModal') instanceof \Livewire\WireDirective) : ?>window.Livewire.find('<?php echo e($__livewire->getId()); ?>').entangle('<?php echo e('showCreateCustomerModal'->value()); ?>')<?php echo e('showCreateCustomerModal'->hasModifier('live') ? '.live' : ''); ?><?php else : ?>window.Livewire.find('<?php echo e($__livewire->getId()); ?>').entangle('<?php echo e('showCreateCustomerModal'); ?>')<?php endif; ?>,
         actionsMenuOpen: null,
         actionsMenuPosition: { top: 0, right: 0 },
         init() {
@@ -50,7 +44,7 @@
                     <h1 class="text-xl sm:text-2xl font-bold text-gray-900">Gestión de Habitaciones</h1>
                     <div class="flex items-center space-x-2 mt-1">
                         <span class="text-xs sm:text-sm text-gray-500">
-                            <span class="font-semibold text-gray-900">{{ $rooms->total() }}</span> habitaciones registradas
+                            <span class="font-semibold text-gray-900"><?php echo e($rooms->total()); ?></span> habitaciones registradas
                         </span>
                         <span class="text-gray-300 hidden sm:inline">•</span>
                         <span class="text-xs sm:text-sm text-gray-500 hidden sm:inline">
@@ -60,7 +54,7 @@
                 </div>
             </div>
             
-            <a href="{{ route('rooms.create') }}" 
+            <a href="<?php echo e(route('rooms.create')); ?>" 
                wire:navigate
                class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-blue-600 bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 hover:border-blue-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-sm hover:shadow-md">
                 <i class="fas fa-plus mr-2"></i>
@@ -91,9 +85,9 @@
                         <select wire:model.live="status"
                                 class="block w-full pl-3 pr-10 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white">
                             <option value="">Todos los estados</option>
-                            @foreach($statuses as $s)
-                                <option value="{{ $s->value }}">{{ $s->label() }}</option>
-                            @endforeach
+                            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__currentLoopData = $statuses; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $s): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($s->value); ?>"><?php echo e($s->label()); ?></option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                         </select>
                         <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                             <i class="fas fa-chevron-down text-gray-400 text-xs"></i>
@@ -107,9 +101,9 @@
                         <select wire:model.live="ventilation_type"
                                 class="block w-full pl-3 pr-10 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white">
                             <option value="">Todos los tipos</option>
-                            @foreach($ventilationTypes as $vt)
-                                <option value="{{ $vt->value }}">{{ $vt->label() }}</option>
-                            @endforeach
+                            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__currentLoopData = $ventilationTypes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $vt): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($vt->value); ?>"><?php echo e($vt->label()); ?></option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                         </select>
                         <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                             <i class="fas fa-chevron-down text-gray-400 text-xs"></i>
@@ -124,11 +118,11 @@
                     <div class="lg:col-span-3 space-y-2">
                         <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">MES DE CONSULTA</label>
                         <div class="flex items-center bg-gray-50 border border-gray-200 rounded-xl p-1">
-                            <button wire:click="changeDate('{{ $currentDate->copy()->subMonth()->format('Y-m-d') }}')" class="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-400">
+                            <button wire:click="changeDate('<?php echo e($currentDate->copy()->subMonth()->format('Y-m-d')); ?>')" class="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-400">
                                 <i class="fas fa-chevron-left text-xs"></i>
                             </button>
-                            <span class="flex-1 text-center text-xs font-bold text-gray-700 uppercase tracking-tighter">{{ $currentDate->translatedFormat('F Y') }}</span>
-                            <button wire:click="changeDate('{{ $currentDate->copy()->addMonth()->format('Y-m-d') }}')" class="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-400">
+                            <span class="flex-1 text-center text-xs font-bold text-gray-700 uppercase tracking-tighter"><?php echo e($currentDate->translatedFormat('F Y')); ?></span>
+                            <button wire:click="changeDate('<?php echo e($currentDate->copy()->addMonth()->format('Y-m-d')); ?>')" class="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-400">
                                 <i class="fas fa-chevron-right text-xs"></i>
                             </button>
                         </div>
@@ -140,42 +134,42 @@
                         <!-- Vista móvil: scroll horizontal -->
                         <div class="lg:hidden overflow-x-auto pb-2 custom-scrollbar">
                             <div class="flex space-x-2 min-w-max">
-                                @foreach($daysInMonth as $day)
-                                    @php 
+                                <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__currentLoopData = $daysInMonth; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $day): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <?php 
                                         $isCurrent = $day->isSameDay($currentDate);
                                         $isToday = $day->isToday();
-                                    @endphp
-                                    <button type="button" wire:click="changeDate('{{ $day->format('Y-m-d') }}')"
+                                    ?>
+                                    <button type="button" wire:click="changeDate('<?php echo e($day->format('Y-m-d')); ?>')"
                                         class="flex flex-col items-center justify-center min-w-[50px] h-14 rounded-xl transition-all border
-                                        {{ $isCurrent ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-gray-50 border-gray-100 text-gray-500 hover:border-blue-200 hover:text-blue-600' }}">
-                                        <span class="text-[9px] font-bold uppercase tracking-tight">{{ substr($day->translatedFormat('D'), 0, 1) }}</span>
-                                        <span class="text-sm font-bold mt-0.5">{{ $day->day }}</span>
-                                        @if($isToday && !$isCurrent)
+                                        <?php echo e($isCurrent ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-gray-50 border-gray-100 text-gray-500 hover:border-blue-200 hover:text-blue-600'); ?>">
+                                        <span class="text-[9px] font-bold uppercase tracking-tight"><?php echo e(substr($day->translatedFormat('D'), 0, 1)); ?></span>
+                                        <span class="text-sm font-bold mt-0.5"><?php echo e($day->day); ?></span>
+                                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($isToday && !$isCurrent): ?>
                                             <span class="w-1 h-1 bg-blue-500 rounded-full mt-1"></span>
-                                        @endif
+                                        <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                                     </button>
-                                @endforeach
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                             </div>
                         </div>
 
                         <!-- Vista desktop: grilla 7 columnas, sin scroll -->
                         <div class="hidden lg:block">
                             <div class="grid grid-cols-7 gap-1">
-                                @foreach($daysInMonth as $day)
-                                    @php 
+                                <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__currentLoopData = $daysInMonth; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $day): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <?php 
                                         $isCurrent = $day->isSameDay($currentDate);
                                         $isToday = $day->isToday();
-                                    @endphp
-                                    <button type="button" wire:click="changeDate('{{ $day->format('Y-m-d') }}')"
+                                    ?>
+                                    <button type="button" wire:click="changeDate('<?php echo e($day->format('Y-m-d')); ?>')"
                                         class="flex flex-col items-center justify-center h-12 w-12 rounded-lg transition-all border
-                                        {{ $isCurrent ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-gray-50 border-gray-100 text-gray-500 hover:border-blue-200 hover:text-blue-600' }}">
-                                        <span class="text-[10px] font-bold uppercase tracking-tight leading-none">{{ substr($day->translatedFormat('D'), 0, 1) }}</span>
-                                        <span class="text-sm font-bold mt-0.5 leading-tight">{{ $day->day }}</span>
-                                        @if($isToday && !$isCurrent)
+                                        <?php echo e($isCurrent ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-gray-50 border-gray-100 text-gray-500 hover:border-blue-200 hover:text-blue-600'); ?>">
+                                        <span class="text-[10px] font-bold uppercase tracking-tight leading-none"><?php echo e(substr($day->translatedFormat('D'), 0, 1)); ?></span>
+                                        <span class="text-sm font-bold mt-0.5 leading-tight"><?php echo e($day->day); ?></span>
+                                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($isToday && !$isCurrent): ?>
                                             <span class="w-1 h-1 bg-blue-500 rounded-full mt-1"></span>
-                                        @endif
+                                        <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                                     </button>
-                                @endforeach
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -200,31 +194,33 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
-                    @forelse($rooms as $room)
-                    <tr class="{{ $room->display_status->cardBgColor() }} transition-colors duration-150 group">
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__empty_1 = true; $__currentLoopData = $rooms; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $room): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                    <tr class="<?php echo e($room->display_status->cardBgColor()); ?> transition-colors duration-150 group">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 <div class="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center mr-3 text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
                                     <i class="fas fa-door-closed"></i>
                                 </div>
-                                <div wire:click="openRoomDetail({{ $room->id }})" class="cursor-pointer">
-                                    <div class="text-sm font-semibold text-gray-900">Hab. {{ $room->room_number }}</div>
+                                <div wire:click="openRoomDetail(<?php echo e($room->id); ?>)" class="cursor-pointer">
+                                    <div class="text-sm font-semibold text-gray-900">Hab. <?php echo e($room->room_number); ?></div>
                                     <div class="text-xs text-gray-500">
-                                        {{ $room->beds_count }} {{ $room->beds_count == 1 ? 'Cama' : 'Camas' }} • Cap. {{ $room->max_capacity }}
+                                        <?php echo e($room->beds_count); ?> <?php echo e($room->beds_count == 1 ? 'Cama' : 'Camas'); ?> • Cap. <?php echo e($room->max_capacity); ?>
+
                                     </div>
                                 </div>
                             </div>
                         </td>
 
                         <td class="px-6 py-4 whitespace-nowrap text-center">
-                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {{ $room->display_status->color() }}">
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold <?php echo e($room->display_status->color()); ?>">
                                 <span class="w-1.5 h-1.5 rounded-full mr-2" style="background-color: currentColor"></span>
-                                {{ $room->display_status->label() }}
+                                <?php echo e($room->display_status->label()); ?>
+
                             </span>
                         </td>
 
                         <td class="px-6 py-4 whitespace-nowrap text-center">
-                            @php($cleaning = $room->cleaning_status)
+                            <?php($cleaning = $room->cleaning_status)
                             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {{ $cleaning['color'] }}">
                                 <i class="fas {{ $cleaning['icon'] }} mr-1.5"></i>
                                 {{ $cleaning['label'] }}
@@ -640,29 +636,39 @@
                                     $totalPeople = (int)($rentForm['people'] ?? 1) + $additionalGuestsCount;
                                     $maxCapacity = (int)($rentForm['max_capacity'] ?? 1);
                                     $remaining = $maxCapacity - $totalPeople;
-                                @endphp
-                                @if($totalPeople > $maxCapacity)
+                                ?>
+                                <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($totalPeople > $maxCapacity): ?>
                                     <p class="text-[10px] text-red-600 mt-1 flex items-center">
                                         <i class="fas fa-exclamation-circle mr-1 text-[8px]"></i>
-                                        Excede la capacidad máxima. Total: {{ $totalPeople }}/{{ $maxCapacity }}
+                                        Excede la capacidad máxima. Total: <?php echo e($totalPeople); ?>/<?php echo e($maxCapacity); ?>
+
                                     </p>
-                                @elseif($remaining > 0)
+                                <?php elseif($remaining > 0): ?>
                                     <p class="text-[10px] text-gray-500 mt-1">
                                         <i class="fas fa-info-circle mr-1 text-[8px]"></i>
-                                        Puede agregar {{ $remaining }} {{ $remaining == 1 ? 'persona más' : 'personas más' }}
+                                        Puede agregar <?php echo e($remaining); ?> <?php echo e($remaining == 1 ? 'persona más' : 'personas más'); ?>
+
                                     </p>
-                                @else
+                                <?php else: ?>
                                     <p class="text-[10px] text-emerald-600 mt-1">
                                         <i class="fas fa-check-circle mr-1 text-[8px]"></i>
-                                        Capacidad máxima alcanzada ({{ $totalPeople }}/{{ $maxCapacity }})
+                                        Capacidad máxima alcanzada (<?php echo e($totalPeople); ?>/<?php echo e($maxCapacity); ?>)
                                     </p>
-                                @endif
-                                @error('rentForm.people')
+                                <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                                <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__errorArgs = ['rentForm.people'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
                                     <p class="text-[10px] text-red-600 mt-1 flex items-center">
                                         <i class="fas fa-exclamation-circle mr-1 text-[8px]"></i>
-                                        {{ $message }}
+                                        <?php echo e($message); ?>
+
                                     </p>
-                                @enderror
+                                <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                             </div>
                             <div class="space-y-1.5">
                                 <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">CHECK-OUT</label>
@@ -681,28 +687,35 @@
                                     Agregar
                                 </button>
                             </div>
-                            @if(!empty($additionalGuests) && is_array($additionalGuests))
+                            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(!empty($additionalGuests) && is_array($additionalGuests)): ?>
                                 <div class="space-y-2 max-h-32 overflow-y-auto">
-                                    @foreach($additionalGuests as $index => $guest)
+                                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__currentLoopData = $additionalGuests; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $guest): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                         <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-200">
                                             <div class="flex-1">
-                                                <p class="text-xs font-bold text-gray-900">{{ $guest['name'] }}</p>
-                                                <p class="text-[10px] text-gray-500">ID: {{ $guest['identification'] }}</p>
+                                                <p class="text-xs font-bold text-gray-900"><?php echo e($guest['name']); ?></p>
+                                                <p class="text-[10px] text-gray-500">ID: <?php echo e($guest['identification']); ?></p>
                                             </div>
                                             <button type="button" 
-                                                    wire:click="removeGuest({{ $index }})"
+                                                    wire:click="removeGuest(<?php echo e($index); ?>)"
                                                     class="text-red-500 hover:text-red-700 ml-2">
                                                 <i class="fas fa-times text-xs"></i>
                                             </button>
                                         </div>
-                                    @endforeach
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                                 </div>
-                            @else
+                            <?php else: ?>
                                 <p class="text-[10px] text-gray-400 italic">No hay huéspedes adicionales registrados</p>
-                            @endif
-                            @error('additionalGuests')
-                                <p class="text-[10px] text-red-600 mt-1">{{ $message }}</p>
-                            @enderror
+                            <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__errorArgs = ['additionalGuests'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                                <p class="text-[10px] text-red-600 mt-1"><?php echo e($message); ?></p>
+                            <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                         </div>
 
                         <div class="grid grid-cols-2 gap-4 p-6 bg-gray-50 rounded-2xl border border-gray-100">
@@ -766,13 +779,28 @@
                                maxlength="255"
                                required
                                pattern="[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s\.\-]{2,255}"
-                               class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold uppercase mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('newCustomer.name') border-red-300 focus:ring-red-500 focus:border-red-500 @enderror">
-                        @error('newCustomer.name')
+                               class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold uppercase mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 <?php $__errorArgs = ['newCustomer.name'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> border-red-300 focus:ring-red-500 focus:border-red-500 <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>">
+                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__errorArgs = ['newCustomer.name'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
                             <p class="text-[10px] text-red-600 mt-1 flex items-center">
                                 <i class="fas fa-exclamation-circle mr-1 text-[8px]"></i>
-                                {{ $message }}
+                                <?php echo e($message); ?>
+
                             </p>
-                        @enderror
+                        <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">
@@ -786,13 +814,28 @@
                                    required
                                    pattern="\d{6,10}"
                                    placeholder="6-10 dígitos"
-                                   class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('newCustomer.identification') border-red-300 focus:ring-red-500 focus:border-red-500 @enderror">
-                            @error('newCustomer.identification')
+                                   class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 <?php $__errorArgs = ['newCustomer.identification'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> border-red-300 focus:ring-red-500 focus:border-red-500 <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>">
+                            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__errorArgs = ['newCustomer.identification'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
                                 <p class="text-[10px] text-red-600 mt-1 flex items-center">
                                     <i class="fas fa-exclamation-circle mr-1 text-[8px]"></i>
-                                    {{ $message }}
+                                    <?php echo e($message); ?>
+
                                 </p>
-                            @enderror
+                            <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                         </div>
                         <div>
                             <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Teléfono</label>
@@ -802,13 +845,28 @@
                                    maxlength="10"
                                    pattern="\d{10}"
                                    placeholder="10 dígitos"
-                                   class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('newCustomer.phone') border-red-300 focus:ring-red-500 focus:border-red-500 @enderror">
-                            @error('newCustomer.phone')
+                                   class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 <?php $__errorArgs = ['newCustomer.phone'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> border-red-300 focus:ring-red-500 focus:border-red-500 <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>">
+                            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__errorArgs = ['newCustomer.phone'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
                                 <p class="text-[10px] text-red-600 mt-1 flex items-center">
                                     <i class="fas fa-exclamation-circle mr-1 text-[8px]"></i>
-                                    {{ $message }}
+                                    <?php echo e($message); ?>
+
                                 </p>
-                            @enderror
+                            <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                         </div>
                     </div>
 
@@ -820,13 +878,28 @@
                                maxlength="255"
                                pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
                                placeholder="usuario@dominio.com"
-                               class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('newCustomer.email') border-red-300 focus:ring-red-500 focus:border-red-500 @enderror">
-                        @error('newCustomer.email')
+                               class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 <?php $__errorArgs = ['newCustomer.email'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> border-red-300 focus:ring-red-500 focus:border-red-500 <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>">
+                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__errorArgs = ['newCustomer.email'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
                             <p class="text-[10px] text-red-600 mt-1 flex items-center">
                                 <i class="fas fa-exclamation-circle mr-1 text-[8px]"></i>
-                                {{ $message }}
+                                <?php echo e($message); ?>
+
                             </p>
-                        @enderror
+                        <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                     </div>
                 </div>
 
@@ -863,7 +936,7 @@
         </div>
     </div>
 
-    @push('scripts')
+    <?php $__env->startPush('scripts'); ?>
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script>
         document.addEventListener('livewire:init', () => {
@@ -888,7 +961,7 @@
                         load: (query, callback) => {
                             fetch(`/api/products/search?q=${encodeURIComponent(query)}`).then(r => r.json()).then(j => callback(j.results)).catch(() => callback());
                         },
-                        onChange: (val) => { @this.set('newSale.product_id', val); },
+                        onChange: (val) => { window.Livewire.find('<?php echo e($_instance->getId()); ?>').set('newSale.product_id', val); },
                         render: {
                             option: (i, e) => `
                                 <div class="px-4 py-2 border-b border-gray-50 flex justify-between items-center hover:bg-blue-50 transition-colors">
@@ -925,7 +998,7 @@
                         },
                         onChange: (val) => { 
                             if (val) {
-                                @this.set('rentForm.customer_id', val);
+                                window.Livewire.find('<?php echo e($_instance->getId()); ?>').set('rentForm.customer_id', val);
                             }
                         },
                         render: {
@@ -1001,7 +1074,7 @@
                         }).then((payResult) => {
                             if (payResult.isConfirmed || payResult.isDenied) {
                                 const method = payResult.isConfirmed ? 'efectivo' : 'transferencia';
-                                @this.payEverything(validReservationId, method).then(() => {
+                                window.Livewire.find('<?php echo e($_instance->getId()); ?>').payEverything(validReservationId, method).then(() => {
                                     showReleaseOptions(roomId, roomNumber);
                                 });
                             }
@@ -1016,7 +1089,7 @@
         }
 
         function showReleaseOptions(roomId, roomNumber) {
-            const livewireComponent = @this;
+            const livewireComponent = window.Livewire.find('<?php echo e($_instance->getId()); ?>');
             
             Swal.fire({
                 title: 'Liberar Habitación #' + roomNumber,
@@ -1059,7 +1132,7 @@
                 customClass: { popup: 'rounded-2xl', confirmButton: 'rounded-xl', denyButton: 'rounded-xl' }
             }).then((result) => {
                 if (result.isConfirmed || result.isDenied) {
-                    @this.paySale(saleId, result.isConfirmed ? 'efectivo' : 'transferencia');
+                    window.Livewire.find('<?php echo e($_instance->getId()); ?>').paySale(saleId, result.isConfirmed ? 'efectivo' : 'transferencia');
                 }
             });
         }
@@ -1072,7 +1145,7 @@
                 confirmButtonColor: '#ef4444',
                 customClass: { popup: 'rounded-2xl', confirmButton: 'rounded-xl', cancelButton: 'rounded-xl' }
             }).then((result) => {
-                if (result.isConfirmed) { @this.paySale(saleId, 'pendiente'); }
+                if (result.isConfirmed) { window.Livewire.find('<?php echo e($_instance->getId()); ?>').paySale(saleId, 'pendiente'); }
             });
         }
 
@@ -1090,7 +1163,7 @@
             }).then((result) => {
                 if (result.isConfirmed || result.isDenied) {
                     const method = result.isConfirmed ? 'efectivo' : 'transferencia';
-                    @this.payNight(reservationId, amount, method);
+                    window.Livewire.find('<?php echo e($_instance->getId()); ?>').payNight(reservationId, amount, method);
                 }
             });
         }
@@ -1107,7 +1180,7 @@
                 customClass: { popup: 'rounded-2xl', confirmButton: 'rounded-xl', cancelButton: 'rounded-xl' }
             }).then((result) => {
                 if (result.isConfirmed) {
-                    @this.revertNightPayment(reservationId, amount);
+                    window.Livewire.find('<?php echo e($_instance->getId()); ?>').revertNightPayment(reservationId, amount);
                 }
             });
         }
@@ -1119,10 +1192,11 @@
                 showCancelButton: true, confirmButtonText: 'Actualizar', confirmButtonColor: '#10b981',
                 customClass: { popup: 'rounded-2xl', confirmButton: 'rounded-xl', cancelButton: 'rounded-xl' }
             }).then((result) => {
-                if (result.isConfirmed) { @this.updateDeposit(reservationId, result.value); }
+                if (result.isConfirmed) { window.Livewire.find('<?php echo e($_instance->getId()); ?>').updateDeposit(reservationId, result.value); }
             });
         }
     </script>
-    @endpush
+    <?php $__env->stopPush(); ?>
 </div>
 
+<?php /**PATH C:\Users\crist\Documents\aparte\hotel_san_pedro\resources\views/livewire/room-manager.blade.php ENDPATH**/ ?>

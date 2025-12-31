@@ -152,8 +152,35 @@
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center gap-3">
                             <div class="text-sm font-black {{ $product->quantity <= 5 ? 'text-rose-600' : 'text-gray-900' }}">
                                 {{ $product->quantity }} unidades
+                                </div>
+                                @can('edit_products')
+                                    <div class="inline-flex items-center rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+                                        <button
+                                            type="button"
+                                            wire:click="decreaseStock({{ $product->id }})"
+                                            wire:loading.attr="disabled"
+                                            class="px-2.5 py-1.5 text-xs font-black text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                                            title="Disminuir stock"
+                                            aria-label="Disminuir stock"
+                                        >
+                                            <i class="fas fa-minus"></i>
+                                        </button>
+                                        <div class="w-px h-7 bg-gray-200"></div>
+                                        <button
+                                            type="button"
+                                            wire:click="increaseStock({{ $product->id }})"
+                                            wire:loading.attr="disabled"
+                                            class="px-2.5 py-1.5 text-xs font-black text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                                            title="Aumentar stock"
+                                            aria-label="Aumentar stock"
+                                        >
+                                            <i class="fas fa-plus"></i>
+                                        </button>
+                                    </div>
+                                @endcan
                             </div>
                             @if($product->quantity <= 5 && $product->quantity > 0)
                                 <div class="text-[10px] text-rose-500 font-bold uppercase tracking-tighter mt-0.5">Stock bajo</div>

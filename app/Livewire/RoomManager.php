@@ -8,6 +8,8 @@ use App\Models\Room;
 use App\Models\Reservation;
 use App\Models\ReservationSale;
 use App\Models\Product;
+use App\Models\Customer;
+use App\Models\CustomerTaxProfile;
 use App\Enums\RoomStatus;
 use App\Enums\VentilationType;
 use Carbon\Carbon;
@@ -49,6 +51,18 @@ class RoomManager extends Component
         'check_out' => '',
         'payment_method' => 'efectivo'
     ];
+
+    // Create customer modal
+    public $showCreateCustomerModal = false;
+    public $newCustomer = [
+        'name' => '',
+        'identification' => '',
+        'phone' => '',
+        'email' => ''
+    ];
+
+    // Additional guests
+    public $additionalGuests = [];
 
     // Add consumption form
     public $newSale = [
@@ -539,6 +553,10 @@ class RoomManager extends Component
             'customer_id' => ''
         ];
 
+        $this->additionalGuests = [];
+        $this->newCustomer = ['name' => '', 'identification' => '', 'phone' => '', 'email' => ''];
+        $this->showCreateCustomerModal = false;
+
         $this->quickRentModal = true;
         $this->dispatch('quickRentOpened');
     }
@@ -547,7 +565,21 @@ class RoomManager extends Component
     {
         if (in_array($key, ['people', 'check_out'])) {
             $p = (int)$this->rentForm['people'];
-            $basePrice = $this->rentForm['prices'][$p] ?? ($this->rentForm['prices'][$this->rentForm['max_capacity']] ?? 0);
+            $maxCapacity = (int)($this->rentForm['max_capacity'] ?? 1);
+            
+            // Ensure people doesn't exceed capacity
+            if ($p > $maxCapacity) {
+                $this->rentForm['people'] = $maxCapacity;
+                $p = $maxCapacity;
+            }
+            
+            // Ensure people is at least 1
+            if ($p < 1) {
+                $this->rentForm['people'] = 1;
+                $p = 1;
+            }
+            
+            $basePrice = $this->rentForm['prices'][$p] ?? ($this->rentForm['prices'][$maxCapacity] ?? 0);
             $start = Carbon::parse($this->date);
             $end = Carbon::parse($this->rentForm['check_out']);
             $diffDays = max(1, $start->diffInDays($end));
@@ -557,16 +589,36 @@ class RoomManager extends Component
 
     public function storeQuickRent()
     {
+        // Calculate total people (principal + additional guests)
+        $totalPeople = (int)($this->rentForm['people'] ?? 1) + count($this->additionalGuests);
+        $maxCapacity = (int)($this->rentForm['max_capacity'] ?? 1);
+
         $this->validate([
             'rentForm.customer_id' => 'required|exists:customers,id',
-            'rentForm.people' => 'required|integer|min:1|max:'.$this->rentForm['max_capacity'],
+            'rentForm.people' => [
+                'required',
+                'integer',
+                'min:1',
+                'max:'.$maxCapacity,
+            ],
             'rentForm.check_out' => 'required|date|after:'.$this->date,
             'rentForm.total' => 'required|numeric|min:0',
             'rentForm.deposit' => 'required|numeric|min:0',
             'rentForm.payment_method' => 'required|in:efectivo,transferencia',
-        ], [], [
+        ], [
+            'rentForm.people.max' => "El número de personas no puede exceder la capacidad máxima de la habitación ({$maxCapacity} personas).",
+            'rentForm.people.min' => 'Debe haber al menos 1 persona.',
+            'rentForm.people.required' => 'El número de personas es obligatorio.',
+            'rentForm.people.integer' => 'El número de personas debe ser un número entero.',
+        ], [
             'rentForm.check_out' => 'fecha de salida',
         ]);
+
+        // Validate total people (principal + additional guests) doesn't exceed capacity
+        if ($totalPeople > $maxCapacity) {
+            $this->addError('rentForm.people', "El total de personas (principal + huéspedes adicionales: {$totalPeople}) excede la capacidad máxima de la habitación ({$maxCapacity} personas).");
+            return;
+        }
 
         $checkInDate = Carbon::parse($this->date);
         if ($checkInDate->isBefore(now()->startOfDay())) {
@@ -579,7 +631,7 @@ class RoomManager extends Component
 
         // Create reservation within transaction for atomicity
         $reservation = DB::transaction(function() {
-            return Reservation::create([
+            $reservation = Reservation::create([
                 'room_id' => $this->rentForm['room_id'],
                 'customer_id' => $this->rentForm['customer_id'],
                 'check_in_date' => $this->date,
@@ -592,6 +644,19 @@ class RoomManager extends Component
                 'is_paid' => $this->rentForm['deposit'] >= $this->rentForm['total'],
                 'status' => 'confirmed'
             ]);
+
+            // Attach additional guests if provided
+            if (!empty($this->additionalGuests)) {
+                $guestIds = array_filter(
+                    array_column($this->additionalGuests, 'customer_id'),
+                    fn($id) => !empty($id) && is_numeric($id)
+                );
+                if (!empty($guestIds)) {
+                    $reservation->guests()->attach($guestIds);
+                }
+            }
+
+            return $reservation;
         });
         
         // Dispatch notifications first (non-blocking)
@@ -678,6 +743,187 @@ class RoomManager extends Component
         
         // Solo ejecutar polling si realmente no hubo evento reciente (fallback real)
         $this->refreshRooms();
+    }
+
+    public function createCustomer()
+    {
+        $this->validate([
+            'newCustomer.name' => [
+                'required',
+                'string',
+                'min:2',
+                'max:255',
+                'regex:/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s\.\-]+$/',
+            ],
+            'newCustomer.identification' => [
+                'required',
+                'string',
+                'min:6',
+                'max:20',
+                'regex:/^\d{6,10}$/',
+            ],
+            'newCustomer.phone' => [
+                'nullable',
+                'string',
+                'regex:/^\d{10}$/',
+                'max:20',
+            ],
+            'newCustomer.email' => [
+                'nullable',
+                'string',
+                'max:255',
+                'email',
+                'regex:/^[^\s@]+@[^\s@]+\.[^\s@]+$/',
+            ],
+        ], [
+            'newCustomer.name.required' => 'El nombre es obligatorio.',
+            'newCustomer.name.min' => 'El nombre debe tener al menos 2 caracteres.',
+            'newCustomer.name.max' => 'El nombre no puede exceder 255 caracteres.',
+            'newCustomer.name.regex' => 'El nombre solo puede contener letras, espacios y caracteres especiales (á, é, í, ó, ú, ñ).',
+            'newCustomer.identification.required' => 'La identificación es obligatoria.',
+            'newCustomer.identification.min' => 'La identificación debe tener al menos 6 dígitos.',
+            'newCustomer.identification.max' => 'La identificación no puede exceder 20 caracteres.',
+            'newCustomer.identification.regex' => 'La identificación debe tener entre 6 y 10 dígitos numéricos.',
+            'newCustomer.phone.regex' => 'El teléfono debe tener exactamente 10 dígitos numéricos.',
+            'newCustomer.phone.max' => 'El teléfono no puede exceder 20 caracteres.',
+            'newCustomer.email.email' => 'El correo electrónico debe tener un formato válido (ejemplo: usuario@dominio.com).',
+            'newCustomer.email.regex' => 'El correo electrónico debe contener un símbolo @ y un dominio válido.',
+            'newCustomer.email.max' => 'El correo electrónico no puede exceder 255 caracteres.',
+        ], [
+            'newCustomer.name' => 'nombre',
+            'newCustomer.identification' => 'identificación',
+            'newCustomer.phone' => 'teléfono',
+            'newCustomer.email' => 'correo electrónico',
+        ]);
+
+        // Sanitize data before saving
+        $sanitizedName = trim(mb_strtoupper($this->newCustomer['name']));
+        $sanitizedPhone = !empty($this->newCustomer['phone']) ? trim($this->newCustomer['phone']) : null;
+        $sanitizedEmail = !empty($this->newCustomer['email']) ? trim(mb_strtolower($this->newCustomer['email'])) : null;
+
+        $customer = DB::transaction(function() use ($sanitizedName, $sanitizedPhone, $sanitizedEmail) {
+            $customer = Customer::create([
+                'name' => $sanitizedName,
+                'phone' => $sanitizedPhone,
+                'email' => $sanitizedEmail,
+                'is_active' => true,
+            ]);
+
+            // Note: CustomerTaxProfile requires identification_document_id and municipality_id
+            // which are not available in the quick rent modal. The tax profile can be
+            // completed later through the customer edit form if needed.
+
+            return $customer;
+        });
+
+        $this->rentForm['customer_id'] = (string) $customer->id;
+        $this->showCreateCustomerModal = false;
+        $this->newCustomer = ['name' => '', 'identification' => '', 'phone' => '', 'email' => ''];
+        $this->dispatch('notify', type: 'success', message: 'Cliente creado exitosamente.');
+        $this->dispatch('customerCreated', ['customerId' => $customer->id]);
+    }
+
+    public function addGuest()
+    {
+        $this->validate([
+            'newCustomer.name' => [
+                'required',
+                'string',
+                'min:2',
+                'max:255',
+                'regex:/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s\.\-]+$/',
+            ],
+            'newCustomer.identification' => [
+                'nullable',
+                'string',
+                'max:20',
+                'regex:/^\d{6,10}$/',
+            ],
+            'newCustomer.phone' => [
+                'nullable',
+                'string',
+                'regex:/^\d{10}$/',
+                'max:20',
+            ],
+            'newCustomer.email' => [
+                'nullable',
+                'string',
+                'max:255',
+                'email',
+                'regex:/^[^\s@]+@[^\s@]+\.[^\s@]+$/',
+            ],
+        ], [
+            'newCustomer.name.required' => 'El nombre es obligatorio.',
+            'newCustomer.name.min' => 'El nombre debe tener al menos 2 caracteres.',
+            'newCustomer.name.max' => 'El nombre no puede exceder 255 caracteres.',
+            'newCustomer.name.regex' => 'El nombre solo puede contener letras, espacios y caracteres especiales (á, é, í, ó, ú, ñ).',
+            'newCustomer.identification.regex' => 'La identificación debe tener entre 6 y 10 dígitos numéricos.',
+            'newCustomer.identification.max' => 'La identificación no puede exceder 20 caracteres.',
+            'newCustomer.phone.regex' => 'El teléfono debe tener exactamente 10 dígitos numéricos.',
+            'newCustomer.phone.max' => 'El teléfono no puede exceder 20 caracteres.',
+            'newCustomer.email.email' => 'El correo electrónico debe tener un formato válido (ejemplo: usuario@dominio.com).',
+            'newCustomer.email.regex' => 'El correo electrónico debe contener un símbolo @ y un dominio válido.',
+            'newCustomer.email.max' => 'El correo electrónico no puede exceder 255 caracteres.',
+        ], [
+            'newCustomer.name' => 'nombre',
+            'newCustomer.identification' => 'identificación',
+            'newCustomer.phone' => 'teléfono',
+            'newCustomer.email' => 'correo electrónico',
+        ]);
+
+        // Calculate total people (principal + additional guests + new guest)
+        $principalPeople = (int)($this->rentForm['people'] ?? 1);
+        $currentAdditionalCount = count($this->additionalGuests);
+        $maxCapacity = (int)($this->rentForm['max_capacity'] ?? 1);
+        $totalAfterAdd = $principalPeople + $currentAdditionalCount + 1;
+
+        if ($totalAfterAdd > $maxCapacity) {
+            $remaining = $maxCapacity - ($principalPeople + $currentAdditionalCount);
+            $this->addError('additionalGuests', "No se pueden agregar más huéspedes. La capacidad máxima es {$maxCapacity} personas. Puede agregar máximo {$remaining} " . ($remaining == 1 ? 'persona más' : 'personas más') . ".");
+            return;
+        }
+
+        // Sanitize data before saving
+        $sanitizedName = trim(mb_strtoupper($this->newCustomer['name']));
+        $sanitizedPhone = !empty($this->newCustomer['phone']) ? trim($this->newCustomer['phone']) : null;
+        $sanitizedEmail = !empty($this->newCustomer['email']) ? trim(mb_strtolower($this->newCustomer['email'])) : null;
+
+        // Create customer for guest if identification provided, otherwise use temporary data
+        $guestCustomerId = null;
+        if (!empty($this->newCustomer['identification'])) {
+            $customer = Customer::firstOrCreate(
+                ['name' => $sanitizedName],
+                [
+                    'phone' => $sanitizedPhone,
+                    'email' => $sanitizedEmail,
+                    'is_active' => true,
+                ]
+            );
+
+            // Note: CustomerTaxProfile requires identification_document_id and municipality_id
+            // which are not available in the quick rent modal. The tax profile can be
+            // completed later through the customer edit form if needed.
+
+            $guestCustomerId = $customer->id;
+        }
+
+        $this->additionalGuests[] = [
+            'name' => $sanitizedName,
+            'identification' => !empty($this->newCustomer['identification']) ? trim($this->newCustomer['identification']) : 'S/N',
+            'phone' => $sanitizedPhone ?? 'S/N',
+            'customer_id' => $guestCustomerId,
+        ];
+
+        $this->newCustomer = ['name' => '', 'identification' => '', 'phone' => '', 'email' => ''];
+        $this->showCreateCustomerModal = false;
+    }
+
+    public function removeGuest($index)
+    {
+        if (isset($this->additionalGuests[$index])) {
+            unset($this->additionalGuests[$index]);
+            $this->additionalGuests = array_values($this->additionalGuests);
+        }
     }
 
     /**

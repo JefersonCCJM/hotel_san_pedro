@@ -112,7 +112,6 @@ Route::middleware('auth')->group(function () {
     // Productos (Inventario) - Resource route with rate limiting
     Route::get('/api/products/search', [\App\Http\Controllers\ProductController::class, 'search'])->name('api.products.search');
     Route::get('/products/history', \App\Livewire\InventoryHistory::class)->name('products.history');
-    Route::get('/products/adjustments', \App\Livewire\InventoryAdjustment::class)->name('products.adjustments');
     Route::resource('products', ProductController::class)->middleware('throttle:60,1');
 
     // Ventas - Rutas específicas primero para evitar conflictos con parámetros

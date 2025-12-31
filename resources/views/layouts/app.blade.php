@@ -100,10 +100,6 @@
                         <i class="fas fa-history w-5 text-center"></i>
                         <span class="ml-3">Historial</span>
                     </a>
-                    <a href="{{ route('products.adjustments') }}" @click="sidebarOpen = false" class="flex items-center px-4 py-2 text-sm text-gray-400 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('products.adjustments') ? 'text-white font-bold' : '' }}">
-                        <i class="fas fa-exchange-alt w-5 text-center"></i>
-                        <span class="ml-3">Movimientos</span>
-                    </a>
                 </div>
                 @endif
                 @endcan

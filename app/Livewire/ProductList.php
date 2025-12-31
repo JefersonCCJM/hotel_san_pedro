@@ -39,6 +39,47 @@ class ProductList extends Component
         session()->flash('success', 'Producto eliminado exitosamente.');
     }
 
+    public function increaseStock(int $productId): void
+    {
+        abort_unless(auth()->check() && auth()->user()?->can('edit_products'), 403, 'No tiene permisos para ajustar stock.');
+
+        if ($productId <= 0) {
+            throw new \DomainException('ID de producto inválido.');
+        }
+
+        $product = Product::query()->findOrFail($productId);
+
+        DB::transaction(function () use ($product): void {
+            $product->recordMovement(1, 'adjustment', 'Ajuste rápido (+1) desde Gestión de Inventario');
+        });
+
+        app(\App\Repositories\ProductRepository::class)->clearCache();
+        session()->flash('success', 'Stock actualizado (+1).');
+    }
+
+    public function decreaseStock(int $productId): void
+    {
+        abort_unless(auth()->check() && auth()->user()?->can('edit_products'), 403, 'No tiene permisos para ajustar stock.');
+
+        if ($productId <= 0) {
+            throw new \DomainException('ID de producto inválido.');
+        }
+
+        $product = Product::query()->findOrFail($productId);
+
+        if ((int) $product->quantity < 1) {
+            session()->flash('error', 'Stock insuficiente para disminuir. Disponible: ' . (int) $product->quantity);
+            return;
+        }
+
+        DB::transaction(function () use ($product): void {
+            $product->recordMovement(-1, 'adjustment', 'Ajuste rápido (-1) desde Gestión de Inventario');
+        });
+
+        app(\App\Repositories\ProductRepository::class)->clearCache();
+        session()->flash('success', 'Stock actualizado (-1).');
+    }
+
     public function render()
     {
         $query = Product::with('category');

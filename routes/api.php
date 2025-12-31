@@ -72,6 +72,9 @@ Route::get('/customers/search', function (Request $request) {
                   $subQ->where('identification', 'like', "%{$term}%");
               });
         });
+    } elseif (strlen($term) === 0) {
+        // Return first 5 customers when no search term (for initial load)
+        $query->limit(5);
     }
 
     $customers = $query->orderBy('name')->limit(50)->get()->map(function ($customer) {
