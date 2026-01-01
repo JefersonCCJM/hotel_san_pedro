@@ -218,64 +218,12 @@
     });
 
     function confirmRelease(roomId, roomNumber, totalDebt, reservationId) {
-        // Use parameters passed directly from the button click
-        const hasDebt = totalDebt && totalDebt > 0;
-        const validReservationId = reservationId && reservationId !== 'null' ? reservationId : null;
-
-        if (hasDebt && validReservationId) {
-            window.dispatchEvent(new CustomEvent('open-confirm-modal', {
-                detail: {
-                    title: '¡Habitación con Deuda!',
-                    html: `La habitación #${roomNumber} tiene una deuda pendiente de <b>${new Intl.NumberFormat('es-CO', {style:'currency', currency:'COP', minimumFractionDigits:0}).format(totalDebt)}</b>.<br><br>¿Desea marcar todo como pagado antes de liberar?`,
-                    icon: 'warning',
-                    confirmText: 'Pagar Todo y Continuar',
-                    cancelText: 'Cancelar',
-                    confirmButtonClass: 'bg-emerald-600 hover:bg-emerald-700',
-                    onConfirm: () => {
-                        // Preguntar método de pago para "Pagar Todo"
-                        window.dispatchEvent(new CustomEvent('open-select-modal', {
-                            detail: {
-                                title: 'Método de Pago',
-                                text: '¿Cómo se salda la deuda total?',
-                                options: [
-                                    { label: 'Efectivo', value: 'efectivo', class: 'bg-emerald-600 hover:bg-emerald-700' },
-                                    { label: 'Transferencia', value: 'transferencia', class: 'bg-blue-600 hover:bg-blue-700' }
-                                ],
-                                onSelect: (method) => {
-                                    @this.payEverything(validReservationId, method).then(() => {
-                                        showReleaseOptions(roomId, roomNumber);
-                                    });
-                                }
-                            }
-                        }));
-                    },
-                    onCancel: () => {
-                        showReleaseOptions(roomId, roomNumber);
-                    }
-                }
+        // Load room release data and show confirmation modal
+        @this.call('loadRoomReleaseData', roomId).then((data) => {
+            window.dispatchEvent(new CustomEvent('open-release-confirmation', {
+                detail: data
             }));
-        } else {
-            showReleaseOptions(roomId, roomNumber);
-        }
-    }
-
-    function showReleaseOptions(roomId, roomNumber) {
-        const livewireComponent = @this;
-        
-        window.dispatchEvent(new CustomEvent('open-select-modal', {
-            detail: {
-                title: 'Liberar Habitación #' + roomNumber,
-                text: '¿En qué estado desea dejar la habitación?',
-                options: [
-                    { label: 'Libre', value: 'libre', class: 'bg-emerald-500 hover:bg-emerald-600' },
-                    { label: 'Pendiente por Aseo', value: 'pendiente_aseo', class: 'bg-amber-500 hover:bg-amber-600' },
-                    { label: 'Limpia', value: 'limpia', class: 'bg-blue-500 hover:bg-blue-600' }
-                ],
-                onSelect: (action) => {
-                    livewireComponent.call('releaseRoom', roomId, action);
-                }
-            }
-        }));
+        });
     }
 
     function confirmPaySale(saleId) {
@@ -353,6 +301,25 @@
                 confirmIcon: 'fa-trash',
                 onConfirm: () => {
                     @this.deleteDeposit(depositId, amount);
+                }
+            }
+        }));
+    }
+
+    function confirmRefund(reservationId, amount, formattedAmount) {
+        window.dispatchEvent(new CustomEvent('open-confirm-modal', {
+            detail: {
+                title: 'Registrar Devolución',
+                html: `¿Desea registrar que se devolvió <b class="text-blue-600 font-bold">$${formattedAmount}</b> al cliente?`,
+                warningText: 'Esta acción quedará registrada en el historial de auditoría.',
+                icon: 'info',
+                isDestructive: false,
+                confirmText: 'Sí, registrar devolución',
+                cancelText: 'Cancelar',
+                confirmButtonClass: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500',
+                confirmIcon: 'fa-check-circle',
+                onConfirm: () => {
+                    @this.registerCustomerRefund(reservationId);
                 }
             }
         }));

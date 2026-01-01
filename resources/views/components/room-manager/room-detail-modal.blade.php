@@ -35,9 +35,33 @@
                                 <p class="text-[9px] font-bold text-gray-400 uppercase mb-1">Consumos</p>
                                 <p class="text-sm font-bold text-gray-900">${{ number_format($detailData['sales_total'], 0, ',', '.') }}</p>
                             </div>
-                            <div class="p-4 bg-red-50 rounded-xl text-center">
-                                <p class="text-[9px] font-bold text-red-600 uppercase mb-1">Pendiente</p>
-                                <p class="text-sm font-black text-red-700">${{ number_format($detailData['total_debt'], 0, ',', '.') }}</p>
+                            @php
+                                $totalDebt = (float) ($detailData['total_debt'] ?? 0);
+                                $isCredit = $totalDebt < 0;
+                                $totalRefunds = (float) ($detailData['total_refunds'] ?? 0);
+                                $hasRefunds = $totalRefunds > 0;
+                            @endphp
+                            <div class="p-4 {{ $isCredit ? 'bg-blue-50' : 'bg-red-50' }} rounded-xl text-center relative group">
+                                <p class="text-[9px] font-bold {{ $isCredit ? 'text-blue-600' : 'text-red-600' }} uppercase mb-1">
+                                    {{ $isCredit ? 'Se Le Debe al Cliente' : 'Pendiente' }}
+                                </p>
+                                <p class="text-sm font-black {{ $isCredit ? 'text-blue-700' : 'text-red-700' }}">
+                                    ${{ number_format(abs($totalDebt), 0, ',', '.') }}
+                                </p>
+                                @if($hasRefunds)
+                                    <p class="text-[9px] text-gray-500 mt-1">
+                                        Total devoluciones: ${{ number_format($totalRefunds, 0, ',', '.') }}
+                                    </p>
+                                @endif
+                                @if($isCredit && isset($detailData['reservation']['id']))
+                                    <button 
+                                        type="button"
+                                        @click.stop="confirmRefund({{ $detailData['reservation']['id'] }}, {{ abs($totalDebt) }}, '{{ number_format(abs($totalDebt), 0, ',', '.') }}')"
+                                        class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity text-blue-600 hover:text-blue-800"
+                                        title="Registrar devolución">
+                                        <i class="fas fa-check-circle text-[10px]"></i>
+                                    </button>
+                                @endif
                             </div>
                         </div>
 

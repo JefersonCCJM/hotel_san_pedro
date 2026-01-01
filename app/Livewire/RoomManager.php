@@ -11,11 +11,15 @@ use App\Models\ReservationDeposit;
 use App\Models\Product;
 use App\Models\Customer;
 use App\Models\CustomerTaxProfile;
+use App\Models\AuditLog;
+use App\Models\RoomReleaseHistory;
 use App\Enums\RoomStatus;
 use App\Enums\VentilationType;
 use Carbon\Carbon;
 use Livewire\WithPagination;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class RoomManager extends Component
 {
@@ -41,6 +45,11 @@ class RoomManager extends Component
     public $showAddSale = false;
     public $showAddDeposit = false;
     public $quickRentModal = false;
+    
+    // Tabs
+    public $activeTab = 'rooms'; // 'rooms' or 'history'
+    public $releaseHistoryDetail = null;
+    public $releaseHistoryDetailModal = false;
     public $rentForm = [
         'room_id' => '',
         'room_number' => '',
@@ -75,7 +84,7 @@ class RoomManager extends Component
 
     // Add deposit form
     public $newDeposit = [
-        'amount' => null,
+        'amount' => '',
         'payment_method' => 'efectivo',
         'notes' => ''
     ];
@@ -167,6 +176,11 @@ class RoomManager extends Component
                 if ($isPaid) $paidAmount -= $dailyPrice;
             }
 
+            // Verificar si ya se registró una devolución en auditoría
+            $refundRegistered = AuditLog::where('event', 'customer_refund_registered')
+                ->whereRaw('JSON_EXTRACT(metadata, "$.reservation_id") = ?', [$reservation->id])
+                ->exists();
+
             $this->detailData = [
                 'room' => $room->toArray(),
                 'reservation' => $reservation->toArray(),
@@ -177,6 +191,7 @@ class RoomManager extends Component
                 'sales_total' => $consumos_pagados + $consumos_pendientes,
                 'consumos_pendientes' => $consumos_pendientes,
                 'total_debt' => $total_debt,
+                'refund_registered' => $refundRegistered,
                 'sales' => $reservation->sales->toArray(),
                 'stay_history' => $stay_history,
                 'deposit_history' => $reservation->reservationDeposits()
@@ -257,7 +272,7 @@ class RoomManager extends Component
     {
         $this->showAddDeposit = !$this->showAddDeposit;
         if (!$this->showAddDeposit) {
-            $this->newDeposit = ['amount' => null, 'payment_method' => 'efectivo', 'notes' => ''];
+            $this->newDeposit = ['amount' => '', 'payment_method' => 'efectivo', 'notes' => ''];
         }
     }
 
@@ -299,7 +314,7 @@ class RoomManager extends Component
             'notes' => $this->newDeposit['notes'] ?? null
         ]);
 
-        $this->newDeposit = ['amount' => null, 'payment_method' => 'efectivo', 'notes' => ''];
+        $this->newDeposit = ['amount' => '', 'payment_method' => 'efectivo', 'notes' => ''];
         $this->showAddDeposit = false;
         $this->loadRoomDetail();
         $this->dispatch('notify', type: 'success', message: 'Abono agregado exitosamente.');
@@ -319,6 +334,93 @@ class RoomManager extends Component
 
         $this->loadRoomDetail();
         $this->dispatch('notify', type: 'success', message: 'Abono eliminado exitosamente.');
+    }
+
+    public function registerCustomerRefund($reservationId)
+    {
+        $date = Carbon::parse($this->date);
+
+        // Try to find reservation directly by ID first (for modal context)
+        $reservation = Reservation::with(['customer', 'customer.taxProfile', 'sales', 'room'])
+            ->find($reservationId);
+
+        // If not found, try using selectedRoomId (for detail modal context)
+        if (!$reservation && $this->selectedRoomId) {
+            $room = Room::find($this->selectedRoomId);
+            $reservation = $room->reservations()
+                ->where('check_in_date', '<=', $date)
+                ->where('check_out_date', '>', $date)
+                ->with(['customer', 'customer.taxProfile', 'sales'])
+                ->first();
+        }
+
+        if (!$reservation) {
+            $this->dispatch('notify', type: 'error', message: 'No se encontró la reserva.');
+            return;
+        }
+
+        $room = $reservation->room ?? Room::find($reservation->room_id);
+
+        // Calcular el saldo a favor del cliente
+        $total_hospedaje = (float) $reservation->total_amount;
+        $abono = (float) $reservation->deposit;
+        $consumos_pendientes = (float) $reservation->sales->where('is_paid', false)->sum('total');
+        
+        // Calcular hospedaje consumido hasta la fecha
+        $checkIn = Carbon::parse($reservation->check_in_date);
+        $checkOut = Carbon::parse($reservation->check_out_date);
+        $daysTotal = max(1, $checkIn->diffInDays($checkOut));
+        $dailyPrice = $total_hospedaje / $daysTotal;
+        $selectedDate = Carbon::parse($this->date);
+        $daysConsumed = $checkIn->diffInDays($selectedDate) + 1;
+        $daysConsumed = max(1, min($daysTotal, $daysConsumed));
+        $total_hospedaje_consumido = $dailyPrice * $daysConsumed;
+
+        // Calcular total de devoluciones ya registradas
+        $totalRefunds = AuditLog::where('event', 'customer_refund_registered')
+            ->whereRaw('JSON_EXTRACT(metadata, "$.reservation_id") = ?', [$reservation->id])
+            ->get()
+            ->sum(function($log) {
+                return (float) ($log->metadata['refund_amount'] ?? 0);
+            });
+
+        // Calcular saldo a favor considerando devoluciones previas
+        // Solo considerar el nuevo saldo a favor después de las devoluciones previas
+        $total_debt = ($total_hospedaje_consumido - $abono - $totalRefunds) + $consumos_pendientes;
+        
+        if ($total_debt >= 0) {
+            $this->dispatch('notify', type: 'error', message: 'No hay saldo a favor nuevo para devolver. El saldo a favor ya fue devuelto en devoluciones anteriores.');
+            return;
+        }
+
+        // El monto a devolver es el nuevo saldo a favor (negativo)
+        $refundAmount = abs($total_debt);
+        $customer = $reservation->customer;
+        $roomNumber = $room->room_number;
+
+        // Registrar en auditoría
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'event' => 'customer_refund_registered',
+            'description' => "Registró devolución de $" . number_format($refundAmount, 0, ',', '.') . " al cliente {$customer->name} (Habitación #{$roomNumber})",
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'metadata' => [
+                'reservation_id' => $reservation->id,
+                'customer_id' => $customer->id,
+                'customer_name' => $customer->name,
+                'room_id' => $room->id,
+                'room_number' => $roomNumber,
+                'refund_amount' => $refundAmount,
+                'total_hospedaje' => $total_hospedaje_consumido,
+                'abono' => $abono,
+                'consumos_pendientes' => $consumos_pendientes,
+                'date' => $this->date,
+            ]
+        ]);
+
+        $this->loadRoomDetail();
+        $this->dispatch('notify', type: 'success', message: "Devolución de $" . number_format($refundAmount, 0, ',', '.') . " registrada exitosamente. Total devoluciones: $" . number_format($totalRefunds + $refundAmount, 0, ',', '.') . ".");
     }
 
     public function addSale()
@@ -429,6 +531,108 @@ class RoomManager extends Component
         $this->dispatch('notify', type: 'success', message: 'Abono actualizado.');
     }
 
+    public function loadRoomReleaseData($roomId)
+    {
+        $room = Room::findOrFail($roomId);
+        $date = Carbon::parse($this->date)->startOfDay();
+
+        $reservation = $room->reservations()
+            ->where('check_in_date', '<=', $date)
+            ->where('check_out_date', '>', $date)
+            ->with(['customer.taxProfile', 'sales.product', 'reservationDeposits'])
+            ->first();
+
+        if (!$reservation) {
+            return [
+                'room_id' => $room->id,
+                'room_number' => $room->room_number,
+                'reservation' => null,
+                'identification' => 'N/A',
+                'total_hospedaje' => 0,
+                'abono_realizado' => 0,
+                'sales_total' => 0,
+                'consumos_pendientes' => 0,
+                'total_debt' => 0,
+                'total_refunds' => 0,
+                'refund_registered' => false,
+                'sales' => [],
+                'deposit_history' => [],
+            ];
+        }
+
+        $total_hospedaje_completo = (float) $reservation->total_amount;
+        $abono = (float) $reservation->deposit;
+        $consumos_pagados = (float) $reservation->sales->where('is_paid', true)->sum('total');
+        $consumos_pendientes = (float) $reservation->sales->where('is_paid', false)->sum('total');
+
+        $checkIn = Carbon::parse($reservation->check_in_date);
+        $checkOut = Carbon::parse($reservation->check_out_date);
+        $daysTotal = max(1, $checkIn->diffInDays($checkOut));
+        $dailyPrice = $total_hospedaje_completo / $daysTotal;
+
+        $daysConsumed = $checkIn->diffInDays($date) + 1;
+        $daysConsumed = max(1, min($daysTotal, $daysConsumed));
+        $total_hospedaje = $dailyPrice * $daysConsumed;
+
+        // Calcular total de devoluciones ya registradas
+        $totalRefunds = AuditLog::where('event', 'customer_refund_registered')
+            ->whereRaw('JSON_EXTRACT(metadata, "$.reservation_id") = ?', [$reservation->id])
+            ->get()
+            ->sum(function($log) {
+                return (float) ($log->metadata['refund_amount'] ?? 0);
+            });
+
+        // Calcular saldo a favor considerando devoluciones previas
+        $total_debt = ($total_hospedaje - $abono - $totalRefunds) + $consumos_pendientes;
+
+        // Verificar si hay devoluciones registradas
+        $refundRegistered = $totalRefunds > 0;
+
+        return [
+            'room_id' => $room->id,
+            'room_number' => $room->room_number,
+            'reservation' => [
+                'id' => $reservation->id,
+                'customer' => [
+                    'name' => $reservation->customer->name,
+                ],
+            ],
+            'identification' => $reservation->customer->taxProfile?->identification ?? 'N/A',
+            'total_hospedaje' => $total_hospedaje,
+            'abono_realizado' => $abono,
+            'sales_total' => $consumos_pagados + $consumos_pendientes,
+            'consumos_pendientes' => $consumos_pendientes,
+            'total_debt' => $total_debt,
+            'total_refunds' => $totalRefunds,
+            'refund_registered' => $refundRegistered,
+            'sales' => $reservation->sales->map(function($sale) {
+                return [
+                    'id' => $sale->id,
+                    'product' => [
+                        'name' => $sale->product->name ?? 'N/A',
+                    ],
+                    'quantity' => $sale->quantity,
+                    'total' => (float) $sale->total,
+                    'is_paid' => $sale->is_paid,
+                    'payment_method' => $sale->payment_method,
+                ];
+            })->toArray(),
+            'deposit_history' => $reservation->reservationDeposits()
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function($deposit) {
+                    return [
+                        'id' => $deposit->id,
+                        'amount' => (float) $deposit->amount,
+                        'payment_method' => $deposit->payment_method,
+                        'notes' => $deposit->notes,
+                        'created_at' => $deposit->created_at->format('d/m/Y H:i'),
+                    ];
+                })
+                ->toArray(),
+        ];
+    }
+
     public function releaseRoom($roomId, $targetStatus)
     {
         $date = Carbon::parse($this->date)->startOfDay();
@@ -458,14 +662,111 @@ class RoomManager extends Component
                 ->first();
 
             if ($reservation) {
+                // Cargar todas las relaciones necesarias antes de guardar el historial
+                $reservation->load([
+                    'customer.taxProfile',
+                    'sales.product',
+                    'reservationDeposits',
+                    'guests'
+                ]);
+
                 $start = Carbon::parse($reservation->check_in_date)->startOfDay();
                 $end = Carbon::parse($reservation->check_out_date)->startOfDay();
 
-                // When releasing a room, we DELETE the active reservation completely
-                // This ensures the reservation disappears from the reservations module
-                // and the room shows as "Pendiente por Aseo" or "Libre" immediately
-                // Future reservations (starting after the selected date) are preserved automatically
+                // Calcular información financiera
+                $consumptionsTotal = (float) $reservation->sales->sum('total');
+                $consumptionsPaid = (float) $reservation->sales->where('is_paid', true)->sum('total');
+                $consumptionsPending = (float) $reservation->sales->where('is_paid', false)->sum('total');
+                $depositsTotal = (float) $reservation->deposit;
+                $totalAmount = (float) $reservation->total_amount;
                 
+                // Calcular hospedaje consumido hasta la fecha de liberación
+                $daysTotal = max(1, $start->diffInDays($end));
+                $dailyPrice = $daysTotal > 0 ? ($totalAmount / $daysTotal) : $totalAmount;
+                $daysConsumed = $start->diffInDays($date) + 1;
+                $daysConsumed = max(1, min($daysTotal, $daysConsumed));
+                $totalHospedajeConsumido = $dailyPrice * $daysConsumed;
+                
+                $pendingAmount = ($totalHospedajeConsumido - $depositsTotal) + $consumptionsPending;
+
+                $customer = $reservation->customer;
+                
+                // Guardar historial ANTES de eliminar la reserva
+                RoomReleaseHistory::create([
+                    'room_id' => $room->id,
+                    'reservation_id' => $reservation->id,
+                    'customer_id' => $customer->id,
+                    'released_by' => Auth::id(),
+                    'room_number' => $room->room_number,
+                    'total_amount' => $totalAmount,
+                    'deposit' => $depositsTotal,
+                    'consumptions_total' => $consumptionsTotal,
+                    'pending_amount' => $pendingAmount,
+                    'guests_count' => $reservation->guests_count,
+                    'check_in_date' => $reservation->check_in_date,
+                    'check_out_date' => $reservation->check_out_date,
+                    'release_date' => $date->toDateString(),
+                    'target_status' => 'libre',
+                    'customer_name' => $customer->name,
+                    'customer_identification' => $customer->taxProfile?->identification,
+                    'customer_phone' => $customer->phone,
+                    'customer_email' => $customer->email,
+                    'reservation_data' => $reservation->toArray(),
+                    'sales_data' => $reservation->sales->map(function($sale) {
+                        return [
+                            'id' => $sale->id,
+                            'product_id' => $sale->product_id,
+                            'product_name' => $sale->product->name ?? 'N/A',
+                            'quantity' => $sale->quantity,
+                            'unit_price' => (float) $sale->unit_price,
+                            'total' => (float) $sale->total,
+                            'payment_method' => $sale->payment_method,
+                            'is_paid' => $sale->is_paid,
+                            'created_at' => $sale->created_at?->toDateTimeString(),
+                        ];
+                    })->toArray(),
+                    'deposits_data' => $reservation->reservationDeposits->map(function($deposit) {
+                        return [
+                            'id' => $deposit->id,
+                            'amount' => (float) $deposit->amount,
+                            'payment_method' => $deposit->payment_method,
+                            'notes' => $deposit->notes,
+                            'created_at' => $deposit->created_at?->toDateTimeString(),
+                        ];
+                    })->toArray(),
+                    'guests_data' => $reservation->guests->map(function($guest) {
+                        return [
+                            'id' => $guest->id,
+                            'name' => $guest->name,
+                            'identification' => $guest->taxProfile?->identification,
+                            'phone' => $guest->phone,
+                            'email' => $guest->email,
+                        ];
+                    })->toArray(),
+                ]);
+
+                // Registrar en auditoría
+                AuditLog::create([
+                    'user_id' => Auth::id(),
+                    'event' => 'room_released',
+                    'description' => "Liberó habitación #{$room->room_number} (Estado: {$targetStatus}). Cliente: {$customer->name}",
+                    'ip_address' => request()->ip(),
+                    'user_agent' => request()->userAgent(),
+                    'metadata' => [
+                        'room_id' => $room->id,
+                        'room_number' => $room->room_number,
+                        'reservation_id' => $reservation->id,
+                        'customer_id' => $customer->id,
+                        'customer_name' => $customer->name,
+                        'target_status' => 'libre',
+                        'release_date' => $date->toDateString(),
+                        'total_amount' => $totalAmount,
+                        'deposit' => $depositsTotal,
+                        'consumptions_total' => $consumptionsTotal,
+                        'pending_amount' => $pendingAmount,
+                    ]
+                ]);
+
                 // If reservation has future days (after selected date), create new reservation for those days
                 // Then delete the current reservation
                 if ($end->gt($date)) {
@@ -546,13 +847,8 @@ class RoomManager extends Component
         // Marcar que hubo una actualización por evento (evita que el polling ejecute innecesariamente)
         $this->lastEventUpdate = now()->timestamp;
         
-        // Generate appropriate success message based on action
-        $message = match($targetStatus) {
-            'libre' => "Habitación #{$room->room_number} liberada y marcada como limpia.",
-            'pendiente_aseo' => "Habitación #{$room->room_number} liberada y marcada como pendiente por aseo.",
-            'limpia' => "Habitación #{$room->room_number} liberada y marcada como limpia.",
-            default => "Habitación #{$room->room_number} actualizada.",
-        };
+        // Always release as 'libre' (free and clean)
+        $message = "Habitación #{$room->room_number} liberada exitosamente.";
         
         $this->dispatch('notify', type: 'success', message: $message);
     }
@@ -1169,6 +1465,92 @@ class RoomManager extends Component
         $this->lastEventUpdate = now()->timestamp;
     }
 
+    public function switchTab($tab)
+    {
+        $this->activeTab = $tab;
+        $this->resetPage();
+    }
+
+    public function viewReleaseHistoryDetail($historyId)
+    {
+        $history = RoomReleaseHistory::with(['room', 'customer', 'releasedBy'])->findOrFail($historyId);
+        $this->releaseHistoryDetail = $history;
+        $this->releaseHistoryDetailModal = true;
+    }
+
+    public function closeReleaseHistoryDetail()
+    {
+        $this->releaseHistoryDetailModal = false;
+        $this->releaseHistoryDetail = null;
+    }
+
+    public function updateCleaningStatus($roomId, $status)
+    {
+        // Solo permitir cambios si la fecha es hoy o futura
+        $date = Carbon::parse($this->date)->startOfDay();
+        if ($date->isPast() && !$date->isToday()) {
+            $this->dispatch('notify', type: 'error', message: 'No se puede cambiar el estado de limpieza en fechas pasadas.');
+            return;
+        }
+
+        $room = Room::findOrFail($roomId);
+
+        try {
+            DB::transaction(function() use ($room, $status) {
+                if ($status === 'limpia') {
+                    // Marcar como limpia
+                    $room->update(['last_cleaned_at' => now()]);
+                } elseif ($status === 'pendiente') {
+                    // Marcar como pendiente de aseo
+                    $room->update(['last_cleaned_at' => null]);
+                }
+            });
+
+            // Registrar en auditoría
+            $statusLabel = $status === 'limpia' ? 'limpia' : 'pendiente de aseo';
+            AuditLog::create([
+                'user_id' => Auth::id(),
+                'event' => 'room_cleaning_status_changed',
+                'description' => "Cambió estado de limpieza de habitación #{$room->room_number} a: {$statusLabel}",
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'metadata' => [
+                    'room_id' => $room->id,
+                    'room_number' => $room->room_number,
+                    'cleaning_status' => $status,
+                    'date' => $date->toDateString(),
+                ]
+            ]);
+
+            // Recargar datos
+            $this->refreshRooms();
+            $this->refreshTrigger = now()->timestamp;
+
+            // Si el detalle está abierto, recargarlo
+            if ($this->selectedRoomId == $roomId) {
+                $this->loadRoomDetail();
+            }
+
+            // Dispatch evento para sincronización
+            $this->dispatch('room-status-updated', roomId: $room->id);
+            $this->lastEventUpdate = now()->timestamp;
+
+            $message = $status === 'limpia' 
+                ? "Habitación #{$room->room_number} marcada como limpia."
+                : "Habitación #{$room->room_number} marcada como pendiente de aseo.";
+            
+            $this->dispatch('notify', type: 'success', message: $message);
+
+        } catch (\Exception $e) {
+            Log::error('Error updating cleaning status', [
+                'room_id' => $roomId,
+                'status' => $status,
+                'error' => $e->getMessage()
+            ]);
+            $this->dispatch('notify', type: 'error', message: 'Error al actualizar el estado de limpieza.');
+        }
+    }
+
     public function render()
     {
         $date = Carbon::parse($this->date)->startOfDay();
@@ -1180,6 +1562,29 @@ class RoomManager extends Component
         while ($tempDate <= $endOfMonth) {
             $daysInMonth[] = $tempDate->copy();
             $tempDate->addDay();
+        }
+
+        // Si estamos en la pestaña de historial, cargar el historial
+        if ($this->activeTab === 'history') {
+            $historyQuery = RoomReleaseHistory::with(['room', 'customer', 'releasedBy'])
+                ->orderBy('release_date', 'desc')
+                ->orderBy('created_at', 'desc');
+            
+            if ($this->search) {
+                $historyQuery->where(function($q) {
+                    $q->where('room_number', 'like', '%' . $this->search . '%')
+                      ->orWhere('customer_name', 'like', '%' . $this->search . '%')
+                      ->orWhere('customer_identification', 'like', '%' . $this->search . '%');
+                });
+            }
+
+            $releaseHistory = $historyQuery->paginate(20);
+            
+            return view('livewire.room-manager', [
+                'releaseHistory' => $releaseHistory,
+                'daysInMonth' => $daysInMonth,
+                'currentDate' => $date,
+            ]);
         }
 
         $query = Room::query();

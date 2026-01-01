@@ -35,12 +35,19 @@
                     <span class="flex-1 text-left">Reservar</span>
                 </button>
             @endif
-            <button type="button"
-                @click="confirmRelease({{ $room->id }}, '{{ $room->room_number }}', {{ $room->total_debt ?? 0 }}, {{ $room->current_reservation->id ?? 'null' }}); closeActionsMenu();"
-                class="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-yellow-50 hover:text-yellow-700">
-                <i class="fas fa-broom text-yellow-600 mr-3 w-5"></i>
-                <span class="flex-1 text-left">Marcar limpieza / liberar</span>
-            </button>
+            @php
+                $isFreeAndClean = $room->display_status === \App\Enums\RoomStatus::LIBRE && 
+                                  isset($room->cleaning_status) && 
+                                  ($room->cleaning_status['code'] ?? null) === 'limpia';
+            @endphp
+            @if(!$isFreeAndClean)
+                <button type="button"
+                    @click="confirmRelease({{ $room->id }}, '{{ $room->room_number }}', {{ $room->total_debt ?? 0 }}, {{ $room->current_reservation->id ?? 'null' }}); closeActionsMenu();"
+                    class="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-yellow-50 hover:text-yellow-700">
+                    <i class="fas fa-door-open text-yellow-600 mr-3 w-5"></i>
+                    <span class="flex-1 text-left">Liberar</span>
+                </button>
+            @endif
         </div>
         <div class="py-1">
             <a href="{{ route('rooms.edit', $room->id) }}"
