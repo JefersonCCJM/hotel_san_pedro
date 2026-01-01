@@ -18,9 +18,6 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- SweetAlert2 -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    
     <!-- Alpine.js Cloak -->
     <style>
         [x-cloak] { display: none !important; }
@@ -354,6 +351,12 @@
     
     @stack('scripts')
     @livewireScripts
+
+    {{-- Global Notification Components --}}
+    <x-notifications.toast />
+    <x-notifications.confirm-modal />
+    <x-notifications.select-modal />
+    <x-notifications.input-modal />
 
     <!-- Modal de Verificación de PIN -->
     <div x-data="pinVerification()" 

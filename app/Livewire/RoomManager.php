@@ -7,6 +7,7 @@ use Livewire\Attributes\On;
 use App\Models\Room;
 use App\Models\Reservation;
 use App\Models\ReservationSale;
+use App\Models\ReservationDeposit;
 use App\Models\Product;
 use App\Models\Customer;
 use App\Models\CustomerTaxProfile;
@@ -38,6 +39,7 @@ class RoomManager extends Component
     public $detailData = null;
     public $roomDetailModal = false;
     public $showAddSale = false;
+    public $showAddDeposit = false;
     public $quickRentModal = false;
     public $rentForm = [
         'room_id' => '',
@@ -69,6 +71,13 @@ class RoomManager extends Component
         'product_id' => '',
         'quantity' => 1,
         'payment_method' => 'pendiente'
+    ];
+
+    // Add deposit form
+    public $newDeposit = [
+        'amount' => null,
+        'payment_method' => 'efectivo',
+        'notes' => ''
     ];
 
     protected $queryString = [
@@ -103,6 +112,7 @@ class RoomManager extends Component
         $this->loadRoomDetail();
         $this->roomDetailModal = true;
         $this->showAddSale = false;
+        $this->showAddDeposit = false;
     }
 
     private function loadRoomDetail()
@@ -113,7 +123,7 @@ class RoomManager extends Component
         $reservation = $room->reservations()
             ->where('check_in_date', '<=', $date)
             ->where('check_out_date', '>', $date)
-            ->with(['customer.taxProfile', 'sales.product'])
+            ->with(['customer.taxProfile', 'sales.product', 'reservationDeposits'])
             ->first();
 
         if (!$reservation) {
@@ -169,6 +179,19 @@ class RoomManager extends Component
                 'total_debt' => $total_debt,
                 'sales' => $reservation->sales->toArray(),
                 'stay_history' => $stay_history,
+                'deposit_history' => $reservation->reservationDeposits()
+                    ->orderBy('created_at', 'desc')
+                    ->get()
+                    ->map(function($deposit) {
+                        return [
+                            'id' => $deposit->id,
+                            'amount' => (float) $deposit->amount,
+                            'payment_method' => $deposit->payment_method,
+                            'notes' => $deposit->notes,
+                            'created_at' => $deposit->created_at->format('d/m/Y H:i'),
+                        ];
+                    })
+                    ->toArray(),
                 'customer_history' => Reservation::where('customer_id', $reservation->customer_id)
                     ->where('id', '!=', $reservation->id)
                     ->with('room')
@@ -199,10 +222,24 @@ class RoomManager extends Component
         ]);
 
         // 2. Actualizar el abono para cubrir todo el hospedaje
+        $oldDeposit = (float) $reservation->deposit;
+        $newDeposit = (float) $reservation->total_amount;
+        $difference = $newDeposit - $oldDeposit;
+
         $reservation->update([
-            'deposit' => $reservation->total_amount,
+            'deposit' => $newDeposit,
             'is_paid' => true
         ]);
+
+        // Registrar en historial de abonos si hay diferencia
+        if ($difference > 0) {
+            ReservationDeposit::create([
+                'reservation_id' => $reservationId,
+                'amount' => $difference,
+                'payment_method' => $method,
+                'notes' => 'Pago completo de hospedaje y consumos'
+            ]);
+        }
 
         $this->loadRoomDetail();
         $this->dispatch('notify', type: 'success', message: 'Todo marcado como pagado.');
@@ -214,6 +251,74 @@ class RoomManager extends Component
         if ($this->showAddSale) {
             $this->dispatch('initAddSaleSelect');
         }
+    }
+
+    public function toggleAddDeposit()
+    {
+        $this->showAddDeposit = !$this->showAddDeposit;
+        if (!$this->showAddDeposit) {
+            $this->newDeposit = ['amount' => null, 'payment_method' => 'efectivo', 'notes' => ''];
+        }
+    }
+
+    public function addDeposit()
+    {
+        $this->validate([
+            'newDeposit.amount' => 'required|numeric|min:0.01',
+            'newDeposit.payment_method' => 'required|in:efectivo,transferencia',
+            'newDeposit.notes' => 'nullable|string|max:500',
+        ], [
+            'newDeposit.amount.required' => 'El monto es obligatorio.',
+            'newDeposit.amount.numeric' => 'El monto debe ser un número válido.',
+            'newDeposit.amount.min' => 'El monto debe ser mayor a 0.',
+            'newDeposit.payment_method.required' => 'El método de pago es obligatorio.',
+            'newDeposit.payment_method.in' => 'El método de pago debe ser efectivo o transferencia.',
+        ]);
+
+        $room = Room::find($this->selectedRoomId);
+        $date = Carbon::parse($this->date);
+
+        $reservation = $room->reservations()
+            ->where('check_in_date', '<=', $date)
+            ->where('check_out_date', '>', $date)
+            ->first();
+
+        if (!$reservation) {
+            $this->dispatch('notify', type: 'error', message: 'No hay un arrendamiento activo.');
+            return;
+        }
+
+        // Actualizar el abono total en la reserva
+        $reservation->increment('deposit', $this->newDeposit['amount']);
+
+        // Registrar en historial de abonos
+        ReservationDeposit::create([
+            'reservation_id' => $reservation->id,
+            'amount' => $this->newDeposit['amount'],
+            'payment_method' => $this->newDeposit['payment_method'],
+            'notes' => $this->newDeposit['notes'] ?? null
+        ]);
+
+        $this->newDeposit = ['amount' => null, 'payment_method' => 'efectivo', 'notes' => ''];
+        $this->showAddDeposit = false;
+        $this->loadRoomDetail();
+        $this->dispatch('notify', type: 'success', message: 'Abono agregado exitosamente.');
+    }
+
+    public function deleteDeposit($depositId, $amount)
+    {
+        $deposit = ReservationDeposit::findOrFail($depositId);
+        $reservation = $deposit->reservation;
+
+        // Actualizar el abono total en la reserva (reducir el monto del abono eliminado)
+        $newDeposit = max(0, (float) $reservation->deposit - (float) $amount);
+        $reservation->update(['deposit' => $newDeposit]);
+
+        // Eliminar el registro del historial
+        $deposit->delete();
+
+        $this->loadRoomDetail();
+        $this->dispatch('notify', type: 'success', message: 'Abono eliminado exitosamente.');
     }
 
     public function addSale()
@@ -254,6 +359,7 @@ class RoomManager extends Component
 
         $product->decrement('quantity', $this->newSale['quantity']);
         $this->newSale = ['product_id' => '', 'quantity' => 1, 'payment_method' => 'pendiente'];
+        $this->showAddSale = false;
         $this->loadRoomDetail();
         $this->dispatch('notify', type: 'success', message: 'Consumo cargado.');
     }
@@ -277,6 +383,14 @@ class RoomManager extends Component
         $reservation = Reservation::findOrFail($reservationId);
         $reservation->increment('deposit', $amount);
 
+        // Registrar en historial de abonos
+        ReservationDeposit::create([
+            'reservation_id' => $reservationId,
+            'amount' => $amount,
+            'payment_method' => $method,
+            'notes' => 'Pago de noche de hospedaje'
+        ]);
+
         $this->loadRoomDetail();
         $this->dispatch('notify', type: 'success', message: 'Pago de noche registrado (' . ucfirst($method) . ').');
     }
@@ -294,7 +408,22 @@ class RoomManager extends Component
     public function updateDeposit($reservationId, $newAmount)
     {
         $reservation = Reservation::findOrFail($reservationId);
+        $oldAmount = (float) $reservation->deposit;
+        $difference = (float) $newAmount - $oldAmount;
+
         $reservation->update(['deposit' => $newAmount]);
+
+        // Registrar en historial de abonos solo si hay diferencia
+        if ($difference != 0) {
+            ReservationDeposit::create([
+                'reservation_id' => $reservationId,
+                'amount' => abs($difference),
+                'payment_method' => $reservation->payment_method ?? 'efectivo',
+                'notes' => $difference > 0 
+                    ? 'Actualización de abono (aumento)' 
+                    : 'Actualización de abono (reducción)'
+            ]);
+        }
 
         $this->loadRoomDetail();
         $this->dispatch('notify', type: 'success', message: 'Abono actualizado.');
@@ -545,7 +674,6 @@ class RoomManager extends Component
             'room_number' => $room->room_number,
             'max_capacity' => $room->max_capacity,
             'prices' => $prices,
-            'people' => 1,
             'total' => $prices[1] ?? 0,
             'deposit' => 0,
             'check_out' => Carbon::parse($this->date)->addDay()->format('Y-m-d'),
@@ -561,60 +689,67 @@ class RoomManager extends Component
         $this->dispatch('quickRentOpened');
     }
 
+    private function calculateTotalPeople(): int
+    {
+        // Solo contar 1 persona principal si hay un cliente seleccionado
+        $principalCount = !empty($this->rentForm['customer_id']) ? 1 : 0;
+        return $principalCount + count($this->additionalGuests);
+    }
+
+    private function updateTotalPrice(): void
+    {
+        $totalPeople = $this->calculateTotalPeople();
+        
+        // Si no hay personas, el precio es 0
+        if ($totalPeople === 0) {
+            $this->rentForm['total'] = 0;
+            return;
+        }
+        
+        $maxCapacity = (int)($this->rentForm['max_capacity'] ?? 1);
+        $people = min($totalPeople, $maxCapacity); // No exceder capacidad
+        
+        $basePrice = $this->rentForm['prices'][$people] ?? ($this->rentForm['prices'][$maxCapacity] ?? 0);
+        $start = Carbon::parse($this->date);
+        $end = Carbon::parse($this->rentForm['check_out']);
+        $diffDays = max(1, $start->diffInDays($end));
+        $this->rentForm['total'] = $basePrice * $diffDays;
+    }
+
     public function updatedRentForm($value, $key)
     {
-        if (in_array($key, ['people', 'check_out'])) {
-            $p = (int)$this->rentForm['people'];
-            $maxCapacity = (int)($this->rentForm['max_capacity'] ?? 1);
-            
-            // Ensure people doesn't exceed capacity
-            if ($p > $maxCapacity) {
-                $this->rentForm['people'] = $maxCapacity;
-                $p = $maxCapacity;
-            }
-            
-            // Ensure people is at least 1
-            if ($p < 1) {
-                $this->rentForm['people'] = 1;
-                $p = 1;
-            }
-            
-            $basePrice = $this->rentForm['prices'][$p] ?? ($this->rentForm['prices'][$maxCapacity] ?? 0);
-            $start = Carbon::parse($this->date);
-            $end = Carbon::parse($this->rentForm['check_out']);
-            $diffDays = max(1, $start->diffInDays($end));
-            $this->rentForm['total'] = $basePrice * $diffDays;
+        if ($key === 'check_out' || $key === 'customer_id') {
+            $this->updateTotalPrice();
         }
     }
 
     public function storeQuickRent()
     {
-        // Calculate total people (principal + additional guests)
-        $totalPeople = (int)($this->rentForm['people'] ?? 1) + count($this->additionalGuests);
-        $maxCapacity = (int)($this->rentForm['max_capacity'] ?? 1);
-
+        // Validate customer_id first (required)
         $this->validate([
             'rentForm.customer_id' => 'required|exists:customers,id',
-            'rentForm.people' => [
-                'required',
-                'integer',
-                'min:1',
-                'max:'.$maxCapacity,
-            ],
             'rentForm.check_out' => 'required|date|after:'.$this->date,
             'rentForm.total' => 'required|numeric|min:0',
             'rentForm.deposit' => 'required|numeric|min:0',
             'rentForm.payment_method' => 'required|in:efectivo,transferencia',
         ], [
-            'rentForm.people.max' => "El número de personas no puede exceder la capacidad máxima de la habitación ({$maxCapacity} personas).",
-            'rentForm.people.min' => 'Debe haber al menos 1 persona.',
-            'rentForm.people.required' => 'El número de personas es obligatorio.',
-            'rentForm.people.integer' => 'El número de personas debe ser un número entero.',
+            'rentForm.customer_id.required' => 'Debe seleccionar un cliente principal.',
+            'rentForm.customer_id.exists' => 'El cliente seleccionado no existe.',
         ], [
             'rentForm.check_out' => 'fecha de salida',
         ]);
 
-        // Validate total people (principal + additional guests) doesn't exceed capacity
+        // Calculate total people (principal + additional guests)
+        $totalPeople = $this->calculateTotalPeople();
+        $maxCapacity = (int)($this->rentForm['max_capacity'] ?? 1);
+
+        // Validate at least 1 person (principal customer)
+        if ($totalPeople < 1) {
+            $this->addError('rentForm.customer_id', 'Debe seleccionar al menos un cliente principal.');
+            return;
+        }
+
+        // Validate total people doesn't exceed capacity
         if ($totalPeople > $maxCapacity) {
             $this->addError('rentForm.people', "El total de personas (principal + huéspedes adicionales: {$totalPeople}) excede la capacidad máxima de la habitación ({$maxCapacity} personas).");
             return;
@@ -637,13 +772,23 @@ class RoomManager extends Component
                 'check_in_date' => $this->date,
                 'check_out_date' => $this->rentForm['check_out'],
                 'reservation_date' => now(),
-                'guests_count' => $this->rentForm['people'],
+                'guests_count' => $this->calculateTotalPeople(),
                 'total_amount' => $this->rentForm['total'],
                 'deposit' => $this->rentForm['deposit'],
                 'payment_method' => $this->rentForm['payment_method'],
                 'is_paid' => $this->rentForm['deposit'] >= $this->rentForm['total'],
                 'status' => 'confirmed'
             ]);
+
+            // Registrar abono inicial en historial si es mayor a 0
+            if ($this->rentForm['deposit'] > 0) {
+                ReservationDeposit::create([
+                    'reservation_id' => $reservation->id,
+                    'amount' => $this->rentForm['deposit'],
+                    'payment_method' => $this->rentForm['payment_method'],
+                    'notes' => 'Abono inicial'
+                ]);
+            }
 
             // Attach additional guests if provided
             if (!empty($this->additionalGuests)) {
@@ -905,6 +1050,13 @@ class RoomManager extends Component
             // completed later through the customer edit form if needed.
 
             $guestCustomerId = $customer->id;
+
+            // Check if this is the main guest
+            $mainCustomerId = $this->rentForm['customer_id'] ?? null;
+            if ($mainCustomerId && (string)$guestCustomerId === (string)$mainCustomerId) {
+                $this->addError('additionalGuests', 'El huésped principal no puede agregarse como huésped adicional.');
+                return;
+            }
         }
 
         $this->additionalGuests[] = [
@@ -916,6 +1068,53 @@ class RoomManager extends Component
 
         $this->newCustomer = ['name' => '', 'identification' => '', 'phone' => '', 'email' => ''];
         $this->showCreateCustomerModal = false;
+        $this->updateTotalPrice();
+    }
+
+    public function addGuestFromCustomerId($customerId)
+    {
+        $customer = Customer::with('taxProfile')->find($customerId);
+        
+        if (!$customer) {
+            $this->addError('additionalGuests', 'Cliente no encontrado.');
+            return;
+        }
+
+        // Check if this is the main guest
+        $mainCustomerId = $this->rentForm['customer_id'] ?? null;
+        if ($mainCustomerId && (string)$customerId === (string)$mainCustomerId) {
+            $this->addError('additionalGuests', 'El huésped principal no puede agregarse como huésped adicional.');
+            return;
+        }
+
+        // Calculate total people (principal + additional guests + new guest)
+        $currentTotal = $this->calculateTotalPeople();
+        $maxCapacity = (int)($this->rentForm['max_capacity'] ?? 1);
+        $totalAfterAdd = $currentTotal + 1;
+
+        if ($totalAfterAdd > $maxCapacity) {
+            $remaining = $maxCapacity - $currentTotal;
+            $this->addError('additionalGuests', "No se pueden agregar más huéspedes. La capacidad máxima es {$maxCapacity} personas. Puede agregar máximo {$remaining} " . ($remaining == 1 ? 'persona más' : 'personas más') . ".");
+            return;
+        }
+
+        // Check if customer is already in the list
+        foreach ($this->additionalGuests as $guest) {
+            if (isset($guest['customer_id']) && $guest['customer_id'] == $customerId) {
+                $this->addError('additionalGuests', 'Este cliente ya está en la lista de huéspedes adicionales.');
+                return;
+            }
+        }
+
+        $this->additionalGuests[] = [
+            'name' => $customer->name,
+            'identification' => $customer->taxProfile?->identification ?? 'S/N',
+            'phone' => $customer->phone ?? 'S/N',
+            'customer_id' => $customer->id,
+        ];
+
+        $this->updateTotalPrice();
+        $this->dispatch('guest-added');
     }
 
     public function removeGuest($index)
@@ -923,6 +1122,7 @@ class RoomManager extends Component
         if (isset($this->additionalGuests[$index])) {
             unset($this->additionalGuests[$index]);
             $this->additionalGuests = array_values($this->additionalGuests);
+            $this->updateTotalPrice();
         }
     }
 

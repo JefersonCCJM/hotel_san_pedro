@@ -5,16 +5,10 @@
         document.addEventListener('livewire:init', () => {
             let productSelect = null;
 
+            // Toast notifications are handled by x-notifications.toast component
             Livewire.on('notify', (data) => {
                 const payload = Array.isArray(data) ? data[0] : data;
-                Swal.fire({
-                    toast: true,
-                    position: 'top-end',
-                    showConfirmButton: false,
-                    timer: 3000,
-                    icon: payload.type || 'info',
-                    title: payload.message || ''
-                });
+                window.dispatchEvent(new CustomEvent('notify', { detail: payload }));
             });
 
             Livewire.on('initAddSaleSelect', () => {
@@ -57,51 +51,36 @@
             const validReservationId = reservationId && reservationId !== 'null' ? reservationId : null;
 
             if (hasDebt && validReservationId) {
-                Swal.fire({
-                    title: '¡Habitación con Deuda!',
-                    html: `La habitación #${roomNumber} tiene una deuda pendiente de <b>${new Intl.NumberFormat('es-CO', {style:'currency', currency:'COP', minimumFractionDigits:0}).format(totalDebt)}</b>.<br><br>¿Desea marcar todo como pagado antes de liberar?`,
-                    icon: 'warning',
-                    showDenyButton: true,
-                    showCancelButton: true,
-                    confirmButtonText: 'Pagar Todo y Continuar',
-                    denyButtonText: 'Liberar con Deuda',
-                    cancelButtonText: 'Cancelar',
-                    confirmButtonColor: '#10b981',
-                    denyButtonColor: '#f59e0b',
-                    customClass: {
-                        popup: 'rounded-2xl',
-                        confirmButton: 'rounded-xl',
-                        denyButton: 'rounded-xl',
-                        cancelButton: 'rounded-xl'
+                window.dispatchEvent(new CustomEvent('open-confirm-modal', {
+                    detail: {
+                        title: '¡Habitación con Deuda!',
+                        html: `La habitación #${roomNumber} tiene una deuda pendiente de <b>${new Intl.NumberFormat('es-CO', {style:'currency', currency:'COP', minimumFractionDigits:0}).format(totalDebt)}</b>.<br><br>¿Desea marcar todo como pagado antes de liberar?`,
+                        icon: 'warning',
+                        confirmText: 'Pagar Todo y Continuar',
+                        cancelText: 'Cancelar',
+                        confirmButtonClass: 'bg-emerald-600 hover:bg-emerald-700',
+                        onConfirm: () => {
+                            window.dispatchEvent(new CustomEvent('open-select-modal', {
+                                detail: {
+                                    title: 'Método de Pago',
+                                    text: '¿Cómo se salda la deuda total?',
+                                    options: [
+                                        { label: 'Efectivo', value: 'efectivo', class: 'bg-emerald-600 hover:bg-emerald-700' },
+                                        { label: 'Transferencia', value: 'transferencia', class: 'bg-blue-600 hover:bg-blue-700' }
+                                    ],
+                                    onSelect: (method) => {
+                                        @this.payEverything(validReservationId, method).then(() => {
+                                            showReleaseOptions(roomId, roomNumber);
+                                        });
+                                    }
+                                }
+                            }));
+                        },
+                        onCancel: () => {
+                            showReleaseOptions(roomId, roomNumber);
+                        }
                     }
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        Swal.fire({
-                            title: 'Método de Pago',
-                            text: '¿Cómo se salda la deuda total?',
-                            icon: 'question',
-                            showDenyButton: true,
-                            confirmButtonText: 'Efectivo',
-                            denyButtonText: 'Transferencia',
-                            confirmButtonColor: '#10b981',
-                            denyButtonColor: '#3b82f6',
-                            customClass: {
-                                popup: 'rounded-2xl',
-                                confirmButton: 'rounded-xl',
-                                denyButton: 'rounded-xl'
-                            }
-                        }).then((payResult) => {
-                            if (payResult.isConfirmed || payResult.isDenied) {
-                                const method = payResult.isConfirmed ? 'efectivo' : 'transferencia';
-                                @this.payEverything(validReservationId, method).then(() => {
-                                    showReleaseOptions(roomId, roomNumber);
-                                });
-                            }
-                        });
-                    } else if (result.isDenied) {
-                        showReleaseOptions(roomId, roomNumber);
-                    }
-                });
+                }));
             } else {
                 showReleaseOptions(roomId, roomNumber);
             }
@@ -110,282 +89,230 @@
         function showReleaseOptions(roomId, roomNumber) {
             const livewireComponent = @this;
 
-            Swal.fire({
-                title: 'Liberar Habitación #' + roomNumber,
-                html: '<p class="text-gray-600 mb-6">¿En qué estado desea dejar la habitación?</p>' +
-                    '<div class="flex flex-col gap-3 mt-4" id="swal-release-buttons">' +
-                    '<button type="button" data-action="libre" class="swal-release-btn w-full py-3 px-6 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl transition-colors duration-200">Libre</button>' +
-                    '<button type="button" data-action="pendiente_aseo" class="swal-release-btn w-full py-3 px-6 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-colors duration-200">Pendiente por Aseo</button>' +
-                    '<button type="button" data-action="limpia" class="swal-release-btn w-full py-3 px-6 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl transition-colors duration-200">Limpia</button>' +
-                    '</div>',
-                icon: 'question',
-                showCancelButton: true,
-                cancelButtonText: 'Cancelar',
-                cancelButtonColor: '#6b7280',
-                showConfirmButton: false,
-                customClass: {
-                    popup: 'rounded-2xl',
-                    cancelButton: 'rounded-xl'
-                },
-                didOpen: () => {
-                    setTimeout(() => {
-                        const container = document.querySelector('#swal-release-buttons');
-                        if (container) {
-                            container.addEventListener('click', function(e) {
-                                const btn = e.target.closest('.swal-release-btn');
-                                if (btn) {
-                                    const action = btn.getAttribute('data-action');
-                                    Swal.close();
-                                    livewireComponent.call('releaseRoom', roomId, action);
-                                }
-                            });
-                        }
-                    }, 50);
+            window.dispatchEvent(new CustomEvent('open-select-modal', {
+                detail: {
+                    title: 'Liberar Habitación #' + roomNumber,
+                    text: '¿En qué estado desea dejar la habitación?',
+                    options: [
+                        { label: 'Libre', value: 'libre', class: 'bg-emerald-500 hover:bg-emerald-600' },
+                        { label: 'Pendiente por Aseo', value: 'pendiente_aseo', class: 'bg-amber-500 hover:bg-amber-600' },
+                        { label: 'Limpia', value: 'limpia', class: 'bg-blue-500 hover:bg-blue-600' }
+                    ],
+                    onSelect: (action) => {
+                        livewireComponent.call('releaseRoom', roomId, action);
+                    }
                 }
-            });
+            }));
         }
 
         function confirmPaySale(saleId) {
-            Swal.fire({
-                title: 'Registrar Pago de Consumo',
-                icon: 'question',
-                showDenyButton: true,
-                confirmButtonText: 'Efectivo',
-                denyButtonText: 'Transferencia',
-                confirmButtonColor: '#10b981',
-                denyButtonColor: '#3b82f6',
-                customClass: {
-                    popup: 'rounded-2xl',
-                    confirmButton: 'rounded-xl',
-                    denyButton: 'rounded-xl'
+            window.dispatchEvent(new CustomEvent('open-select-modal', {
+                detail: {
+                    title: 'Registrar Pago de Consumo',
+                    options: [
+                        { label: 'Efectivo', value: 'efectivo', class: 'bg-emerald-600 hover:bg-emerald-700' },
+                        { label: 'Transferencia', value: 'transferencia', class: 'bg-blue-600 hover:bg-blue-700' }
+                    ],
+                    onSelect: (method) => {
+                        @this.paySale(saleId, method);
+                    }
                 }
-            }).then((result) => {
-                if (result.isConfirmed || result.isDenied) {
-                    @this.paySale(saleId, result.isConfirmed ? 'efectivo' : 'transferencia');
-                }
-            });
+            }));
         }
 
         function confirmRevertSale(saleId) {
-            Swal.fire({
-                title: 'Anular Pago de Consumo',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Sí, anular',
-                confirmButtonColor: '#ef4444',
-                customClass: {
-                    popup: 'rounded-2xl',
-                    confirmButton: 'rounded-xl',
-                    cancelButton: 'rounded-xl'
+            window.dispatchEvent(new CustomEvent('open-confirm-modal', {
+                detail: {
+                    title: 'Anular Pago de Consumo',
+                    text: '¿Está seguro de que desea anular el pago de este consumo?',
+                    icon: 'warning',
+                    confirmText: 'Sí, anular',
+                    confirmButtonClass: 'bg-red-600 hover:bg-red-700',
+                    onConfirm: () => {
+                        @this.paySale(saleId, 'pendiente');
+                    }
                 }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    @this.paySale(saleId, 'pendiente');
-                }
-            });
+            }));
         }
 
         function confirmPayStay(reservationId, amount) {
-            Swal.fire({
-                title: 'Pagar Noche de Hospedaje',
-                text: '¿Cómo desea registrar el pago de esta noche?',
-                icon: 'info',
-                showDenyButton: true,
-                confirmButtonText: 'Efectivo',
-                denyButtonText: 'Transferencia',
-                confirmButtonColor: '#10b981',
-                denyButtonColor: '#3b82f6',
-                customClass: {
-                    popup: 'rounded-2xl',
-                    confirmButton: 'rounded-xl',
-                    denyButton: 'rounded-xl'
+            window.dispatchEvent(new CustomEvent('open-select-modal', {
+                detail: {
+                    title: 'Pagar Noche de Hospedaje',
+                    text: '¿Cómo desea registrar el pago de esta noche?',
+                    options: [
+                        { label: 'Efectivo', value: 'efectivo', class: 'bg-emerald-600 hover:bg-emerald-700' },
+                        { label: 'Transferencia', value: 'transferencia', class: 'bg-blue-600 hover:bg-blue-700' }
+                    ],
+                    onSelect: (method) => {
+                        @this.payNight(reservationId, amount, method);
+                    }
                 }
-            }).then((result) => {
-                if (result.isConfirmed || result.isDenied) {
-                    const method = result.isConfirmed ? 'efectivo' : 'transferencia';
-                    @this.payNight(reservationId, amount, method);
-                }
-            });
+            }));
         }
 
         function confirmRevertNight(reservationId, amount) {
-            Swal.fire({
-                title: 'Anular Pago de Noche',
-                text: "¿Desea descontar el valor de esta noche del abono total?",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Sí, anular',
-                cancelButtonText: 'Cancelar',
-                confirmButtonColor: '#ef4444',
-                customClass: {
-                    popup: 'rounded-2xl',
-                    confirmButton: 'rounded-xl',
-                    cancelButton: 'rounded-xl'
+            window.dispatchEvent(new CustomEvent('open-confirm-modal', {
+                detail: {
+                    title: 'Anular Pago de Noche',
+                    text: '¿Desea descontar el valor de esta noche del abono total?',
+                    icon: 'warning',
+                    confirmText: 'Sí, anular',
+                    confirmButtonClass: 'bg-red-600 hover:bg-red-700',
+                    onConfirm: () => {
+                        @this.revertNightPayment(reservationId, amount);
+                    }
                 }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    @this.revertNightPayment(reservationId, amount);
-                }
-            });
+            }));
         }
 
         function addDeposit(reservationId) {
-            Swal.fire({
-                title: 'Agregar Abono',
-                html: `
-                    <div class="text-left space-y-4">
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-2">Monto</label>
-                            <input id="deposit_amount" type="number" min="0" step="0.01" class="swal2-input" placeholder="0.00">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-2">Método de Pago</label>
-                            <select id="deposit_payment_method" class="swal2-input">
-                                <option value="efectivo">Efectivo</option>
-                                <option value="transferencia">Transferencia</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-2">Notas (Opcional)</label>
-                            <textarea id="deposit_notes" class="swal2-textarea" placeholder="Notas adicionales..."></textarea>
-                        </div>
-                    </div>
-                `,
-                showCancelButton: true,
-                confirmButtonText: 'Registrar Abono',
-                confirmButtonColor: '#10b981',
-                cancelButtonText: 'Cancelar',
-                customClass: {
-                    popup: 'rounded-2xl',
-                    confirmButton: 'rounded-xl',
-                    cancelButton: 'rounded-xl'
-                },
-                preConfirm: () => {
-                    const amount = parseFloat(document.getElementById('deposit_amount').value);
-                    const paymentMethod = document.getElementById('deposit_payment_method').value;
-                    const notes = document.getElementById('deposit_notes').value;
-
-                    if (!amount || amount <= 0) {
-                        Swal.showValidationMessage('El monto debe ser mayor a 0');
-                        return false;
+            window.dispatchEvent(new CustomEvent('open-input-modal', {
+                detail: {
+                    title: 'Agregar Abono',
+                    fields: [
+                        {
+                            name: 'amount',
+                            label: 'Monto',
+                            type: 'number',
+                            value: 0,
+                            placeholder: '0.00',
+                            min: 0,
+                            step: 0.01
+                        },
+                        {
+                            name: 'payment_method',
+                            label: 'Método de Pago',
+                            type: 'select',
+                            value: 'efectivo',
+                            options: [
+                                { value: 'efectivo', label: 'Efectivo' },
+                                { value: 'transferencia', label: 'Transferencia' }
+                            ]
+                        },
+                        {
+                            name: 'notes',
+                            label: 'Notas (Opcional)',
+                            type: 'textarea',
+                            value: '',
+                            placeholder: 'Notas adicionales...'
+                        }
+                    ],
+                    confirmText: 'Registrar Abono',
+                    confirmButtonClass: 'bg-emerald-600 hover:bg-emerald-700',
+                    validator: (fields) => {
+                        const amount = parseFloat(fields[0]?.value || 0);
+                        if (!amount || amount <= 0) {
+                            return { valid: false, message: 'El monto debe ser mayor a 0' };
+                        }
+                        return { valid: true };
+                    },
+                    onConfirm: (values) => {
+                        const amount = parseFloat(values[0]?.value || 0);
+                        const paymentMethod = values[1]?.value || 'efectivo';
+                        const notes = values[2]?.value || null;
+                        @this.addDeposit(reservationId, amount, paymentMethod, notes);
                     }
-
-                    return {
-                        amount: amount,
-                        payment_method: paymentMethod,
-                        notes: notes || null
-                    };
                 }
-            }).then((result) => {
-                if (result.isConfirmed && result.value) {
-                    @this.addDeposit(
-                        reservationId,
-                        result.value.amount,
-                        result.value.payment_method,
-                        result.value.notes
-                    );
-                }
-            });
+            }));
         }
 
         function editDeposit(reservationId, current) {
-            Swal.fire({
-                title: 'Modificar Abono Total',
-                input: 'number',
-                inputValue: current,
-                showCancelButton: true,
-                confirmButtonText: 'Actualizar',
-                confirmButtonColor: '#10b981',
-                customClass: {
-                    popup: 'rounded-2xl',
-                    confirmButton: 'rounded-xl',
-                    cancelButton: 'rounded-xl'
+            window.dispatchEvent(new CustomEvent('open-input-modal', {
+                detail: {
+                    title: 'Modificar Abono Total',
+                    fields: [
+                        {
+                            name: 'amount',
+                            label: 'Monto',
+                            type: 'number',
+                            value: current || 0,
+                            placeholder: '0.00',
+                            min: 0,
+                            step: 0.01
+                        }
+                    ],
+                    confirmText: 'Actualizar',
+                    confirmButtonClass: 'bg-emerald-600 hover:bg-emerald-700',
+                    validator: (fields) => {
+                        const amount = parseFloat(fields[0]?.value || 0);
+                        if (amount <= 0) {
+                            return { valid: false, message: 'El monto debe ser mayor a 0' };
+                        }
+                        return { valid: true };
+                    },
+                    onConfirm: (values) => {
+                        const amount = parseFloat(values[0]?.value || 0);
+                        @this.updateDeposit(reservationId, amount);
+                    }
                 }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    @this.updateDeposit(reservationId, result.value);
-                }
-            });
+            }));
         }
 
         function editDepositRecord(depositId, currentAmount, currentMethod, currentNotes) {
-            Swal.fire({
-                title: 'Editar Abono',
-                html: `
-                    <div class="text-left space-y-4">
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-2">Monto</label>
-                            <input id="edit_deposit_amount" type="number" min="0" step="0.01" class="swal2-input" value="${currentAmount}" placeholder="0.00">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-2">Método de Pago</label>
-                            <select id="edit_deposit_payment_method" class="swal2-input">
-                                <option value="efectivo" ${currentMethod === 'efectivo' ? 'selected' : ''}>Efectivo</option>
-                                <option value="transferencia" ${currentMethod === 'transferencia' ? 'selected' : ''}>Transferencia</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-2">Notas (Opcional)</label>
-                            <textarea id="edit_deposit_notes" class="swal2-textarea" placeholder="Notas adicionales...">${currentNotes || ''}</textarea>
-                        </div>
-                    </div>
-                `,
-                showCancelButton: true,
-                confirmButtonText: 'Actualizar',
-                confirmButtonColor: '#10b981',
-                cancelButtonText: 'Cancelar',
-                customClass: {
-                    popup: 'rounded-2xl',
-                    confirmButton: 'rounded-xl',
-                    cancelButton: 'rounded-xl'
-                },
-                preConfirm: () => {
-                    const amount = parseFloat(document.getElementById('edit_deposit_amount').value);
-                    const paymentMethod = document.getElementById('edit_deposit_payment_method').value;
-                    const notes = document.getElementById('edit_deposit_notes').value;
-
-                    if (!amount || amount <= 0) {
-                        Swal.showValidationMessage('El monto debe ser mayor a 0');
-                        return false;
+            window.dispatchEvent(new CustomEvent('open-input-modal', {
+                detail: {
+                    title: 'Editar Abono',
+                    fields: [
+                        {
+                            name: 'amount',
+                            label: 'Monto',
+                            type: 'number',
+                            value: currentAmount || 0,
+                            placeholder: '0.00',
+                            min: 0,
+                            step: 0.01
+                        },
+                        {
+                            name: 'payment_method',
+                            label: 'Método de Pago',
+                            type: 'select',
+                            value: currentMethod || 'efectivo',
+                            options: [
+                                { value: 'efectivo', label: 'Efectivo' },
+                                { value: 'transferencia', label: 'Transferencia' }
+                            ]
+                        },
+                        {
+                            name: 'notes',
+                            label: 'Notas (Opcional)',
+                            type: 'textarea',
+                            value: currentNotes || '',
+                            placeholder: 'Notas adicionales...'
+                        }
+                    ],
+                    confirmText: 'Actualizar',
+                    confirmButtonClass: 'bg-emerald-600 hover:bg-emerald-700',
+                    validator: (fields) => {
+                        const amount = parseFloat(fields[0]?.value || 0);
+                        if (!amount || amount <= 0) {
+                            return { valid: false, message: 'El monto debe ser mayor a 0' };
+                        }
+                        return { valid: true };
+                    },
+                    onConfirm: (values) => {
+                        const amount = parseFloat(values[0]?.value || 0);
+                        const paymentMethod = values[1]?.value || 'efectivo';
+                        const notes = values[2]?.value || null;
+                        @this.editDepositRecord(depositId, amount, paymentMethod, notes);
                     }
-
-                    return {
-                        amount: amount,
-                        payment_method: paymentMethod,
-                        notes: notes || null
-                    };
                 }
-            }).then((result) => {
-                if (result.isConfirmed && result.value) {
-                    @this.editDepositRecord(
-                        depositId,
-                        result.value.amount,
-                        result.value.payment_method,
-                        result.value.notes
-                    );
-                }
-            });
+            }));
         }
 
         function confirmDeleteDeposit(depositId) {
-            Swal.fire({
-                title: 'Eliminar Abono',
-                text: '¿Está seguro de que desea eliminar este abono? Esta acción no se puede deshacer.',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Sí, eliminar',
-                cancelButtonText: 'Cancelar',
-                confirmButtonColor: '#ef4444',
-                customClass: {
-                    popup: 'rounded-2xl',
-                    confirmButton: 'rounded-xl',
-                    cancelButton: 'rounded-xl'
+            window.dispatchEvent(new CustomEvent('open-confirm-modal', {
+                detail: {
+                    title: 'Eliminar Abono',
+                    text: '¿Está seguro de que desea eliminar este abono? Esta acción no se puede deshacer.',
+                    icon: 'warning',
+                    confirmText: 'Sí, eliminar',
+                    confirmButtonClass: 'bg-red-600 hover:bg-red-700',
+                    onConfirm: () => {
+                        @this.deleteDepositRecord(depositId);
+                    }
                 }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    @this.deleteDepositRecord(depositId);
-                }
-            });
+            }));
         }
     </script>
 @endpush
