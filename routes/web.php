@@ -169,6 +169,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/reservations/{reservation}/download', [ReservationController::class, 'download'])->name('reservations.download');
         Route::get('/reservations/export/monthly', [ReservationController::class, 'exportMonthlyReport'])->name('reservations.export.monthly');
         Route::get('/api/check-room-availability', [ReservationController::class, 'checkAvailability'])->name('api.check-availability');
+        Route::get('/reservations/{reservation}/release-data', [ReservationController::class, 'getReleaseData'])->name('reservations.release-data');
     });
 
     Route::middleware('permission:create_reservations')->group(function () {

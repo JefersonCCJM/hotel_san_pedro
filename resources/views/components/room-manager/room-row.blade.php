@@ -49,7 +49,7 @@
         @if($currentDate->isPast() && !$currentDate->isToday())
             <span class="text-xs text-gray-400 italic">Histórico</span>
         @else
-            <x-room-manager.room-actions-menu :room="$room" />
+            <x-room-manager.room-actions-menu :room="$room" :currentDate="$currentDate" />
         @endif
     </td>
 </tr>

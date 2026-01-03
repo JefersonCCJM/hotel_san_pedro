@@ -54,9 +54,13 @@
                                 </div>
                                 <div>
                                     <h3 class="text-2xl font-black text-gray-900" id="modal-title">
-                                        Liberar Habitación #<span x-text="roomData.room_number"></span>
+                                        <template x-if="roomData.cancel_url || roomData.is_cancellation">Cancelar Reserva - Habitación #<span x-text="roomData.room_number"></span></template>
+                                        <template x-if="!roomData.cancel_url && !roomData.is_cancellation">Liberar Habitación #<span x-text="roomData.room_number"></span></template>
                                     </h3>
-                                    <p class="text-sm text-gray-500 mt-1">Confirme la información antes de liberar la habitación</p>
+                                    <p class="text-sm text-gray-500 mt-1">
+                                        <template x-if="roomData.cancel_url || roomData.is_cancellation">Confirme la información antes de cancelar la reserva</template>
+                                        <template x-if="!roomData.cancel_url && !roomData.is_cancellation">Confirme la información antes de liberar la habitación</template>
+                                    </p>
                                 </div>
                             </div>
                             <button type="button" 
@@ -327,7 +331,30 @@
                                     if ((roomData.total_debt || 0) < 0 && (!roomData.refunds_history || roomData.refunds_history.length === 0)) {
                                         return;
                                     }
-                                    @this.call('releaseRoom', roomData.room_id, 'libre');
+                                    if (roomData.cancel_url) {
+                                        // Cancel reservation from reservations module
+                                        const form = document.createElement('form');
+                                        form.method = 'POST';
+                                        form.action = roomData.cancel_url;
+                                        const csrf = document.createElement('input');
+                                        csrf.type = 'hidden';
+                                        csrf.name = '_token';
+                                        csrf.value = '{{ csrf_token() }}';
+                                        form.appendChild(csrf);
+                                        const method = document.createElement('input');
+                                        method.type = 'hidden';
+                                        method.name = '_method';
+                                        method.value = 'DELETE';
+                                        form.appendChild(method);
+                                        document.body.appendChild(form);
+                                        form.submit();
+                                    } else if (roomData.is_cancellation) {
+                                        // Cancel reservation from room manager
+                                        @this.call('cancelReservation', roomData.room_id);
+                                    } else {
+                                        // Release room from room manager
+                                        @this.call('releaseRoom', roomData.room_id, 'libre');
+                                    }
                                     show = false;
                                 "
                                 :disabled="((roomData.total_debt || 0) > 0 && !paymentConfirmed) || ((roomData.total_debt || 0) < 0 && (!roomData.refunds_history || roomData.refunds_history.length === 0))"
@@ -336,7 +363,8 @@
                                     : 'bg-emerald-600 hover:bg-emerald-700'"
                                 class="w-full sm:w-auto inline-flex justify-center items-center px-8 py-3 rounded-xl border border-transparent shadow-sm text-sm font-bold text-white transition-all duration-200">
                             <i class="fas fa-check mr-2"></i>
-                            Confirmar Liberación
+                            <template x-if="roomData.cancel_url || roomData.is_cancellation">Confirmar Cancelación</template>
+                            <template x-if="!roomData.cancel_url && !roomData.is_cancellation">Confirmar Liberación</template>
                         </button>
                         <button type="button" 
                                 @click="show = false"

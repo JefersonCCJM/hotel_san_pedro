@@ -15,6 +15,7 @@ class RoomDailyStatus extends Model
         'cleaning_status',
         'reservation_id',
         'guest_name',
+        'guests_data',
         'check_out_date',
         'total_amount',
     ];
@@ -24,6 +25,7 @@ class RoomDailyStatus extends Model
         'status' => RoomStatus::class,
         'check_out_date' => 'date',
         'total_amount' => 'float',
+        'guests_data' => 'array',
     ];
 
     public function room(): BelongsTo

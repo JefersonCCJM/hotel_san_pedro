@@ -9,7 +9,7 @@
              });
          "
          title="Click para ver todos los huéspedes">
-        <span class="text-sm font-semibold text-gray-900">{{ $room->current_reservation->customer->name ?? 'N/A' }}</span>
+        <span class="text-sm font-semibold text-gray-900">{{ $room->current_reservation->customer?->name ?? 'N/A' }}</span>
         <span class="text-xs text-blue-600 font-medium">
             Salida: {{ \Carbon\Carbon::parse($room->current_reservation->check_out_date)->format('d/m/Y') }}
         </span>
@@ -34,6 +34,12 @@
         @if(isset($room->check_out_date) && $room->check_out_date)
             <span class="text-xs text-blue-600 font-medium">
                 Salida: {{ \Carbon\Carbon::parse($room->check_out_date)->format('d/m/Y') }}
+            </span>
+        @endif
+        @if(isset($room->snapshot_guests_count) && $room->snapshot_guests_count > 1)
+            <span class="text-[10px] text-gray-500 mt-1">
+                <i class="fas fa-users mr-1"></i>
+                {{ $room->snapshot_guests_count }} huéspedes
             </span>
         @endif
     </div>

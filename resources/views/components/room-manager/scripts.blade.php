@@ -218,9 +218,13 @@
         });
     });
 
-    function confirmRelease(roomId, roomNumber, totalDebt, reservationId) {
+    function confirmRelease(roomId, roomNumber, totalDebt, reservationId, isCancellation = false) {
         // Load room release data and show confirmation modal
-        @this.call('loadRoomReleaseData', roomId).then((data) => {
+        @this.call('loadRoomReleaseData', roomId, isCancellation).then((data) => {
+            // Add flag to indicate if this is a cancellation action
+            if (isCancellation) {
+                data.is_cancellation = true;
+            }
             window.dispatchEvent(new CustomEvent('open-release-confirmation', {
                 detail: data
             }));
