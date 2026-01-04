@@ -4,7 +4,7 @@
 ])
 
 <div class="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
-    <div class="overflow-x-auto overflow-y-auto max-h-[calc(100vh-400px)] relative">
+    <div class="overflow-x-auto overflow-y-auto max-h-[calc(100vh-120px)] relative">
         @php
             $todayIndex = null;
             foreach ($daysInMonth as $index => $day) {
@@ -46,6 +46,8 @@
                     $rangeStart = null;
                     $rangeReservation = null;
                     $today = \Carbon\Carbon::today()->startOfDay();
+                    $roomStatusValue = $room->status->value ?? null;
+                    $isRoomOccupied = in_array($roomStatusValue, ['ocupada', 'pendiente_checkout']);
                     
                     foreach ($daysInMonth as $dayIndex => $day) {
                         $dayStatus = 'free';
@@ -93,11 +95,29 @@
                             });
 
                             if ($dayReservation) {
-                                $checkInDate = \Carbon\Carbon::parse($dayReservation->check_in_date)->startOfDay();
-                                if ($today->lt($checkInDate)) {
+                                $checkInTime = $dayReservation->check_in_time ?? config('hotel.check_in_time', '15:00');
+                                $checkOutTime = config('hotel.check_out_time', '12:00');
+
+                                $checkInDateTime = \Carbon\Carbon::parse($dayReservation->check_in_date)->setTimeFromTimeString($checkInTime);
+                                $checkOutDateTime = \Carbon\Carbon::parse($dayReservation->check_out_date)->setTimeFromTimeString($checkOutTime);
+
+                                $checkInDate = $checkInDateTime->copy()->startOfDay();
+                                $checkOutDate = $checkOutDateTime->copy()->startOfDay();
+                                $now = \Carbon\Carbon::now();
+
+                                // Check-in is represented by room status occupied/pending_checkout
+                                $isCheckedIn = $isRoomOccupied;
+
+                                if ($dayNormalized->gt($checkOutDate)) {
+                                    $dayStatus = 'free';
+                                } elseif (!$isCheckedIn) {
+                                    // No check-in yet: keep whole range as reserved
                                     $dayStatus = 'reserved';
-                                } else {
+                                } elseif ($dayNormalized->lt($checkOutDate)) {
+                                    // Checked-in and before checkout day
                                     $dayStatus = 'occupied';
+                                } else { // $dayNormalized == $checkOutDate
+                                    $dayStatus = $now->lt($checkOutDateTime) ? 'pending_checkout' : 'free';
                                 }
                             } elseif ($room->status->value === 'mantenimiento') {
                                 $dayStatus = 'maintenance';
@@ -145,6 +165,8 @@
                             $today = \Carbon\Carbon::today()->startOfDay();
                             $isPastDate = $dayNormalized->lt($today);
                             $reservation = null;
+                            $roomStatusValue = $room->status->value ?? null;
+                            $isRoomOccupied = in_array($roomStatusValue, ['ocupada', 'pendiente_checkout']);
                             
                             // For past dates, use immutable snapshots (RoomDailyStatus)
                             if ($isPastDate && isset($room->dailyStatuses)) {
@@ -186,11 +208,27 @@
                                 });
 
                                 if ($reservation) {
-                                    $checkInDate = \Carbon\Carbon::parse($reservation->check_in_date)->startOfDay();
-                                    if ($today->lt($checkInDate)) {
+                                    $checkInTime = $reservation->check_in_time ?? config('hotel.check_in_time', '15:00');
+                                    $checkOutTime = config('hotel.check_out_time', '12:00');
+
+                                    $checkInDateTime = \Carbon\Carbon::parse($reservation->check_in_date)->setTimeFromTimeString($checkInTime);
+                                    $checkOutDateTime = \Carbon\Carbon::parse($reservation->check_out_date)->setTimeFromTimeString($checkOutTime);
+
+                                    $checkInDate = $checkInDateTime->copy()->startOfDay();
+                                    $checkOutDate = $checkOutDateTime->copy()->startOfDay();
+                                    $now = \Carbon\Carbon::now();
+
+                                    // Check-in is represented by room status occupied/pending_checkout
+                                    $isCheckedIn = $isRoomOccupied;
+
+                                    if ($dayNormalized->gt($checkOutDate)) {
+                                        $status = 'free';
+                                    } elseif (!$isCheckedIn) {
                                         $status = 'reserved';
-                                    } else {
+                                    } elseif ($dayNormalized->lt($checkOutDate)) {
                                         $status = 'occupied';
+                                    } else { // $dayNormalized == $checkOutDate
+                                        $status = $now->lt($checkOutDateTime) ? 'pending_checkout' : 'free';
                                     }
                                 } elseif ($room->status->value === 'mantenimiento') {
                                     $status = 'maintenance';
@@ -219,6 +257,7 @@
                                 'free' => 'bg-emerald-100 hover:bg-emerald-200',
                                 'reserved' => 'bg-indigo-500 hover:bg-indigo-600',
                                 'occupied' => 'bg-red-500 hover:bg-red-600',
+                                'pending_checkout' => 'bg-orange-400 hover:bg-orange-500',
                                 'maintenance' => 'bg-yellow-400 hover:bg-yellow-500',
                                 'cleaning' => 'bg-purple-400 hover:bg-purple-500'
                             ];
@@ -246,6 +285,7 @@
                                     'free' => 'Libre',
                                     'reserved' => 'Reservada',
                                     'occupied' => 'Ocupada',
+                                    'pending_checkout' => 'Pendiente de Checkout',
                                     'maintenance' => 'Mantenimiento',
                                     'cleaning' => 'Limpieza',
                                     default => 'Desconocido'

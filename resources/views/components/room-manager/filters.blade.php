@@ -48,64 +48,86 @@
             </div>
         </div>
 
-        <!-- BLOQUE CALENDARIO -->
-        <div class="pt-4 border-t border-gray-100">
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-                <div class="lg:col-span-3 space-y-2">
-                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">MES DE CONSULTA</label>
-                    <div class="flex items-center bg-gray-50 border border-gray-200 rounded-xl p-1">
-                        <button wire:click="changeDate('{{ $currentDate->copy()->subMonth()->format('Y-m-d') }}')" class="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-400">
-                            <i class="fas fa-chevron-left text-xs"></i>
-                        </button>
-                        <span class="flex-1 text-center text-xs font-bold text-gray-700 uppercase tracking-tighter">{{ $currentDate->translatedFormat('F Y') }}</span>
-                        <button wire:click="changeDate('{{ $currentDate->copy()->addMonth()->format('Y-m-d') }}')" class="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-400">
-                            <i class="fas fa-chevron-right text-xs"></i>
-                        </button>
+        <!-- BLOQUE CALENDARIO ACORDEÓN -->
+        <div class="pt-4 border-t border-gray-100" x-data="{ calendarOpen: false }">
+            <!-- Header del acordeón -->
+            <button @click="calendarOpen = !calendarOpen" 
+                    type="button"
+                    class="w-full flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors group">
+                <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                        <i class="fas fa-calendar-alt text-blue-600 text-sm"></i>
+                    </div>
+                    <div class="text-left">
+                        <div class="text-xs font-semibold text-gray-700">Calendario</div>
+                        <div class="text-[10px] text-gray-500">{{ $currentDate->translatedFormat('d F Y') }}</div>
                     </div>
                 </div>
+                <i class="fas fa-chevron-down text-gray-400 transition-transform duration-200"
+                   :class="{ 'rotate-180': calendarOpen }"></i>
+            </button>
 
-                <div class="lg:col-span-9 space-y-2">
-                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">DÍAS DEL MES</label>
-
-                    <!-- Vista móvil: scroll horizontal -->
-                    <div class="lg:hidden overflow-x-auto pb-2 custom-scrollbar">
-                        <div class="flex space-x-2 min-w-max">
-                            @foreach($daysInMonth as $day)
-                                @php 
-                                    $isCurrent = $day->isSameDay($currentDate);
-                                    $isToday = $day->isToday();
-                                @endphp
-                                <button type="button" wire:click="changeDate('{{ $day->format('Y-m-d') }}')"
-                                    class="flex flex-col items-center justify-center min-w-[50px] h-14 rounded-xl transition-all border
-                                    {{ $isCurrent ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-gray-50 border-gray-100 text-gray-500 hover:border-blue-200 hover:text-blue-600' }}">
-                                    <span class="text-[9px] font-bold uppercase tracking-tight">{{ substr($day->translatedFormat('D'), 0, 1) }}</span>
-                                    <span class="text-sm font-bold mt-0.5">{{ $day->day }}</span>
-                                    @if($isToday && !$isCurrent)
-                                        <span class="w-1 h-1 bg-blue-500 rounded-full mt-1"></span>
-                                    @endif
-                                </button>
-                            @endforeach
+            <!-- Contenido del acordeón -->
+            <div x-show="calendarOpen" 
+                 x-collapse
+                 class="mt-4">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                    <div class="lg:col-span-3 space-y-2">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">MES DE CONSULTA</label>
+                        <div class="flex items-center bg-gray-50 border border-gray-200 rounded-xl p-1">
+                            <button wire:click="changeDate('{{ $currentDate->copy()->subMonth()->format('Y-m-d') }}')" class="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-400">
+                                <i class="fas fa-chevron-left text-xs"></i>
+                            </button>
+                            <span class="flex-1 text-center text-xs font-bold text-gray-700 uppercase tracking-tighter">{{ $currentDate->translatedFormat('F Y') }}</span>
+                            <button wire:click="changeDate('{{ $currentDate->copy()->addMonth()->format('Y-m-d') }}')" class="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-400">
+                                <i class="fas fa-chevron-right text-xs"></i>
+                            </button>
                         </div>
                     </div>
 
-                    <!-- Vista desktop: grilla 7 columnas, sin scroll -->
-                    <div class="hidden lg:block">
-                        <div class="grid grid-cols-7 gap-1">
-                            @foreach($daysInMonth as $day)
-                                @php 
-                                    $isCurrent = $day->isSameDay($currentDate);
-                                    $isToday = $day->isToday();
-                                @endphp
-                                <button type="button" wire:click="changeDate('{{ $day->format('Y-m-d') }}')"
-                                    class="flex flex-col items-center justify-center h-12 w-12 rounded-lg transition-all border
-                                    {{ $isCurrent ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-gray-50 border-gray-100 text-gray-500 hover:border-blue-200 hover:text-blue-600' }}">
-                                    <span class="text-[10px] font-bold uppercase tracking-tight leading-none">{{ substr($day->translatedFormat('D'), 0, 1) }}</span>
-                                    <span class="text-sm font-bold mt-0.5 leading-tight">{{ $day->day }}</span>
-                                    @if($isToday && !$isCurrent)
-                                        <span class="w-1 h-1 bg-blue-500 rounded-full mt-1"></span>
-                                    @endif
-                                </button>
-                            @endforeach
+                    <div class="lg:col-span-9 space-y-2">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">DÍAS DEL MES</label>
+
+                        <!-- Vista móvil: scroll horizontal -->
+                        <div class="lg:hidden overflow-x-auto pb-2 custom-scrollbar">
+                            <div class="flex space-x-2 min-w-max">
+                                @foreach($daysInMonth as $day)
+                                    @php 
+                                        $isCurrent = $day->isSameDay($currentDate);
+                                        $isToday = $day->isToday();
+                                    @endphp
+                                    <button type="button" wire:click="changeDate('{{ $day->format('Y-m-d') }}')"
+                                        class="flex flex-col items-center justify-center min-w-[50px] h-14 rounded-xl transition-all border
+                                        {{ $isCurrent ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-gray-50 border-gray-100 text-gray-500 hover:border-blue-200 hover:text-blue-600' }}">
+                                        <span class="text-[9px] font-bold uppercase tracking-tight">{{ substr($day->translatedFormat('D'), 0, 1) }}</span>
+                                        <span class="text-sm font-bold mt-0.5">{{ $day->day }}</span>
+                                        @if($isToday && !$isCurrent)
+                                            <span class="w-1 h-1 bg-blue-500 rounded-full mt-1"></span>
+                                        @endif
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+
+                        <!-- Vista desktop: grilla 7 columnas, sin scroll -->
+                        <div class="hidden lg:block">
+                            <div class="grid grid-cols-7 gap-1">
+                                @foreach($daysInMonth as $day)
+                                    @php 
+                                        $isCurrent = $day->isSameDay($currentDate);
+                                        $isToday = $day->isToday();
+                                    @endphp
+                                    <button type="button" wire:click="changeDate('{{ $day->format('Y-m-d') }}')"
+                                        class="flex flex-col items-center justify-center h-12 w-12 rounded-lg transition-all border
+                                        {{ $isCurrent ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-gray-50 border-gray-100 text-gray-500 hover:border-blue-200 hover:text-blue-600' }}">
+                                        <span class="text-[10px] font-bold uppercase tracking-tight leading-none">{{ substr($day->translatedFormat('D'), 0, 1) }}</span>
+                                        <span class="text-sm font-bold mt-0.5 leading-tight">{{ $day->day }}</span>
+                                        @if($isToday && !$isCurrent)
+                                            <span class="w-1 h-1 bg-blue-500 rounded-full mt-1"></span>
+                                        @endif
+                                    </button>
+                                @endforeach
+                            </div>
                         </div>
                     </div>
                 </div>

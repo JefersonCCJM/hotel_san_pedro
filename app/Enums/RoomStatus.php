@@ -31,12 +31,12 @@ enum RoomStatus: string
     {
         return match ($this) {
             self::LIBRE => 'bg-emerald-50 text-emerald-700',
-            self::RESERVADA => 'bg-blue-50 text-blue-700',
-            self::OCUPADA => 'bg-blue-50 text-blue-700',
+            self::RESERVADA => 'bg-indigo-50 text-indigo-700',
+            self::OCUPADA => 'bg-red-50 text-red-700',
             self::MANTENIMIENTO => 'bg-amber-50 text-amber-700',
             self::LIMPIEZA => 'bg-orange-50 text-orange-700',
             self::SUCIA => 'bg-red-50 text-red-700',
-            self::PENDIENTE_CHECKOUT => 'bg-purple-50 text-purple-700',
+            self::PENDIENTE_CHECKOUT => 'bg-orange-50 text-orange-700',
             self::PENDIENTE_ASEO => 'bg-yellow-50 text-yellow-700',
         };
     }
@@ -48,12 +48,12 @@ enum RoomStatus: string
     {
         return match ($this) {
             self::LIBRE => 'border-emerald-400',
-            self::RESERVADA => 'border-blue-400',
-            self::OCUPADA => 'border-blue-400',
+            self::RESERVADA => 'border-indigo-400',
+            self::OCUPADA => 'border-red-400',
             self::MANTENIMIENTO => 'border-amber-400',
             self::LIMPIEZA => 'border-orange-500',
             self::SUCIA => 'border-red-500',
-            self::PENDIENTE_CHECKOUT => 'border-purple-400',
+            self::PENDIENTE_CHECKOUT => 'border-orange-400',
             self::PENDIENTE_ASEO => 'border-yellow-400',
         };
     }
@@ -65,12 +65,12 @@ enum RoomStatus: string
     {
         return match ($this) {
             self::LIBRE => 'bg-emerald-100 border-emerald-400 text-emerald-800',
-            self::RESERVADA => 'bg-blue-100 border-blue-400 text-blue-800',
-            self::OCUPADA => 'bg-blue-100 border-blue-400 text-blue-800',
+            self::RESERVADA => 'bg-indigo-100 border-indigo-400 text-indigo-800',
+            self::OCUPADA => 'bg-red-100 border-red-400 text-red-800',
             self::MANTENIMIENTO => 'bg-amber-100 border-amber-400 text-amber-800',
             self::LIMPIEZA => 'bg-orange-100 border-orange-500 text-orange-800',
             self::SUCIA => 'bg-red-100 border-red-500 text-red-800',
-            self::PENDIENTE_CHECKOUT => 'bg-purple-100 border-purple-400 text-purple-800',
+            self::PENDIENTE_CHECKOUT => 'bg-orange-100 border-orange-400 text-orange-800',
             self::PENDIENTE_ASEO => 'bg-yellow-100 border-yellow-400 text-yellow-800',
         };
     }

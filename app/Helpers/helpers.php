@@ -60,3 +60,69 @@ if (!function_exists('array_merge_numeric_values')) {
         return $merged;
     }
 }
+
+if (!function_exists('hotel_check_in_time')) {
+    /**
+     * Get the configured check-in time
+     * 
+     * @return string Time in H:i format (e.g., "15:00")
+     */
+    function hotel_check_in_time() {
+        return config('hotel.check_in_time', '15:00');
+    }
+}
+
+if (!function_exists('hotel_check_out_time')) {
+    /**
+     * Get the configured check-out time
+     * 
+     * @return string Time in H:i format (e.g., "12:00")
+     */
+    function hotel_check_out_time() {
+        return config('hotel.check_out_time', '12:00');
+    }
+}
+
+if (!function_exists('hotel_early_check_in_time')) {
+    /**
+     * Get the configured early check-in time
+     * 
+     * @return string Time in H:i format (e.g., "12:00")
+     */
+    function hotel_early_check_in_time() {
+        return config('hotel.early_check_in_time', '12:00');
+    }
+}
+
+if (!function_exists('hotel_late_check_out_time')) {
+    /**
+     * Get the configured late check-out time
+     * 
+     * @return string Time in H:i format (e.g., "15:00")
+     */
+    function hotel_late_check_out_time() {
+        return config('hotel.late_check_out_time', '15:00');
+    }
+}
+
+if (!function_exists('hotel_check_out_grace_period')) {
+    /**
+     * Get the configured grace period after check-out time (in minutes)
+     * 
+     * @return int Minutes
+     */
+    function hotel_check_out_grace_period() {
+        return config('hotel.check_out_grace_period_minutes', 30);
+    }
+}
+
+if (!function_exists('hotel_minimum_rental_hours')) {
+    /**
+     * Get the minimum rental hours
+     * 
+     * @return int Hours
+     */
+    function hotel_minimum_rental_hours() {
+        return config('hotel.minimum_rental_hours', 24);
+    }
+}

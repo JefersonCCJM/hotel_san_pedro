@@ -61,6 +61,14 @@
                             .then(r => r.json())
                             .then(j => {
                                 const results = j.results || [];
+                                const noCustomersMsg = document.getElementById('no-customers-message');
+                                if (noCustomersMsg) {
+                                    if (results.length === 0) {
+                                        noCustomersMsg.classList.remove('hidden');
+                                    } else {
+                                        noCustomersMsg.classList.add('hidden');
+                                    }
+                                }
                                 callback(results);
                             })
                             .catch(() => callback());
@@ -89,37 +97,33 @@
         });
 
         // Listen for customer created event from the new modal
-        // Solo actualizar el select si no hay un cliente seleccionado actualmente
         Livewire.on('customer-created', (data) => {
             const payload = Array.isArray(data) ? data[0] : data;
             const customerId = payload?.customerId || payload?.customer?.id;
+            const customerData = payload?.customer;
             
             if (customerSelect && customerId) {
-                const currentValue = customerSelect.getValue();
-                
-                // Solo actualizar si no hay un cliente seleccionado
-                // Si ya hay uno seleccionado, solo recargar las opciones sin cambiar la selección
-                if (!currentValue || currentValue.length === 0) {
-                    // Reload options to include the new customer
-                    customerSelect.load((query, callback) => {
-                        fetch(`/api/customers/search?q=`)
-                            .then(r => r.json())
-                            .then(j => callback(j.results || []))
-                            .catch(() => callback());
-                    });
-                    // Set the new customer as selected
-                    setTimeout(() => {
-                        customerSelect.setValue(customerId);
-                    }, 200);
-                } else {
-                    // Si ya hay un cliente seleccionado, solo recargar las opciones sin cambiar
-                    customerSelect.load((query, callback) => {
-                        fetch(`/api/customers/search?q=`)
-                            .then(r => r.json())
-                            .then(j => callback(j.results || []))
-                            .catch(() => callback());
+                // Agregar el nuevo cliente a las opciones
+                if (customerData) {
+                    customerSelect.addOption({
+                        id: customerData.id,
+                        name: customerData.name,
+                        identification: customerData.identification,
+                        text: customerData.name
                     });
                 }
+                
+                // Establecer el nuevo cliente como seleccionado
+                customerSelect.setValue(customerId);
+                
+                // Ocultar mensaje de no hay clientes si estaba visible
+                const noCustomersMsg = document.getElementById('no-customers-message');
+                if (noCustomersMsg) {
+                    noCustomersMsg.classList.add('hidden');
+                }
+                
+                // Actualizar también Livewire
+                @this.set('rentForm.customer_id', customerId);
             }
         });
 

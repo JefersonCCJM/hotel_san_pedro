@@ -22,7 +22,7 @@ class ReservationCreate extends Component
     public $selectedRoomIds = [];
     public $checkIn = '';
     public $checkOut = '';
-    public $checkInTime = '14:00';
+    public $checkInTime = '';
     public $total = 0;
     public $deposit = 0;
     public $guestsCount = 0;
@@ -115,26 +115,39 @@ class ReservationCreate extends Component
         'customerId' => 'required|exists:customers,id',
         'checkIn' => 'required|date|after_or_equal:today',
         'checkOut' => 'required|date|after:checkIn',
-        'checkInTime' => ['nullable', 'regex:/^([0-1]\d|2[0-3]):[0-5]\d$/'],
+        'checkInTime' => ['nullable', 'regex:/^([0-1]\d|2[0-3]):[0-5]\d$/', 'after_or_equal_to_hotel_checkin'],
         'total' => 'required|numeric|min:0',
         'deposit' => 'required|numeric|min:0',
         'guestsCount' => 'nullable|integer|min:0',
     ];
 
-    protected $messages = [
-        'customerId.required' => 'Debe seleccionar un cliente.',
-        'customerId.exists' => 'El cliente seleccionado no existe.',
-        'checkIn.required' => 'La fecha de entrada es obligatoria.',
-        'checkIn.after_or_equal' => 'La fecha de entrada no puede ser anterior al día actual.',
-        'checkOut.required' => 'La fecha de salida es obligatoria.',
-        'checkOut.after' => 'La fecha de salida debe ser posterior a la fecha de entrada.',
-        'checkInTime.regex' => 'El formato de hora debe ser HH:MM (24 horas).',
-        'total.required' => 'El total es obligatorio.',
-        'total.min' => 'El total debe ser mayor o igual a 0.',
-        'deposit.required' => 'El abono es obligatorio.',
-        'deposit.min' => 'El abono debe ser mayor o igual a 0.',
-        'guestsCount.min' => 'El número de personas no puede ser negativo.',
-    ];
+    protected function messages()
+    {
+        return [
+            'customerId.required' => 'Debe seleccionar un cliente.',
+            'customerId.exists' => 'El cliente seleccionado no existe.',
+            'checkIn.required' => 'La fecha de entrada es obligatoria.',
+            'checkIn.after_or_equal' => 'La fecha de entrada no puede ser anterior al día actual.',
+            'checkOut.required' => 'La fecha de salida es obligatoria.',
+            'checkOut.after' => 'La fecha de salida debe ser posterior a la fecha de entrada.',
+            'checkInTime.regex' => 'El formato de hora debe ser HH:MM (24 horas).',
+            'checkInTime.after_or_equal_to_hotel_checkin' => 'La hora de ingreso debe ser a partir de las ' . config('hotel.check_in_time', '15:00') . '.',
+            'total.required' => 'El total es obligatorio.',
+            'total.min' => 'El total debe ser mayor o igual a 0.',
+            'deposit.required' => 'El abono es obligatorio.',
+            'deposit.min' => 'El abono debe ser mayor o igual a 0.',
+            'guestsCount.min' => 'El número de personas no puede ser negativo.',
+        ];
+    }
+
+    public function boot()
+    {
+        // Registrar regla de validación personalizada para hora mínima de check-in
+        \Illuminate\Support\Facades\Validator::extend('after_or_equal_to_hotel_checkin', function ($attribute, $value, $parameters, $validator) {
+            $hotelCheckInTime = config('hotel.check_in_time', '15:00');
+            return $value >= $hotelCheckInTime;
+        });
+    }
 
     public function mount(
         $rooms = [],
@@ -154,6 +167,11 @@ class ReservationCreate extends Component
         $this->municipalities = is_array($municipalities) ? $municipalities : [];
         $this->checkIn = now()->format('Y-m-d');
         $this->checkOut = now()->addDay()->format('Y-m-d');
+        
+        // Establecer hora de check-in desde configuración si está vacía
+        if (empty($this->checkInTime)) {
+            $this->checkInTime = config('hotel.check_in_time', '15:00');
+        }
 
         // Validate initial dates
         $this->validateDates();
@@ -257,6 +275,11 @@ class ReservationCreate extends Component
         if (!empty($value)) {
             $this->customerSearchTerm = '';
             $this->showCustomerDropdown = false;
+            
+            // Si no es modo múltiple y hay una habitación seleccionada, asignar automáticamente el cliente
+            if (!$this->showMultiRoomSelector && !empty($this->roomId)) {
+                $this->autoAssignMainCustomerToRoom();
+            }
         }
         // The selectedCustomerInfo is computed automatically via getSelectedCustomerInfoProperty()
     }
@@ -284,6 +307,11 @@ class ReservationCreate extends Component
         // Initialize empty roomGuests array with integer key
         if (!isset($this->roomGuests[$roomIdInt]) || !is_array($this->roomGuests[$roomIdInt])) {
             $this->roomGuests[$roomIdInt] = [];
+        }
+
+        // Si no es modo múltiple y hay un cliente seleccionado, asignar automáticamente
+        if (!$this->showMultiRoomSelector && !empty($this->customerId)) {
+            $this->autoAssignMainCustomerToRoom();
         }
 
         $this->calculateTotal();
@@ -877,6 +905,71 @@ class ReservationCreate extends Component
                 && is_numeric($guest['id'])
                 && isset($guest['name']);
         }));
+    }
+
+    /**
+     * Asigna automáticamente el cliente principal a la habitación en modo simple (no múltiple)
+     */
+    protected function autoAssignMainCustomerToRoom(): void
+    {
+        // Solo funciona en modo simple (una habitación)
+        if ($this->showMultiRoomSelector || empty($this->roomId) || empty($this->customerId)) {
+            return;
+        }
+
+        $roomIdInt = is_numeric($this->roomId) ? (int) $this->roomId : 0;
+        if ($roomIdInt <= 0) {
+            return;
+        }
+
+        // Buscar el cliente en la lista
+        $customer = collect($this->customers)->firstWhere('id', (int) $this->customerId);
+        if (!$customer) {
+            return;
+        }
+
+        // Inicializar array de huéspedes si no existe
+        if (!isset($this->roomGuests[$roomIdInt]) || !is_array($this->roomGuests[$roomIdInt])) {
+            $this->roomGuests[$roomIdInt] = [];
+        }
+
+        // Verificar si el cliente ya está asignado
+        $existingGuestIds = array_column($this->roomGuests[$roomIdInt], 'id');
+        $existingGuestIds = array_map('intval', $existingGuestIds);
+        if (in_array((int) $this->customerId, $existingGuestIds, true)) {
+            // Ya está asignado, no hacer nada
+            return;
+        }
+
+        // Obtener información de la habitación
+        $room = $this->getRoomById($roomIdInt);
+        if (!$room || !is_array($room)) {
+            return;
+        }
+
+        // Verificar capacidad
+        $currentCount = $this->getRoomGuestsCount($roomIdInt);
+        $capacity = (int)($room['capacity'] ?? $room['max_capacity'] ?? 0);
+        
+        if ($capacity <= 0 || $currentCount >= $capacity) {
+            // No hay espacio, no asignar
+            return;
+        }
+
+        // Asignar el cliente principal a la habitación
+        $normalizedGuestData = [
+            'id' => (int) $this->customerId,
+            'name' => $customer['name'] ?? '',
+            'identification' => $customer['identification'] ?? 'S/N',
+            'phone' => $customer['phone'] ?? 'S/N',
+            'email' => $customer['email'] ?? null,
+        ];
+
+        $this->roomGuests[$roomIdInt][] = $normalizedGuestData;
+        $this->roomGuests[$roomIdInt] = array_values($this->roomGuests[$roomIdInt]);
+        
+        // Forzar reactividad de Livewire
+        $this->roomGuests = $this->roomGuests;
     }
 
     public function calculatePriceForRoom(array $room, int $guestsCount): float

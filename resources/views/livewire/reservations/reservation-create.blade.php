@@ -253,12 +253,13 @@
 
                         <!-- Hora de Ingreso -->
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Hora de Ingreso</label>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Hora de Ingreso (Desde {{ config('hotel.check_in_time', '15:00') }})</label>
                             <div class="relative">
                                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                                     <i class="fas fa-clock text-sm"></i>
                                 </div>
                                 <input type="time" name="check_in_time" wire:model.live="checkInTime" value="{{ old('check_in_time', $this->checkInTime) }}"
+                                       min="{{ config('hotel.check_in_time', '15:00') }}"
                                        class="block w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-emerald-500 focus:border-emerald-500 @error('checkInTime') border-red-500 @enderror @error('check_in_time') border-red-500 @enderror">
                                 @error('checkInTime')
                                     <span class="mt-1 text-xs font-medium text-red-600 flex items-center">

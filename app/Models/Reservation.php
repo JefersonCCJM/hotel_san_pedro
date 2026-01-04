@@ -91,4 +91,128 @@ class Reservation extends Model
     {
         return $this->hasMany(ReservationDeposit::class);
     }
+
+    /**
+     * Determine if the reservation is currently occupied (check-in has occurred)
+     * 
+     * @return bool True if check_in_date <= today AND check_out_date >= today
+     */
+    public function isOccupied(): bool
+    {
+        $today = \Carbon\Carbon::today();
+        $checkInDate = \Carbon\Carbon::parse($this->check_in_date)->startOfDay();
+        $checkOutDate = \Carbon\Carbon::parse($this->check_out_date)->startOfDay();
+        
+        return $today->gte($checkInDate) && $today->lte($checkOutDate);
+    }
+
+    /**
+     * Determine if the reservation is a future reservation (check-in hasn't occurred yet)
+     * 
+     * @return bool True if check_in_date > today
+     */
+    public function isReserved(): bool
+    {
+        $today = \Carbon\Carbon::today();
+        $checkInDate = \Carbon\Carbon::parse($this->check_in_date)->startOfDay();
+        
+        return $today->lt($checkInDate);
+    }
+
+    /**
+     * Determine if checkout is pending for today
+     * 
+     * @return bool True if check_out_date == today
+     */
+    public function isPendingCheckout(): bool
+    {
+        $today = \Carbon\Carbon::today();
+        $checkOutDate = \Carbon\Carbon::parse($this->check_out_date)->startOfDay();
+        
+        return $today->equalTo($checkOutDate);
+    }
+
+    /**
+     * Determine if checkout has passed
+     * 
+     * @return bool True if check_out_date < today
+     */
+    public function isCheckedOut(): bool
+    {
+        $today = \Carbon\Carbon::today();
+        $checkOutDate = \Carbon\Carbon::parse($this->check_out_date)->startOfDay();
+        
+        return $today->gt($checkOutDate);
+    }
+
+    /**
+     * Get the status of this reservation for display
+     * 
+     * @return string One of: 'reserved', 'occupied', 'pending_checkout', 'checked_out'
+     */
+    public function getStatus(): string
+    {
+        if ($this->isReserved()) {
+            return 'reserved';
+        }
+        
+        if ($this->isPendingCheckout()) {
+            return 'pending_checkout';
+        }
+        
+        if ($this->isOccupied()) {
+            return 'occupied';
+        }
+        
+        if ($this->isCheckedOut()) {
+            return 'checked_out';
+        }
+        
+        return 'unknown';
+    }
+
+    /**
+     * Query scope to get only occupied reservations (check-in has occurred)
+     */
+    public function scopeOccupied($query)
+    {
+        $today = \Carbon\Carbon::today();
+        
+        return $query
+            ->where('check_in_date', '<=', $today)
+            ->where('check_out_date', '>=', $today);
+    }
+
+    /**
+     * Query scope to get only reserved reservations (future check-in)
+     */
+    public function scopeReserved($query)
+    {
+        $today = \Carbon\Carbon::today();
+        
+        return $query->where('check_in_date', '>', $today);
+    }
+
+    /**
+     * Query scope to get pending checkout reservations (today is checkout date)
+     */
+    public function scopePendingCheckout($query)
+    {
+        $today = \Carbon\Carbon::today();
+        
+        return $query->whereDate('check_out_date', '=', $today);
+    }
+
+    /**
+     * Query scope to get active reservations (occupied + reserved)
+     */
+    public function scopeActive($query)
+    {
+        $today = \Carbon\Carbon::today();
+        
+        return $query
+            ->where('check_in_date', '<=', $today->addDays(30))
+            ->where('check_out_date', '>=', $today);
+    }
 }
+

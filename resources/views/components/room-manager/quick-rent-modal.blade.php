@@ -29,6 +29,10 @@
                         <div wire:ignore>
                         <select id="quick_customer_id" class="w-full"></select>
                         </div>
+                        <div id="no-customers-message" class="hidden text-xs text-amber-600 mt-2 flex items-center bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                            <i class="fas fa-exclamation-triangle mr-2 text-sm"></i>
+                            <span class="font-medium">No hay clientes registrados. Por favor, cree un nuevo cliente usando el botón <strong>"+ Nuevo Cliente"</strong> arriba.</span>
+                        </div>
                         @error('rentForm.customer_id')
                             <p class="text-[10px] text-red-600 mt-1">{{ $message }}</p>
                         @enderror

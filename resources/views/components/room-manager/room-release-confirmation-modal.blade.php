@@ -259,13 +259,14 @@
                                             </p>
                                             <div class="space-y-3">
                                                 <button type="button"
-                                                        @click="@this.call('registerCustomerRefund', roomData.reservation.id).then(() => {
-                                                            // Recargar datos del modal después de registrar la devolución
-                                                            @this.call('loadRoomReleaseData', roomData.room_id).then((updatedData) => {
-                                                                roomData = updatedData;
-                                                                refundConfirmed = true;
+                                                        @click="if ($wire) {
+                                                            $wire.call('registerCustomerRefund', roomData.reservation.id).then(() => {
+                                                                $wire.call('loadRoomReleaseData', roomData.room_id).then((updatedData) => {
+                                                                    roomData = updatedData;
+                                                                    refundConfirmed = true;
+                                                                });
                                                             });
-                                                        })"
+                                                        }"
                                                         class="inline-flex items-center px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold rounded-xl transition-colors">
                                                     <i class="fas fa-check-circle mr-2"></i>
                                                     Registrar Devolución de Dinero
@@ -350,10 +351,14 @@
                                         form.submit();
                                     } else if (roomData.is_cancellation) {
                                         // Cancel reservation from room manager
-                                        @this.call('cancelReservation', roomData.room_id);
+                                        if ($wire) {
+                                            $wire.call('cancelReservation', roomData.room_id);
+                                        }
                                     } else {
                                         // Release room from room manager
-                                        @this.call('releaseRoom', roomData.room_id, 'libre');
+                                        if ($wire) {
+                                            $wire.call('releaseRoom', roomData.room_id, 'libre');
+                                        }
                                     }
                                     show = false;
                                 "
