@@ -10,22 +10,27 @@ class Reservation extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'customer_id',
-        'room_id',
-        'guests_count',
+        'reservation_code',
+        'client_id',
+        'status_id',
+        'total_guests',
+        'adults',
+        'children',
         'total_amount',
-        'deposit',
-        'payment_method',
-        'reservation_date',
-        'check_in_date',
-        'check_out_date',
-        'check_in_time',
+        'deposit_amount',
+        'balance_due',
+        'payment_status_id',
+        'source_id',
+        'created_by',
         'notes',
+        'created_at',
+        'updated_at',
+        'deleted_at',
     ];
 
     protected $casts = [
         'total_amount' => 'decimal:2',
-        'deposit' => 'decimal:2',
+        'deposit_amount' => 'decimal:2',
         'reservation_date' => 'date',
         'check_in_date' => 'date',
         'check_out_date' => 'date',
@@ -36,7 +41,7 @@ class Reservation extends Model
      */
     public function customer()
     {
-        return $this->belongsTo(Customer::class)->withTrashed();
+        return $this->belongsTo(Customer::class, 'client_id')->withTrashed();
     }
 
     /**
@@ -86,10 +91,19 @@ class Reservation extends Model
 
     /**
      * Get the deposit payments for this reservation.
+     * @deprecated Use payments() instead
      */
     public function reservationDeposits()
     {
         return $this->hasMany(ReservationDeposit::class);
+    }
+
+    /**
+     * Get the payments for this reservation.
+     */
+    public function payments()
+    {
+        return $this->hasMany(Payment::class, 'reservation_id');
     }
 
     /**

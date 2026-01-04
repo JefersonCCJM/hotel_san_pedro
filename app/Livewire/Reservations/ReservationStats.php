@@ -24,9 +24,11 @@ class ReservationStats extends Component
     {
         $today = Carbon::today();
         
-        return Reservation::where('check_in_date', '<=', $today)
-            ->where('check_out_date', '>=', $today)
-            ->count();
+        return Reservation::join('reservation_rooms', 'reservations.id', '=', 'reservation_rooms.reservation_id')
+            ->where('reservation_rooms.check_in_date', '<=', $today)
+            ->where('reservation_rooms.check_out_date', '>=', $today)
+            ->distinct('reservations.id')
+            ->count('reservations.id');
     }
 
     public function getCancelledReservationsProperty(): int
@@ -38,43 +40,33 @@ class ReservationStats extends Component
     {
         $today = Carbon::today();
         
-        // Get rooms from reservation_rooms pivot table (multi-room reservations)
-        $roomsFromPivot = DB::table('reservations')
+        return DB::table('reservations')
             ->join('reservation_rooms', 'reservations.id', '=', 'reservation_rooms.reservation_id')
             ->whereNull('reservations.deleted_at')
-            ->where('reservations.check_in_date', '<=', $today)
-            ->where('reservations.check_out_date', '>=', $today)
+            ->where('reservation_rooms.check_in_date', '<=', $today)
+            ->where('reservation_rooms.check_out_date', '>=', $today)
             ->distinct('reservation_rooms.room_id')
-            ->pluck('reservation_rooms.room_id');
-        
-        // Get rooms from room_id field (backward compatibility for single-room reservations)
-        $roomsFromField = DB::table('reservations')
-            ->whereNull('deleted_at')
-            ->where('check_in_date', '<=', $today)
-            ->where('check_out_date', '>=', $today)
-            ->whereNotNull('room_id')
-            ->distinct('room_id')
-            ->pluck('room_id');
-        
-        // Merge and count unique rooms
-        return $roomsFromPivot->merge($roomsFromField)->unique()->count();
+            ->count('reservation_rooms.room_id');
     }
 
     public function getReservationsTodayProperty(): int
     {
         $today = Carbon::today();
         
-        return Reservation::whereDate('check_in_date', $today)
-            ->count();
+        return Reservation::join('reservation_rooms', 'reservations.id', '=', 'reservation_rooms.reservation_id')
+            ->whereDate('reservation_rooms.check_in_date', $today)
+            ->distinct('reservations.id')
+            ->count('reservations.id');
     }
 
     public function getTotalGuestsTodayProperty(): int
     {
         $today = Carbon::today();
         
-        return Reservation::where('check_in_date', '<=', $today)
-            ->where('check_out_date', '>=', $today)
-            ->sum('guests_count');
+        return Reservation::join('reservation_rooms', 'reservations.id', '=', 'reservation_rooms.reservation_id')
+            ->where('reservation_rooms.check_in_date', '<=', $today)
+            ->where('reservation_rooms.check_out_date', '>=', $today)
+            ->sum('reservations.total_guests');
     }
 
     public function render()

@@ -1,6 +1,7 @@
 @props(['rentForm', 'additionalGuests', 'checkInDate'])
 
 <div x-show="quickRentModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
+    @if($rentForm)
     <div class="flex items-center justify-center min-h-screen p-4">
         <div @click="quickRentModal = false" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm"></div>
         <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all p-8 space-y-6">
@@ -27,13 +28,17 @@
                             </button>
                         </div>
                         <div wire:ignore>
-                        <select id="quick_customer_id" class="w-full"></select>
+                            <select id="quick_customer_id" 
+                                    class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                                    data-placeholder="Seleccione un cliente">
+                                <option value="">Seleccione un cliente...</option>
+                            </select>
                         </div>
                         <div id="no-customers-message" class="hidden text-xs text-amber-600 mt-2 flex items-center bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                             <i class="fas fa-exclamation-triangle mr-2 text-sm"></i>
                             <span class="font-medium">No hay clientes registrados. Por favor, cree un nuevo cliente usando el botón <strong>"+ Nuevo Cliente"</strong> arriba.</span>
                         </div>
-                        @error('rentForm.customer_id')
+                        @error('rentForm.client_id')
                             <p class="text-[10px] text-red-600 mt-1">{{ $message }}</p>
                         @enderror
                     </div>
@@ -46,7 +51,7 @@
                             </div>
                             @php
                                 $additionalGuestsCount = is_array($additionalGuests) ? count($additionalGuests) : 0;
-                                $principalCount = !empty($rentForm['customer_id']) ? 1 : 0;
+                                $principalCount = !empty($rentForm['client_id']) ? 1 : 0;
                                 $totalPeople = $principalCount + $additionalGuestsCount;
                                 $maxCapacity = (int)($rentForm['max_capacity'] ?? 1);
                                 $remaining = $maxCapacity - $totalPeople;
@@ -199,5 +204,6 @@
             </div>
         </div>
     </div>
+    @endif
 </div>
 

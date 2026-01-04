@@ -2,50 +2,79 @@
 
 namespace App\Models;
 
-use App\Casts\RoomStatusCast;
-use App\Enums\RoomStatus;
-use App\Enums\VentilationType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Enums\RoomDisplayStatus;
 
 class Room extends Model
 {
     use HasFactory;
     protected $fillable = [
         'room_number',
+        'room_type_id',
+        'ventilation_type_id',
         'beds_count',
         'max_capacity',
-        'ventilation_type',
-        'price_1_person',
-        'price_2_persons',
-        'price_additional_person',
-        'occupancy_prices',
-        'status',
-        'price_per_night',
+        'base_price_per_night',
         'last_cleaned_at',
+        'is_active',
+        'last_cleaned_at',
+        'created_at',
+        'updated_at',
     ];
 
     protected $casts = [
-        'price_per_night' => 'decimal:2',
-        'price_1_person' => 'decimal:2',
-        'price_2_persons' => 'decimal:2',
-        'price_additional_person' => 'decimal:2',
-        'occupancy_prices' => 'array',
-        // Use backward-compatible cast to avoid ValueError on legacy values like "available".
-        'status' => RoomStatusCast::class,
-        'ventilation_type' => VentilationType::class,
+        'room_type_id' => 'integer',
+        'ventilation_type_id' => 'integer',
         'beds_count' => 'integer',
         'max_capacity' => 'integer',
+        'base_price_per_night' => 'decimal:2',
+        'is_active' => 'boolean',
         'last_cleaned_at' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
+
+    /**
+     * Get the room type associated with the room.
+     */
+    public function RoomType()
+    {
+        return $this->belongsTo(RoomType::class);
+    }
+
+
+    /**
+     * Get the ventilation type associated with the room.
+     */
+    public function VentilationType()
+    {
+        return $this->belongsTo(VentilationType::class);
+    }
 
     /**
      * Get the reservations for the room.
      */
     public function reservations()
     {
-        return $this->hasMany(Reservation::class);
+        return $this->belongsToMany(Reservation::class,'reservation_rooms');
+    }
+
+    /**
+     * Get the reservation rooms for the room.
+     */
+    public function reservationRooms()
+    {
+        return $this->hasMany(ReservationRoom::class);
+    }
+
+    /**
+     * Get the maintenance blocks for the room.
+     */
+    public function maintenanceBlocks()
+    {
+        return $this->hasMany(RoomMaintenanceBlock::class);
     }
 
     public function dailyStatuses(): HasMany
@@ -66,12 +95,7 @@ class Room extends Model
      */
     public function getPricesForDate($date)
     {
-        $specialRate = $this->rates()
-            ->where('start_date', '<=', $date)
-            ->where('end_date', '>=', $date)
-            ->first();
-
-        return $specialRate ? $specialRate->occupancy_prices : $this->occupancy_prices;
+        return $this->rates;
     }
 
     /**
@@ -94,12 +118,10 @@ class Room extends Model
         // Room is occupied if: check_in <= date AND check_out > date
         // If checkout is today, room is NOT occupied (guest leaves today)
         // Validate that checkout is after checkin (data integrity)
-        return $this->reservations()
-            ->where(function($query) use ($normalizedDate) {
-                $query->where('check_in_date', '<=', $normalizedDate->toDateString())
-                      ->where('check_out_date', '>', $normalizedDate->toDateString());
-            })
-            ->whereColumn('check_out_date', '>', 'check_in_date') // Validate data integrity
+        return $this->reservationRooms()
+            ->where('check_in_date', '<=', $normalizedDate->toDateString())
+            ->where('check_out_date', '>', $normalizedDate->toDateString())
+            ->whereColumn('check_out_date', '>', 'check_in_date')
             ->exists();
     }
 
@@ -113,11 +135,14 @@ class Room extends Model
     {
         $date = $date ?? \Carbon\Carbon::today();
 
-        return $this->reservations()
-            ->where('check_in_date', '<=', $date)
-            ->where('check_out_date', '>', $date)
+        $reservationRoom = $this->reservationRooms()
+            ->where('check_in_date', '<=', $date?->toDateString())
+            ->where('check_out_date', '>', $date?->toDateString())
             ->orderBy('check_in_date', 'asc')
+            ->with('reservation')
             ->first();
+
+        return $reservationRoom?->reservation;
     }
 
     /**
@@ -127,7 +152,11 @@ class Room extends Model
      */
     public function isInMaintenance(): bool
     {
-        return $this->status === RoomStatus::MANTENIMIENTO;
+        return $this->maintenanceBlocks()
+            ->whereHas('status', function($q) {
+                $q->where('code', 'active');
+            })
+            ->exists();
     }
 
     /**
@@ -252,75 +281,79 @@ class Room extends Model
      * and displayed in the "ESTADO DE LIMPIEZA" column, not in the "ESTADO" column.
      *
      * @param \Carbon\Carbon|null $date Date to check. Defaults to today.
-     * @return RoomStatus
+     * @return RoomDisplayStatus
      */
-    public function getDisplayStatus(?\Carbon\Carbon $date = null): RoomStatus
+    public function getDisplayStatus(?\Carbon\Carbon $date = null): RoomDisplayStatus
     {
         $date = $date ?? \Carbon\Carbon::today();
         $normalizedDate = $date->copy()->startOfDay();
 
         // Priority 1: Maintenance blocks everything
         if ($this->isInMaintenance()) {
-            return RoomStatus::MANTENIMIENTO;
+            return RoomDisplayStatus::MANTENIMIENTO;
         }
 
-        // Priority 2: Active reservation means occupied
-        // Use the validated isOccupied method
+        // Priority 2: Active stay/reservation means occupied
         if ($this->isOccupied($normalizedDate)) {
-            return RoomStatus::OCUPADA;
+            return RoomDisplayStatus::OCUPADA;
         }
 
         // Priority 3: Check if reservation ends today or starts today (Pendiente Checkout)
-        // After midnight, rooms are "Pendiente Checkout" if:
-        // 1. Reservation ends today (was occupied yesterday, checkout today)
-        // 2. Reservation starts today and is for one day only (check-in today, check-out tomorrow)
-        // 3. Reservation has one day remaining (check-out tomorrow)
         $previousDay = $normalizedDate->copy()->subDay();
         $tomorrow = $normalizedDate->copy()->addDay();
         $wasOccupiedYesterday = $this->isOccupied($previousDay);
 
         // Case 1: Was occupied yesterday, checkout today
         if ($wasOccupiedYesterday) {
-            $reservationEndingToday = $this->reservations()
-                ->where('check_in_date', '<=', $previousDay)
+            $reservationEndingToday = $this->reservationRooms()
+                ->where('check_in_date', '<=', $previousDay->toDateString())
                 ->where('check_out_date', '=', $date->toDateString())
                 ->exists();
 
             if ($reservationEndingToday) {
-                return RoomStatus::PENDIENTE_CHECKOUT;
+                return RoomDisplayStatus::PENDIENTE_CHECKOUT;
             }
         }
 
-        // Case 2: Reservation starts today and is one-day reservation (check-in today, check-out tomorrow)
-        $oneDayReservationStartingToday = $this->reservations()
+        // Case 2: One-day reservation starting today
+        $oneDayReservationStartingToday = $this->reservationRooms()
             ->where('check_in_date', '=', $normalizedDate->toDateString())
             ->where('check_out_date', '=', $tomorrow->toDateString())
-            ->whereColumn('check_out_date', '>', 'check_in_date') // Validate data integrity
+            ->whereColumn('check_out_date', '>', 'check_in_date')
             ->exists();
 
         if ($oneDayReservationStartingToday) {
-            return RoomStatus::PENDIENTE_CHECKOUT;
+            return RoomDisplayStatus::PENDIENTE_CHECKOUT;
         }
 
-        // Case 3: Reservation has one day remaining (check-out tomorrow)
-        $reservationEndingTomorrow = $this->reservations()
+        // Case 3: Reservation ending tomorrow
+        $reservationEndingTomorrow = $this->reservationRooms()
             ->where('check_in_date', '<=', $normalizedDate->toDateString())
             ->where('check_out_date', '=', $tomorrow->toDateString())
-            ->whereColumn('check_out_date', '>', 'check_in_date') // Validate data integrity
+            ->whereColumn('check_out_date', '>', 'check_in_date')
             ->exists();
 
         if ($reservationEndingTomorrow) {
-            return RoomStatus::PENDIENTE_CHECKOUT;
+            return RoomDisplayStatus::PENDIENTE_CHECKOUT;
         }
 
-        // Priority 4: If status is SUCIA, show as SUCIA
-        if ($this->status === RoomStatus::SUCIA) {
-            return RoomStatus::SUCIA;
+        // Priority 4: If room needs cleaning
+        $cleaningStatus = $this->cleaningStatus($date);
+        if ($cleaningStatus['code'] === 'needs_cleaning') {
+            return RoomDisplayStatus::SUCIA;
         }
 
-        // Priority 5: Default to LIBRE
-        // Note: Cleaning status (Pendiente por Aseo) is shown separately in "ESTADO DE LIMPIEZA" column
-        return RoomStatus::LIBRE;
+        // Priority 5: Check if there's a future reservation (RESERVADA)
+        $hasFutureReservation = $this->reservationRooms()
+            ->where('check_in_date', '>', $normalizedDate->toDateString())
+            ->exists();
+
+        if ($hasFutureReservation) {
+            return RoomDisplayStatus::RESERVADA;
+        }
+
+        // Priority 6: Default to LIBRE (no stays, no reservations, no maintenance)
+        return RoomDisplayStatus::LIBRE;
     }
 
     /**
@@ -375,11 +408,23 @@ class Room extends Model
      * Uses getDisplayStatus() with today's date by default.
      * This allows using $room->display_status in views.
      *
-     * @return RoomStatus
+     * @return RoomDisplayStatus
      */
-    public function getDisplayStatusAttribute(): RoomStatus
+    public function getDisplayStatusAttribute(): RoomDisplayStatus
     {
         return $this->getDisplayStatus();
+    }
+
+    /**
+     * Accessor for cleaning_status attribute.
+     * Uses cleaningStatus() with today's date by default.
+     * This allows using $room->cleaning_status in views.
+     *
+     * @return array{code: string, label: string, color: string, icon: string}
+     */
+    public function getCleaningStatusAttribute(): array
+    {
+        return $this->cleaningStatus();
     }
 
     /**

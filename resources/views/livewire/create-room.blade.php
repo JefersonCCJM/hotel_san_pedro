@@ -36,6 +36,37 @@
                     @enderror
                 </div>
 
+                <!-- Tipo de Habitación -->
+                <div>
+                    <label for="room_type" class="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
+                        Tipo de habitación
+                    </label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
+                            <i class="fas fa-door-open text-gray-400 text-sm"></i>
+                        </div>
+                        <select
+                            id="room_type"
+                            wire:model.blur="room_type"
+                            class="block w-full pl-10 sm:pl-11 pr-10 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent appearance-none bg-white @error('room_type') border-red-300 focus:ring-red-500 @enderror"
+                        >
+                            <option value="">Seleccionar...</option>
+                            @foreach($roomTypes as $type)
+                                <option value="{{ $type->id }}">{{ $type->name }}</option>
+                            @endforeach
+                        </select>
+                        <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                            <i class="fas fa-chevron-down text-gray-400 text-xs"></i>
+                        </div>
+                    </div>
+                    @error('room_type')
+                        <p class="mt-1.5 text-xs text-red-600 flex items-center">
+                            <i class="fas fa-exclamation-circle mr-1.5"></i>
+                            {{ $message }}
+                        </p>
+                    @enderror
+                </div>
+
                 <!-- Tipo de Ventilación -->
                 <div>
                     <label for="ventilation_type" class="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">
@@ -47,12 +78,12 @@
                         </div>
                         <select
                             id="ventilation_type"
-                            wire:model.blur="ventilation_type"
-                            class="block w-full pl-10 sm:pl-11 pr-10 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent appearance-none bg-white @error('ventilation_type') border-red-300 focus:ring-red-500 @enderror"
+                            wire:model.blur="ventilation_type_id"
+                            class="block w-full pl-10 sm:pl-11 pr-10 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent appearance-none bg-white @error('ventilation_type_id') border-red-300 focus:ring-red-500 @enderror"
                         >
                             <option value="">Seleccionar...</option>
                             @foreach($ventilationTypes as $type)
-                                <option value="{{ $type->value }}">{{ $type->label() }}</option>
+                                <option value="{{ $type->id }}">{{ $type->name }}</option>
                             @endforeach
                         </select>
                         <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">

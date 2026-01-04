@@ -7,18 +7,22 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class RoomRate extends Model
 {
+
+    protected $table = "room_rates";
+
     protected $fillable = [
         'room_id',
-        'start_date',
-        'end_date',
-        'occupancy_prices',
-        'event_name',
+        'min_guests',
+        'max_guests',
+        'price_per_night',
+        'created_at',
+        'updated_at',
     ];
 
     protected $casts = [
-        'start_date' => 'date',
-        'end_date' => 'date',
-        'occupancy_prices' => 'array',
+        'min_guests' => 'integer',
+        'max_guests' => 'integer',
+        'price_per_night' => 'float',
     ];
 
     /**

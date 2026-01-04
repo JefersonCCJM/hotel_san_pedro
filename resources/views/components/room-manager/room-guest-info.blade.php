@@ -1,6 +1,6 @@
 @props(['room'])
 
-@if(($room->display_status === \App\Enums\RoomStatus::OCUPADA || $room->display_status === \App\Enums\RoomStatus::PENDIENTE_CHECKOUT) && isset($room->current_reservation) && $room->current_reservation)
+@if(($room->display_status === \App\Enums\RoomDisplayStatus::OCUPADA || $room->display_status === \App\Enums\RoomDisplayStatus::PENDIENTE_CHECKOUT) && isset($room->current_reservation) && $room->current_reservation)
     <div class="flex flex-col cursor-pointer hover:opacity-80 transition-opacity" 
          x-data
          @click="
@@ -15,8 +15,8 @@
         </span>
         @php
             $totalGuests = 1;
-            if (isset($room->current_reservation->guests)) {
-                $totalGuests = 1 + $room->current_reservation->guests->count();
+            if (isset($room->current_reservation->total_guests) && $room->current_reservation->total_guests) {
+                $totalGuests = $room->current_reservation->total_guests;
             } elseif (isset($room->current_reservation->guests_count)) {
                 $totalGuests = $room->current_reservation->guests_count;
             }
@@ -28,7 +28,7 @@
             </span>
         @endif
     </div>
-@elseif(($room->display_status === \App\Enums\RoomStatus::OCUPADA || $room->display_status === \App\Enums\RoomStatus::PENDIENTE_CHECKOUT) && isset($room->guest_name) && $room->guest_name)
+@elseif(($room->display_status === \App\Enums\RoomDisplayStatus::OCUPADA || $room->display_status === \App\Enums\RoomDisplayStatus::PENDIENTE_CHECKOUT) && isset($room->guest_name) && $room->guest_name)
     <div class="flex flex-col">
         <span class="text-sm font-semibold text-gray-900">{{ $room->guest_name }}</span>
         @if(isset($room->check_out_date) && $room->check_out_date)

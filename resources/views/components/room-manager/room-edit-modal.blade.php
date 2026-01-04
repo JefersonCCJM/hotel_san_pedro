@@ -1,4 +1,15 @@
-@props(['room', 'statuses', 'isOccupied'])
+@props(['room', 'statuses', 'isOccupied', 'ventilation_types'])
+
+@php
+    $computedCapacity = old('max_capacity', $room->max_capacity ?? 2);
+    $standardPrices = [];
+    for ($i = 1; $i <= $computedCapacity; $i++) {
+        $rate = optional($room->rates)->first(function($r) use ($i) {
+            return $i >= $r->min_guests && $i <= $r->max_guests;
+        });
+        $standardPrices[$i] = $rate?->price_per_night ?? ($room->base_price_per_night ?? 0);
+    }
+@endphp
 
 <div x-show="roomEditModal"
      x-cloak
@@ -8,9 +19,9 @@
         roomEditModal: @entangle('roomEditModal'),
         tab: 'config',
         beds: {{ old('beds_count', $room->beds_count ?? 1) }},
-        capacity: {{ old('max_capacity', $room->max_capacity ?? 2) }},
+        capacity: {{ $computedCapacity }},
         autoCalculate: false,
-        prices: {{ json_encode(old('occupancy_prices', $room->occupancy_prices ?? [1 => 0, 2 => 0])) }},
+        prices: {{ json_encode($standardPrices) }},
 
         // Para nueva tarifa especial
         showRateModal: false,
@@ -139,12 +150,12 @@
 
                                 <div class="space-y-2">
                                     <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Tipo de Ventilación</label>
-                                    <select name="ventilation_type" required
+                                    <select name="ventilation_type_id" required
                                         class="block w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none appearance-none">
                                         <option value="">Seleccione...</option>
-                                        @foreach(\App\Enums\VentilationType::cases() as $ventilationType)
-                                            <option value="{{ $ventilationType->value }}" {{ old('ventilation_type', $room->ventilation_type?->value ?? '') === $ventilationType->value ? 'selected' : '' }}>
-                                                {{ $ventilationType->label() }}
+                                        @foreach($ventilation_types as $ventilationType)
+                                            <option value="{{ $ventilationType->id }}" {{ (old('ventilation_type_id', $room->ventilation_type_id ?? null) == $ventilationType->id) ? 'selected' : '' }}>
+                                                {{ $ventilationType->name }}
                                             </option>
                                         @endforeach
                                     </select>
@@ -202,7 +213,11 @@
                                     <div>
                                         <h4 class="text-sm font-bold text-gray-900">{{ $rate->event_name ?? 'Evento Especial' }}</h4>
                                         <p class="text-xs text-gray-500">
-                                            {{ $rate->start_date->format('d/m/Y') }} — {{ $rate->end_date->format('d/m/Y') }}
+                                            @php
+                                                $startDate = $rate->start_date ? \Carbon\Carbon::parse($rate->start_date)->format('d/m/Y') : 'Sin fecha';
+                                                $endDate = $rate->end_date ? \Carbon\Carbon::parse($rate->end_date)->format('d/m/Y') : 'Sin fecha';
+                                            @endphp
+                                            {{ $startDate }} — {{ $endDate }}
                                         </p>
                                     </div>
                                 </div>

@@ -74,7 +74,7 @@
                             .catch(() => callback());
                     },
                     onChange: (val) => { 
-                        @this.set('rentForm.customer_id', val || '');
+                        @this.set('rentForm.client_id', val || '');
                     },
                     render: {
                         option: (item, escape) => {
@@ -123,7 +123,7 @@
                 }
                 
                 // Actualizar también Livewire
-                @this.set('rentForm.customer_id', customerId);
+                @this.set('rentForm.client_id', customerId);
             }
         });
 
@@ -169,7 +169,7 @@
                     },
                     onChange: (val) => { 
                         if (val) {
-                            const mainCustomerId = @this.get('rentForm.customer_id');
+                            const mainCustomerId = @this.get('rentForm.client_id');
                             if (mainCustomerId && String(val) === String(mainCustomerId)) {
                                 window.dispatchEvent(new CustomEvent('notify', {
                                     detail: {

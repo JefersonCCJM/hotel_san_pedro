@@ -120,6 +120,7 @@
         <x-room-manager.room-edit-modal 
             :room="$roomEditData['room']" 
             :statuses="$roomEditData['statuses']"
+            :ventilation_types="$roomEditData['ventilation_types']"
             :isOccupied="$roomEditData['isOccupied']"
         />
     @endif

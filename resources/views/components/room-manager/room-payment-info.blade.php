@@ -3,7 +3,22 @@
 @php
     $hasReservation = isset($room->current_reservation) && $room->current_reservation;
     $hasGuestName = isset($room->guest_name) && $room->guest_name;
-    $shouldShowDebtInfo = ($room->display_status === \App\Enums\RoomStatus::OCUPADA || $room->display_status === \App\Enums\RoomStatus::PENDIENTE_CHECKOUT) && ($hasReservation || $hasGuestName);
+
+    // Use RoomDisplayStatus (calculated UI status)
+    $displayStatus = $room->display_status ?? null;
+    $shouldShowDebtInfo = in_array($displayStatus, [
+        \App\Enums\RoomDisplayStatus::OCUPADA,
+        \App\Enums\RoomDisplayStatus::PENDIENTE_CHECKOUT,
+    ]) && ($hasReservation || $hasGuestName);
+
+    // Base price: prefer first rate (lowest min_guests), fallback to base_price_per_night
+    $basePrice = null;
+    if (isset($room->rates) && $room->rates instanceof \Illuminate\Support\Collection && $room->rates->isNotEmpty()) {
+        $basePrice = $room->rates->sortBy('min_guests')->first()->price_per_night ?? null;
+    }
+    if ($basePrice === null && isset($room->base_price_per_night)) {
+        $basePrice = $room->base_price_per_night;
+    }
 @endphp
 
 @if($shouldShowDebtInfo)
@@ -33,7 +48,7 @@
     </div>
 @else
     <div class="flex flex-col">
-        <span class="text-sm font-semibold text-gray-900">${{ number_format($room->active_prices[1] ?? 0, 0, ',', '.') }}</span>
+        <span class="text-sm font-semibold text-gray-900">${{ number_format($basePrice ?? 0, 0, ',', '.') }}</span>
         <span class="text-xs text-gray-400">precio base</span>
     </div>
 @endif

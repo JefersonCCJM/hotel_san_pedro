@@ -4,8 +4,9 @@ namespace App\Livewire;
 
 use Livewire\Component;
 use App\Models\Room;
-use App\Enums\RoomStatus;
-use App\Enums\VentilationType;
+use App\Models\RoomType;
+use App\Models\VentilationType;
+use App\Models\RoomRate;
 
 class CreateRoom extends Component
 {
@@ -13,8 +14,11 @@ class CreateRoom extends Component
     public int $beds_count = 1;
     public int $max_capacity = 2;
     public bool $auto_calculate = true;
-    public string $ventilation_type = '';
+    public ?int $room_type = null;
+    public int $ventilation_type = 1;
     public array $occupancy_prices = [];
+    public float $base_price_per_night = 0.0;
+    public bool $is_active = true;
     public int $errorFlash = 0;
     
     // Flag para prevenir doble envío
@@ -24,11 +28,12 @@ class CreateRoom extends Component
     {
         return [
             'room_number' => 'required|string|unique:rooms,room_number',
+            'room_type'=> 'nullable|integer|exists:room_types,id',
+            'ventilation_type' => 'required|integer|exists:ventilation_types,id',
             'beds_count' => 'required|integer|min:1|max:15',
             'max_capacity' => 'required|integer|min:1',
-            'ventilation_type' => 'required|string|in:' . implode(',', array_column(VentilationType::cases(), 'value')),
-            'occupancy_prices' => 'required|array',
-            'occupancy_prices.*' => 'nullable|integer|min:1',
+            'base_price_per_night' => 'nullable|numeric|min:0',
+            'is_active' => 'boolean',
         ];
     }
 
@@ -37,14 +42,14 @@ class CreateRoom extends Component
         return [
             'room_number.required' => 'El número de habitación es obligatorio.',
             'room_number.unique' => 'Este número de habitación ya existe.',
+            'room_type_id.exists' => 'El tipo de habitación seleccionado no es válido.',
             'beds_count.required' => 'El número de camas es obligatorio.',
             'beds_count.min' => 'Debe haber al menos 1 cama.',
             'beds_count.max' => 'El número de camas no puede ser mayor a 15.',
             'max_capacity.required' => 'La capacidad máxima es obligatoria.',
             'max_capacity.min' => 'La capacidad máxima debe ser al menos 1.',
             'ventilation_type.required' => 'El tipo de ventilación es obligatorio.',
-            'occupancy_prices.required' => 'Debe definir precios para al menos una ocupación.',
-            'occupancy_prices.*.min' => 'Los precios deben ser mayores a 0.',
+            'ventilation_type.exists' => 'El tipo de ventilación seleccionado no es válido.',
         ];
     }
 
@@ -149,6 +154,10 @@ class CreateRoom extends Component
         $this->isProcessing = true;
 
         try {
+
+            $this->room_type = $this->room_type ?: null;
+            $this->ventilation_type = $this->ventilation_type ?: null;
+
             // Asegurar que beds_count tenga un valor válido antes de validar
             if (!isset($this->beds_count) || $this->beds_count === '' || $this->beds_count < 1) {
                 $this->beds_count = 1;
@@ -194,7 +203,8 @@ class CreateRoom extends Component
                 $this->occupancy_prices = $originalPrices;
                 
                 // Dispatch error notification
-                $this->dispatch('notify', type: 'error', message: 'Por favor completa todos los campos requeridos.');
+                $this->dispatch('notify', type: 'error', message: 'Por favor completa todos los campos requeridos. 
+                ');
                 $this->errorFlash++;
                 $this->isProcessing = false;
                 return;
@@ -204,6 +214,17 @@ class CreateRoom extends Component
             $this->occupancy_prices = $originalPrices;
 
             // Filter out null values and convert to integers for storage
+            
+            $room = Room::create([
+                'room_number' => $this->room_number,
+                'room_type_id' => $this->room_type,
+                'ventilation_type_id' => $this->ventilation_type,
+                'beds_count' => $this->beds_count,
+                'max_capacity' => $this->max_capacity,
+                'base_price_per_night' => $this->base_price_per_night,
+                'is_active' => $this->is_active,
+            ]);
+            
             $validatedPrices = [];
             foreach ($this->occupancy_prices as $key => $value) {
                 if ($value !== null && $value > 0) {
@@ -213,28 +234,22 @@ class CreateRoom extends Component
                 }
             }
 
-            $validated = [
-                'room_number' => $this->room_number,
-                'beds_count' => $this->beds_count,
-                'max_capacity' => $this->max_capacity,
-                'ventilation_type' => $this->ventilation_type,
-                'occupancy_prices' => $validatedPrices,
-                'status' => RoomStatus::LIBRE->value,
-                'last_cleaned_at' => now(),
-            ];
-
-            $validated['price_1_person'] = $validated['occupancy_prices'][1] ?? 0;
-            $validated['price_2_persons'] = $validated['occupancy_prices'][2] ?? 0;
-            $validated['price_per_night'] = $validated['price_2_persons'];
-
-            $room = Room::create($validated);
+            foreach ($validatedPrices as $minGuests => $price) {
+                RoomRate::create([
+                    'room_id' => $room->id,
+                    'min_guests' => $minGuests,
+                    'max_guests' => $minGuests,
+                    'price_per_night' => $price,
+                ]);
+            }
 
             // Reset form with specific values to avoid property not found errors
             $this->room_number = '';
             $this->beds_count = 1;
             $this->max_capacity = 2;
             $this->auto_calculate = true;
-            $this->ventilation_type = '';
+            $this->room_type = 0;
+            $this->ventilation_type = 0;
             $this->occupancy_prices = [];
 
             // Re-initialize after reset
@@ -251,7 +266,8 @@ class CreateRoom extends Component
     public function render()
     {
         return view('livewire.create-room', [
-            'ventilationTypes' => VentilationType::cases(),
+            'ventilationTypes' => VentilationType::all(),
+            'roomTypes' => RoomType::all()
         ]);
     }
 }

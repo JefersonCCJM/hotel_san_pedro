@@ -27,12 +27,19 @@ class DatabaseSeeder extends Seeder
             DianPaymentFormSeeder::class,
             DianProductStandardSeeder::class,
             ReservationStatusSeeder::class,
+            ReservationSourceSeeder::class,
             StayStatusSeeder::class,
-            RoomCleaningTypeSeeder::class,
-            RoomStatusHistoryStatusSeeder::class,
+            StaySourceSeeder::class,
             PaymentTypeSeeder::class,
+            PaymentSourceSeeder::class,
+            RoomCleaningTypeSeeder::class,
+            RoomCleaningSourceSeeder::class,
+            RoomStatusHistoryStatusSeeder::class,
+            RoomStatusHistorySourceSeeder::class,
             RoomMaintenanceBlockStatusSeeder::class,
-            
+            RoomMaintenanceBlockSourceSeeder::class,
+            VentilationTypeSeeder::class,
+            RoomTypeSeeder::class
         ]);
     }
 }

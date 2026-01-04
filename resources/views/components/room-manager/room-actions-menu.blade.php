@@ -3,14 +3,15 @@
 @php
     $isFutureDate = $currentDate->isFuture();
     $isPastDate = $currentDate->isPast() && !$currentDate->isToday();
-    $isFreeAndClean = $room->display_status === \App\Enums\RoomStatus::LIBRE && 
+    $status = $room->display_status;
+    $isFreeAndClean = $status === \App\Enums\RoomDisplayStatus::LIBRE && 
                       isset($room->cleaning_status) && 
                       ($room->cleaning_status['code'] ?? null) === 'limpia';
 @endphp
 
 <div class="flex items-center justify-end gap-1.5">
     {{-- Ocupar habitación --}}
-    @if(!$isFutureDate && !$isPastDate && $room->display_status !== \App\Enums\RoomStatus::OCUPADA && $room->display_status !== \App\Enums\RoomStatus::PENDIENTE_CHECKOUT)
+    @if(!$isFutureDate && !$isPastDate && !in_array($status, [\App\Enums\RoomDisplayStatus::OCUPADA, \App\Enums\RoomDisplayStatus::PENDIENTE_CHECKOUT]))
         <button type="button"
             wire:click="openQuickRent({{ $room->id }})"
             wire:loading.attr="disabled"
@@ -31,8 +32,8 @@
         </button>
     @endif
 
-    {{-- Liberar --}}
-    @if(!$isFutureDate && !$isPastDate && !$isFreeAndClean)
+    {{-- Liberar solo si está ocupada, pendiente checkout o reservada --}}
+    @if(!$isFutureDate && !$isPastDate && in_array($status, [\App\Enums\RoomDisplayStatus::OCUPADA, \App\Enums\RoomDisplayStatus::PENDIENTE_CHECKOUT, \App\Enums\RoomDisplayStatus::RESERVADA]))
         <button type="button"
             @click="confirmRelease({{ $room->id }}, '{{ $room->room_number }}', {{ $room->total_debt ?? 0 }}, {{ $room->current_reservation->id ?? 'null' }});"
             title="Liberar"
