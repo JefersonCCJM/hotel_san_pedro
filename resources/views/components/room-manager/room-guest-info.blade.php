@@ -18,7 +18,17 @@
     }
     
     // SINGLE SOURCE OF TRUTH: Cliente principal SIEMPRE viene de reservation->customer
-    $customer = $reservation->customer;
+    // 🔐 CRÍTICO: Verificar client_id directamente primero (puede ser NULL para walk-in sin asignar)
+    // NO acceder a $reservation->customer directamente si client_id es NULL para evitar errores
+    // 🔄 CRÍTICO: Si reservation tiene client_id pero customer no está cargado, forzar recarga
+    // Esto evita problemas de caché cuando se actualiza el cliente después de cargar la vista
+    if ($reservation->client_id !== null && !$reservation->relationLoaded('customer')) {
+        $reservation->load('customer');
+    }
+    
+    // Verificar client_id (columna real en BD) directamente
+    $hasCustomerId = !empty($reservation->client_id) && $reservation->client_id !== null;
+    $customer = $hasCustomerId ? ($reservation->customer ?? null) : null;
     
     // Obtener ReservationRoom asociado para acceder a huéspedes adicionales
     $reservationRoom = $reservation->reservationRooms
@@ -103,7 +113,7 @@
             </div>
         @endif
         <button type="button"
-                wire:click="openQuickRent({{ $room->id }})"
+                wire:click="openAssignGuests({{ $room->id }})"
                 class="text-xs text-blue-600 hover:text-blue-800 underline font-medium mt-1">
             Asignar huésped
         </button>

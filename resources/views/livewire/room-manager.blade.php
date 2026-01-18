@@ -5,13 +5,15 @@
     - NO se usan WebSockets para mantener simplicidad y evitar infraestructura adicional
     - El polling es eficiente porque usa eager loading y no hace N+1 queries
 --}}
-<div class="space-y-6" 
+    <div class="space-y-6" 
      wire:poll.5s="refreshRoomsPolling"
      x-data="{ 
     quickRentModal: @entangle('quickRentModal'),
         roomDetailModal: @entangle('roomDetailModal'),
         roomEditModal: @entangle('roomEditModal'),
         createRoomModal: @entangle('createRoomModal'),
+        assignGuestsModal: @entangle('assignGuestsModal'),
+        roomDailyHistoryModal: @entangle('roomDailyHistoryModal'),
         actionsMenuOpen: null,
         init() {
             const handleScroll = () => {
@@ -114,6 +116,16 @@
 
     <!-- MODAL: HUÉSPEDES -->
     <x-room-manager.guests-modal />
+
+    <!-- MODAL: ASIGNAR HUÉSPEDES (Completar Reserva Activa) -->
+    <x-room-manager.assign-guests-modal 
+        :assignGuestsForm="$assignGuestsForm" 
+    />
+
+    <!-- MODAL: HISTORIAL DIARIO DE LIBERACIONES -->
+    <x-room-manager.room-daily-history-modal 
+        :roomDailyHistoryData="$roomDailyHistoryData" 
+    />
 
     <!-- MODAL: CREAR HABITACIÓN -->
     <x-room-manager.create-room-modal />

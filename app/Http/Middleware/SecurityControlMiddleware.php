@@ -26,9 +26,25 @@ class SecurityControlMiddleware
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
+        // Validación defensiva: verificar que el usuario existe
+        if (!$user) {
+            Auth::logout();
+            return redirect()->route('login')->with('error', 'Sesión inválida. Por favor, inicie sesión nuevamente.');
+        }
+
         // 1. Skip checks for Administrators
-        if ($user->hasRole('Administrador')) {
-            return $next($request);
+        // Usar try-catch para manejar posibles errores con hasRole() de Spatie
+        try {
+            if ($user->hasRole('Administrador')) {
+                return $next($request);
+            }
+        } catch (\Exception $e) {
+            // Si hay un error con hasRole(), loguear y continuar con las validaciones normales
+            \Log::warning('Error checking role in SecurityControlMiddleware', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+            // Continuar con el flujo normal (no es Administrador)
         }
 
         // 2. Control de Turnos Activos (Estricto)
@@ -50,10 +66,6 @@ class SecurityControlMiddleware
 
         // 4. Schedule Restriction - ELIMINADA por solicitud del usuario
         // Se permite el acceso en cualquier horario, siempre y cuando no haya un turno activo de otro usuario.
-
-        return $next($request);
-
-        return $next($request);
 
         return $next($request);
     }

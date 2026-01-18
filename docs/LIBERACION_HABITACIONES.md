@@ -106,17 +106,212 @@ payment_status_id = ID de 'paid'                  -- ✅ Estado: pagado
 
 ---
 
+## 🧩 Componente: `room-release-confirmation-modal.blade.php`
+
+### **Ubicación**
+`resources/views/components/room-manager/room-release-confirmation-modal.blade.php`
+
+### **Tecnología**
+- **Alpine.js** para estado local y UI reactiva
+- **Eventos personalizados** para comunicación con Livewire
+- **No usa Livewire entangle** (es completamente independiente)
+
+### **Estructura Alpine.js**
+
+```javascript
+x-data="{ 
+    show: false,                    // Estado de visibilidad del modal
+    roomData: null,                 // Datos cargados desde Livewire
+    paymentConfirmed: false,        // Checkbox de confirmación de pago
+    refundConfirmed: false,         // Checkbox de confirmación de devolución (futuro)
+    paymentMethod: '',              // Método seleccionado ('efectivo' | 'transferencia')
+    bankName: '',                   // Banco (si es transferencia)
+    reference: '',                  // Referencia/comprobante (si es transferencia)
+    isLoading: false,               // Estado de carga durante liberación
+    
+    resetState() { ... },           // Limpia todos los campos
+    
+    init() {
+        // Escucha evento para abrir modal
+        window.addEventListener('open-release-confirmation', (e) => {
+            this.resetState();
+            this.roomData = e.detail;  // Datos desde loadRoomReleaseData()
+            this.show = true;
+        });
+        
+        // Escucha evento para cerrar modal
+        window.addEventListener('close-room-release-modal', () => {
+            this.show = false;
+            this.resetState();
+        });
+    }
+}"
+```
+
+### **Eventos que Escucha**
+
+| Evento | Origen | Propósito |
+|--------|--------|-----------|
+| `open-release-confirmation` | `scripts.blade.php::confirmRelease()` | Abre el modal con datos cargados |
+| `close-room-release-modal` | `RoomManager::closeRoomReleaseConfirmation()` | Cierra el modal |
+
+### **Cómo se Dispara el Modal**
+
+**Desde `room-actions-menu.blade.php`:**
+```blade
+@click="confirmRelease({{ $room->id }}, '{{ $room->room_number }}', 0, null, false);"
+```
+
+**Función `confirmRelease()` en `scripts.blade.php`:**
+```javascript
+function confirmRelease(roomId, roomNumber, totalDebt, reservationId, isCancellation = false) {
+    // 1. Llama a Livewire para cargar datos
+    @this.call('loadRoomReleaseData', roomId, isCancellation).then((data) => {
+        // 2. Agrega flag de cancelación si aplica
+        if (isCancellation) {
+            data.is_cancellation = true;
+        }
+        
+        // 3. Dispara evento para abrir modal
+        window.dispatchEvent(new CustomEvent('open-release-confirmation', {
+            detail: data  // ✅ Datos completos desde Livewire
+        }));
+    });
+}
+```
+
+### **Secciones del Modal**
+
+1. **Header**:
+   - Título: "Liberar Habitación #X" o "Cancelar Reserva - Habitación #X"
+   - Icono de puerta
+   - Botón cerrar (X)
+
+2. **Información del Cliente** (si hay reserva):
+   - Nombre
+   - Identificación
+
+3. **Resumen Financiero**:
+   - Total Hospedaje
+   - Abono Realizado (verde)
+   - Total Consumos
+   - Deuda Pendiente / Pago Adelantado / Al Día (badge dinámico)
+
+4. **Consumos** (si existen):
+   - Tabla con producto, cantidad, estado, total
+
+5. **Historial de Abonos** (si existen):
+   - Tabla con fecha, monto, método, notas
+
+6. **Historial de Devoluciones** (si existen):
+   - Tabla con fecha, monto, registrado por
+
+7. **Validaciones Dinámicas**:
+
+   **A) Deuda Pendiente (`total_debt > 0`):**
+   - ⚠️ Advertencia roja
+   - Selector de método de pago (obligatorio)
+   - Si transferencia: campos `bankName` y `reference`
+   - Checkbox: "Confirmo que se realizó el pago"
+
+   **B) Pago Adelantado (`total_debt < 0`):**
+   - ℹ️ Info azul
+   - Mensaje: "Pago adelantado aplicado"
+   - Nota: "La devolución solo se evalúa al finalizar la estadía"
+
+   **C) Cuenta al Día (`total_debt = 0`):**
+   - ✅ Mensaje verde
+   - "Puede proceder a liberar la habitación"
+
+   **D) Sin Reserva:**
+   - ℹ️ Info azul
+   - "Habitación sin reserva activa"
+
+8. **Footer - Botones**:
+   - **Confirmar Liberación/Cancelación** (verde):
+     - Deshabilitado si:
+       - `isLoading = true`
+       - Hay deuda Y no confirmó pago
+       - Hay deuda Y no seleccionó método
+       - Transferencia Y falta `reference`
+   - **Cancelar** (gris)
+
+### **Cierre del Modal**
+
+El modal se cierra de 3 formas:
+
+1. **Click en botón X:**
+   ```javascript
+   @click="show = false; if ($wire) { $wire.call('closeRoomReleaseConfirmation'); }"
+   ```
+
+2. **Click en backdrop:**
+   ```javascript
+   @click="show = false; if ($wire) { $wire.call('closeRoomReleaseConfirmation'); }"
+   ```
+
+3. **Click en botón "Cancelar":**
+   ```javascript
+   @click="show = false; if ($wire) { $wire.call('closeRoomReleaseConfirmation'); }"
+   ```
+
+### **Confirmación de Liberación**
+
+**Cuando usuario hace click en "Confirmar Liberación":**
+
+```javascript
+@click="
+    // Validaciones
+    if ((roomData.total_debt || 0) > 0) {
+        if (!paymentConfirmed) return;
+        if (!paymentMethod) return;
+        if (paymentMethod === 'transferencia' && !reference) return;
+    }
+    
+    isLoading = true;
+    
+    // Llamar a Livewire
+    if ($wire) {
+        $wire.call('releaseRoom', 
+            roomData.room_id,      // ID de habitación
+            'libre',               // target_status
+            paymentMethod,         // Método de pago
+            bankName,              // Banco (si transferencia)
+            reference              // Referencia (si transferencia)
+        ).finally(() => { 
+            isLoading = false; 
+        });
+    }
+"
+```
+
+---
+
 ## 🔄 Flujo Completo de Liberación
 
 ### **Paso 1: Usuario Solicita Liberar Habitación**
 
-**Trigger:** Click en botón "Liberar" del menú de acciones de la habitación.
+**Trigger:** Click en botón "Liberar" del menú de acciones (`room-actions-menu.blade.php`).
 
-**Evento Alpine.js:**
+**Código:**
+```blade
+<button @click="confirmRelease({{ $room->id }}, '{{ $room->room_number }}', 0, null, false);">
+```
+
+**Función JavaScript (`scripts.blade.php`):**
 ```javascript
-window.dispatchEvent(new CustomEvent('open-release-confirmation', {
-    detail: loadRoomReleaseData(roomId)
-}));
+function confirmRelease(roomId, roomNumber, totalDebt, reservationId, isCancellation = false) {
+    // Llama a Livewire para cargar datos
+    @this.call('loadRoomReleaseData', roomId, isCancellation).then((data) => {
+        if (isCancellation) {
+            data.is_cancellation = true;
+        }
+        // Dispara evento personalizado
+        window.dispatchEvent(new CustomEvent('open-release-confirmation', {
+            detail: data
+        }));
+    });
+}
 ```
 
 ---

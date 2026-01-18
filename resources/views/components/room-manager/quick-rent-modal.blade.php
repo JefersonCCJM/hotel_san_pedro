@@ -323,6 +323,9 @@
 
                 <!-- Botón de Confirmación con Texto Dinámico -->
                 @php
+                    // 🔐 VALIDACIÓN: Deshabilitar botón si se excede la capacidad
+                    $isCapacityExceeded = $totalPeople > $maxCapacity;
+                    
                     if ($balance <= 0) {
                         $buttonText = 'Confirmar Arrendamiento (Pagado)';
                         $buttonClass = 'bg-emerald-600 hover:bg-emerald-700';
@@ -333,11 +336,18 @@
                         $buttonText = 'Confirmar Arrendamiento (Queda Deuda)';
                         $buttonClass = 'bg-red-600 hover:bg-red-700';
                     }
+                    
+                    // Si se excede la capacidad, deshabilitar y cambiar estilo
+                    if ($isCapacityExceeded) {
+                        $buttonClass = 'bg-gray-400 cursor-not-allowed';
+                        $buttonText = 'No se puede confirmar (Excede capacidad)';
+                    }
                 @endphp
 
                 <button wire:click="storeQuickRent" 
                         wire:loading.attr="disabled"
                         wire:target="storeQuickRent"
+                        @if($isCapacityExceeded) disabled @endif
                         class="w-full {{ $buttonClass }} text-white py-4 rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
                     <span wire:loading.remove wire:target="storeQuickRent">
                         <i class="fas fa-key mr-2"></i>

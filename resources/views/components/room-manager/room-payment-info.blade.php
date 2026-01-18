@@ -11,29 +11,47 @@
     // Obtener reserva desde la stay (Single Source of Truth)
     $reservation = $stay->reservation;
     
-    // Calcular valores financieros
-    $paymentsTotal = 0;
+    // ===============================
+    // SSOT FINANCIERO (ALINEADO GLOBAL)
+    // ===============================
+    
+    // Inicializar valores
     $totalAmount = 0;
-    $balanceDue = 0;
+    $abonoRealizado = 0;
+    $refundsTotal = 0;
     $salesDebt = 0;
+    $balanceDue = 0;
     
     if ($reservation) {
         // Eager load payments y sales si no están cargados
         $reservation->loadMissing(['payments', 'sales']);
         
-        $paymentsTotal = (float)($reservation->payments?->sum('amount') ?? 0);
+        // Total contractual del hospedaje (SSOT)
         $totalAmount = (float)($reservation->total_amount ?? 0);
-        $salesDebt = (float)($reservation->sales?->where('is_paid', false)->sum('total') ?? 0);
         
-        // Preferir balance_due almacenado (source of truth) si existe
-        if ($reservation->balance_due !== null) {
-            $balanceDue = (float)$reservation->balance_due + $salesDebt;
-        } else {
-            $balanceDue = ($totalAmount - $paymentsTotal) + $salesDebt;
-        }
+        // Pagos reales (SOLO positivos) - SSOT financiero
+        // REGLA CRÍTICA: Separar pagos y devoluciones para coherencia financiera
+        $abonoRealizado = (float)($reservation->payments
+            ?->where('amount', '>', 0)
+            ->sum('amount') ?? 0);
+        
+        // Devoluciones (solo negativos, valor absoluto)
+        $refundsTotal = abs((float)($reservation->payments
+            ?->where('amount', '<', 0)
+            ->sum('amount') ?? 0));
+        
+        // Consumos pendientes
+        $salesDebt = (float)($reservation->sales
+            ?->where('is_paid', false)
+            ->sum('total') ?? 0);
+        
+        // Balance final (MISMA fórmula que Room Detail Modal)
+        // Fórmula: deuda = (hospedaje - abonos_reales) + devoluciones + consumos_pendientes
+        $balanceDue = ($totalAmount - $abonoRealizado) + $refundsTotal + $salesDebt;
     }
     
-    $paid = $paymentsTotal;
+    // Para UI: usar abono real, no mezclado
+    $paid = $abonoRealizado;
 @endphp
 
 @if($reservation)

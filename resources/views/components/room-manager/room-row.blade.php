@@ -113,7 +113,7 @@
         'bg-emerald-50/30': displayState === 'free_clean'
     }"
     wire:key="room-{{ $room->id }}" style="position: static;">
-    <td class="px-6 py-4 whitespace-nowrap">
+    <td class="px-6 py-4 whitespace-nowrap align-top">
         <div class="flex items-center">
             <div class="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center mr-3 text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
                 <i class="fas fa-door-closed"></i>
@@ -127,7 +127,7 @@
         </div>
     </td>
 
-    <td class="px-6 py-4 whitespace-nowrap text-center">
+    <td class="px-6 py-4 whitespace-nowrap text-center align-top">
         <span
             class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold transition-colors duration-300"
             :class="{
@@ -162,12 +162,12 @@
         </span>
     </td>
 
-    <td class="px-6 py-4 whitespace-nowrap text-center">
+    <td class="px-6 py-4 whitespace-nowrap text-center align-top">
         {{-- SINGLE SOURCE OF TRUTH: El estado de limpieza se calcula independientemente del estado operativo --}}
         <x-room-manager.room-cleaning-status :room="$room" :selectedDate="$selectedDate" />
     </td>
 
-    <td class="px-6 py-4 whitespace-nowrap text-center">
+    <td class="px-6 py-4 whitespace-nowrap text-center align-top">
         @if($room->ventilationType)
             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
                 <i class="fas fa-wind mr-1.5"></i>
@@ -178,7 +178,7 @@
         @endif
     </td>
 
-    <td class="px-6 py-4 whitespace-nowrap">
+    <td class="px-6 py-4 align-top">
         {{-- Solo mostrar info de huésped cuando estado operativo es 'occupied' --}}
         <div x-show="shouldShowGuestInfo">
             {{-- SINGLE SOURCE OF TRUTH: Pasar $stay explícitamente al componente --}}
@@ -195,7 +195,7 @@
         </div>
     </td>
 
-    <td class="px-6 py-4 whitespace-nowrap">
+    <td class="px-6 py-4 align-top">
         {{-- Solo mostrar cuenta cuando estado operativo es 'occupied' --}}
         <div x-show="shouldShowGuestInfo">
             {{-- SINGLE SOURCE OF TRUTH: Pasar $stay explícitamente al componente --}}
@@ -218,7 +218,7 @@
         </div>
     </td>
 
-    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" style="position: static;">
+    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium align-top" style="position: static;">
         @if($currentDate->isPast() && !$currentDate->isToday())
             <span class="text-xs text-gray-400 italic">Histórico</span>
         @else

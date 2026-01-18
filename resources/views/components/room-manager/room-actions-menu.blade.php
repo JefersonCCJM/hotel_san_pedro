@@ -113,13 +113,13 @@
         </button>
     @endif
 
-    {{-- Ver historial (siempre disponible) --}}
+    {{-- Historial del día (siempre disponible) --}}
     <button type="button"
-        wire:click="openRoomDetail({{ $room->id }})"
+        wire:click="openRoomDailyHistory({{ $room->id }})"
         wire:loading.attr="disabled"
-        title="Ver historial"
+        title="Historial del día"
         class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50">
         <i class="fas fa-history text-sm"></i>
-        <span class="sr-only">Ver historial</span>
+        <span class="sr-only">Historial del día</span>
     </button>
 </div>

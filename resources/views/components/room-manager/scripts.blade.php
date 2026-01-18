@@ -102,9 +102,118 @@
         Livewire.on('notify', (data) => {
             const payload = Array.isArray(data) ? data[0] : data;
             console.log('Notify event:', payload);
-            // The toast component listens to @notify.window
-            window.dispatchEvent(new CustomEvent('notify', { detail: payload }));
+    // The toast component listens to @notify.window
+    window.dispatchEvent(new CustomEvent('notify', { detail: payload }));
+});
+
+// ===== ASIGNAR HUÉSPEDES (Completar Reserva Activa) =====
+let assignCustomerSelect = null;
+let assignAdditionalGuestSelect = null;
+
+// Inicializar selector de cliente principal cuando se abre el modal
+Livewire.on('assignGuestsModalOpened', () => {
+    setTimeout(() => {
+        if (assignCustomerSelect) assignCustomerSelect.destroy();
+
+        const currentClientId = @this.get('assignGuestsForm.client_id') || null;
+
+        assignCustomerSelect = new TomSelect('#assign_guests_customer_id', {
+            valueField: 'id',
+            labelField: 'name',
+            searchField: ['name', 'identification', 'text'],
+            loadThrottle: 400,
+            placeholder: 'Buscar cliente...',
+            preload: true,
+            load: function(query, callback) {
+                fetch(`/api/customers/search?q=${encodeURIComponent(query || '')}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const results = data.results || [];
+                        callback(results);
+                    })
+                    .catch(() => callback());
+            },
+            onChange: function(value) {
+                // 🔐 NORMALIZAR: convertir cadena vacía a null (requisito de BD INTEGER)
+                const normalizedValue = (value === '' || value === null || value === undefined) 
+                    ? null 
+                    : (isNaN(value) ? null : parseInt(value));
+                
+                // Actualizar el valor en Livewire usando la notación de punto para arrays
+                // Forzar reactividad actualizando la referencia completa del array si es necesario
+                @this.set('assignGuestsForm.client_id', normalizedValue);
+                
+                // Debug: Log para verificar que se está actualizando
+                console.log('[Assign Guests] Client ID changed:', normalizedValue);
+            },
+            render: {
+                option: function(item, escape) {
+                    const name = escape(item.name || item.text || '');
+                    const id = escape(item.identification || '');
+                    return `<div class="px-4 py-2 border-b border-gray-50 hover:bg-blue-50 transition-colors">
+                        <div class="font-bold text-gray-900">${name}</div>
+                        ${id ? `<div class="text-[10px] text-gray-500 mt-0.5">ID: ${escape(id)}</div>` : ''}
+                    </div>`;
+                },
+                item: function(item, escape) {
+                    return `<div class="font-bold text-blue-700">${escape(item.name || item.text || '')}</div>`;
+                }
+            }
         });
+
+        // Establecer valor inicial si existe
+        if (currentClientId) {
+            assignCustomerSelect.setValue(currentClientId, true);
+        }
+    }, 150);
+});
+
+// Inicializar selector de huéspedes adicionales
+document.addEventListener('init-assign-additional-guest-select', function() {
+    setTimeout(() => {
+        if (assignAdditionalGuestSelect) {
+            assignAdditionalGuestSelect.destroy();
+        }
+
+        assignAdditionalGuestSelect = new TomSelect('#assign_additional_guest_customer_id', {
+            valueField: 'id',
+            labelField: 'name',
+            searchField: ['name', 'identification', 'text'],
+            loadThrottle: 400,
+            placeholder: 'Buscar cliente...',
+            preload: true,
+            load: function(query, callback) {
+                fetch(`/api/customers/search?q=${encodeURIComponent(query || '')}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const results = data.results || [];
+                        callback(results);
+                    })
+                    .catch(() => callback());
+            },
+            onChange: function(value) {
+                if (value) {
+                    @this.call('addAssignGuest', parseInt(value)).then(() => {
+                        assignAdditionalGuestSelect.clear();
+                    });
+                }
+            },
+            render: {
+                option: function(item, escape) {
+                    const name = escape(item.name || item.text || '');
+                    const id = escape(item.identification || '');
+                    return `<div class="px-4 py-2 border-b border-gray-50 hover:bg-blue-50 transition-colors">
+                        <div class="font-bold text-gray-900">${name}</div>
+                        ${id ? `<div class="text-[10px] text-gray-500 mt-0.5">ID: ${escape(id)}</div>` : ''}
+                    </div>`;
+                },
+                item: function(item, escape) {
+                    return `<div class="font-bold text-blue-700">${escape(item.name || item.text || '')}</div>`;
+                }
+            }
+        });
+    }, 100);
+});
 
         // Debug: escuchar errores de validación
         Livewire.on('validation-errors', (data) => {
@@ -183,7 +292,11 @@
                             });
                     },
                     onChange: (val) => { 
-                        @this.set('rentForm.client_id', val || '');
+                        // 🔐 NORMALIZAR: convertir cadena vacía a null (requisito de BD INTEGER)
+                        // Livewire ejecutará automáticamente updatedRentFormClientId() cuando usamos @this.set()
+                        const normalizedValue = (val === '' || val === null || val === undefined) ? null : (isNaN(val) ? null : parseInt(val));
+                        @this.set('rentForm.client_id', normalizedValue);
+                        // El hook updatedRentFormClientId() se ejecutará automáticamente y normalizará el valor + recalculará totales
                     },
                     render: {
                         option: (item, escape) => {
@@ -220,7 +333,7 @@
                 noCustomersMsg.classList.add('hidden');
             }
             
-            // Si TomSelect está inicializado, actualizar la lista
+            // ===== MANEJAR QUICK-RENT-MODAL (Cliente Principal) =====
             if (customerSelect && customerId) {
                 // Agregar el nuevo cliente a las opciones
                 if (customerData) {
@@ -234,17 +347,65 @@
                 
                 // Solo seleccionar como principal si el contexto es 'principal'
                 if (context === 'principal') {
-                    console.log('Asignando cliente como PRINCIPAL');
+                    console.log('Asignando cliente como PRINCIPAL en Quick Rent');
                     customerSelect.setValue(customerId);
-                    // Actualizar también Livewire
-                    @this.set('rentForm.client_id', customerId);
+                    // Actualizar también Livewire (normalizar antes de set)
+                    // El hook updatedRentFormClientId() se ejecutará automáticamente
+                    const normalizedId = customerId ? parseInt(customerId) : null;
+                    @this.set('rentForm.client_id', normalizedId);
                 } else {
-                    console.log('Cliente creado en contexto ADICIONAL, agregando a lista de huéspedes');
+                    console.log('Cliente creado en contexto ADICIONAL en Quick Rent, agregando a lista de huéspedes');
                     // Agregar automáticamente como huésped adicional
                     if (customerId) {
                         @this.call('addGuestFromCustomerId', customerId);
                     }
                 }
+            }
+
+            // ===== MANEJAR ASSIGN-GUESTS-MODAL (Completar Reserva) =====
+            // Si el modal de asignar huéspedes está abierto y el contexto es 'principal'
+            if (assignCustomerSelect && customerId && context === 'principal') {
+                console.log('Asignando cliente como PRINCIPAL en Assign Guests Modal');
+                
+                // Agregar el nuevo cliente a las opciones
+                if (customerData) {
+                    assignCustomerSelect.addOption({
+                        id: customerData.id,
+                        name: customerData.name,
+                        identification: customerData.identification,
+                        text: customerData.name
+                    });
+                }
+                
+                // Seleccionar automáticamente como cliente principal
+                assignCustomerSelect.setValue(customerId);
+                
+                // Actualizar Livewire (normalizar antes de set)
+                const normalizedId = customerId ? parseInt(customerId) : null;
+                @this.set('assignGuestsForm.client_id', normalizedId);
+                
+                console.log('[Assign Guests] Cliente principal asignado automáticamente:', normalizedId);
+            }
+
+            // ===== MANEJAR ASSIGN-GUESTS-MODAL (Huéspedes Adicionales) =====
+            // Si el contexto es 'additional' y el selector de huéspedes adicionales está inicializado
+            if (assignAdditionalGuestSelect && customerId && context === 'additional') {
+                console.log('Cliente creado en contexto ADICIONAL en Assign Guests Modal, agregando automáticamente');
+                
+                // Agregar el nuevo cliente a las opciones
+                if (customerData) {
+                    assignAdditionalGuestSelect.addOption({
+                        id: customerData.id,
+                        name: customerData.name,
+                        identification: customerData.identification,
+                        text: customerData.name
+                    });
+                }
+                
+                // Agregar automáticamente como huésped adicional
+                @this.call('addAssignGuest', parseInt(customerId)).then(() => {
+                    assignAdditionalGuestSelect.clear();
+                });
             }
         });
 
