@@ -1266,8 +1266,64 @@ class ReservationController extends Controller
             ->pluck('id')
             ->toArray();
 
-        if (!empty($validGuestIds)) {
-            $reservationRoom->guests()->attach($validGuestIds);
+        if (empty($validGuestIds)) {
+            return;
+        }
+
+        try {
+            // Estructura de BD:
+            // reservation_guests: id, reservation_room_id, guest_id
+            // reservation_room_guests: id, reservation_room_id, reservation_guest_id
+            
+            foreach ($validGuestIds as $guestId) {
+                // Verificar si ya existe el registro
+                $existingReservationGuest = \DB::table('reservation_guests')
+                    ->where('reservation_room_id', $reservationRoom->id)
+                    ->where('guest_id', $guestId)
+                    ->first();
+                
+                if ($existingReservationGuest) {
+                    // Ya existe, verificar si está en reservation_room_guests
+                    $existingRoomGuest = \DB::table('reservation_room_guests')
+                        ->where('reservation_room_id', $reservationRoom->id)
+                        ->where('reservation_guest_id', $existingReservationGuest->id)
+                        ->first();
+                    
+                    if (!$existingRoomGuest) {
+                        // Crear solo el registro en reservation_room_guests
+                        \DB::table('reservation_room_guests')->insert([
+                            'reservation_room_id' => $reservationRoom->id,
+                            'reservation_guest_id' => $existingReservationGuest->id,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+                    }
+                } else {
+                    // Crear registro en reservation_guests
+                    $reservationGuestId = \DB::table('reservation_guests')->insertGetId([
+                        'reservation_room_id' => $reservationRoom->id,
+                        'guest_id' => $guestId,
+                        'is_primary' => false,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    
+                    // Crear registro en reservation_room_guests
+                    \DB::table('reservation_room_guests')->insert([
+                        'reservation_room_id' => $reservationRoom->id,
+                        'reservation_guest_id' => $reservationGuestId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+        } catch (\Exception $e) {
+            \Log::error('Error assigning guests to room', [
+                'reservation_room_id' => $reservationRoom->id,
+                'guest_ids' => $validGuestIds,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
         }
     }
 

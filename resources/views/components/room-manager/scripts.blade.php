@@ -63,45 +63,38 @@
         let productSelect = null;
         
         // Escuchar evento personalizado para registrar pagos
+        // Usar Livewire.on para escuchar el evento directamente
+        Livewire.on('register-payment-event', (data) => {
+            const paymentData = Array.isArray(data) ? data[0] : data;
+            if (!paymentData) {
+                console.error('[Payment Handler] No se recibieron datos de pago');
+                window.dispatchEvent(new CustomEvent('reset-payment-modal-loading'));
+                return;
+            }
+            
+            console.log('[Payment Handler] Livewire event received:', paymentData);
+            // El método handleRegisterPayment se llamará automáticamente
+        });
+        
+        // También escuchar el evento DOM para compatibilidad
         window.addEventListener('register-payment-event', (event) => {
             const paymentData = event.detail;
             if (!paymentData) {
-                console.error('No se recibieron datos de pago');
+                console.error('[Payment Handler] No se recibieron datos de pago (DOM event)');
+                window.dispatchEvent(new CustomEvent('reset-payment-modal-loading'));
                 return;
             }
             
-            // Obtener el componente RoomManager
-            const allComponents = Livewire.all();
-            if (allComponents.length === 0) {
-                console.error('No se encontraron componentes Livewire');
-                return;
-            }
+            console.log('[Payment Handler] DOM event received, dispatching Livewire event:', paymentData);
             
-            const component = allComponents[0];
-            if (!component) {
-                console.error('No se pudo obtener el componente');
-                return;
-            }
-            
-            // Llamar al método usando call() directamente del componente
-            try {
-                if (typeof component.call === 'function') {
-                    component.call(
-                        'registerPayment',
-                        paymentData.reservationId,
-                        paymentData.amount,
-                        paymentData.paymentMethod,
-                        paymentData.bankName || null,
-                        paymentData.reference || null
-                    ).catch(error => {
-                        console.error('Error calling registerPayment:', error);
-                    });
-                } else {
-                    console.error('El componente no tiene el método call disponible');
-                }
-            } catch (error) {
-                console.error('Error al llamar registerPayment:', error);
-            }
+            // Disparar evento de Livewire que será capturado por el listener #[On('register-payment')]
+            Livewire.dispatch('register-payment', [
+                paymentData.reservationId,
+                paymentData.amount,
+                paymentData.paymentMethod,
+                paymentData.bankName || null,
+                paymentData.reference || null
+            ]);
         });
 
 

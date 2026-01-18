@@ -2,8 +2,9 @@
 
 @php
     // SINGLE SOURCE OF TRUTH: Este componente recibe $stay explícitamente
-    // Si no hay stay, no hay información de cuenta para mostrar
+    // GUARD CLAUSE OBLIGATORIO: Si no hay stay, no hay información de cuenta para mostrar
     if (!$stay) {
+        echo '<span class="text-xs text-gray-400 italic">Cuenta cerrada</span>';
         return;
     }
 

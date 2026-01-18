@@ -135,7 +135,7 @@
                                             <p class="text-[9px] font-bold uppercase mb-1"
                                                :class="(roomData.total_debt || 0) > 0 ? 'text-red-600' : (roomData.total_debt || 0) < 0 ? 'text-blue-600' : 'text-emerald-600'">
                                                 <template x-if="(roomData.total_debt || 0) > 0">Deuda Pendiente</template>
-                                                <template x-if="(roomData.total_debt || 0) < 0">Se Le Debe al Cliente</template>
+                                                <template x-if="(roomData.total_debt || 0) < 0">Pago Adelantado</template>
                                                 <template x-if="(roomData.total_debt || 0) === 0">Al Día</template>
                                             </p>
                                             <p class="text-lg font-black"
@@ -305,38 +305,24 @@
                                 </div>
                             </template>
 
-                            <!-- Advertencia si hay saldo a favor y no se registró devolución -->
-                            <template x-if="(roomData.total_debt || 0) < 0 && (!roomData.refunds_history || roomData.refunds_history.length === 0)">
-                                <div class="bg-orange-50 border-2 border-orange-300 rounded-xl p-6">
+                            <!-- Advertencia: Pago adelantado (mientras esté ocupada) -->
+                            <template x-if="(roomData.total_debt || 0) < 0 && (!roomData.refunds_history || roomData.refunds_history.length === 0) && roomData.reservation">
+                                <div class="bg-blue-50 border-2 border-blue-300 rounded-xl p-6">
                                     <div class="flex items-start space-x-3">
                                         <div class="flex-shrink-0">
-                                            <i class="fas fa-exclamation-triangle text-orange-600 text-2xl"></i>
+                                            <i class="fas fa-info-circle text-blue-600 text-2xl"></i>
                                         </div>
                                         <div class="flex-1">
-                                            <h5 class="text-sm font-black text-orange-900 mb-2">¡Atención! Se le debe dinero al cliente</h5>
-                                            <p class="text-sm text-orange-800 mb-4">
-                                                El cliente tiene un saldo a favor de <strong class="text-orange-900" x-text="'$' + new Intl.NumberFormat('es-CO', {minimumFractionDigits: 0, maximumFractionDigits: 0}).format(Math.abs(roomData.total_debt))"></strong>.
-                                                <strong>Debe registrar la devolución antes de liberar la habitación.</strong>
+                                            <h5 class="text-sm font-black text-blue-900 mb-2">Pago adelantado aplicado</h5>
+                                            <p class="text-sm text-blue-800 mb-2">
+                                                El cliente tiene un <strong class="text-blue-900">pago adelantado</strong> de 
+                                                <strong class="text-blue-900" x-text="'$' + new Intl.NumberFormat('es-CO', {minimumFractionDigits: 0, maximumFractionDigits: 0}).format(Math.abs(roomData.total_debt))"></strong> 
+                                                que se aplicará a noches futuras o consumos adicionales.
                                             </p>
-                                            <div class="space-y-3">
-                                                <button type="button"
-                                                        @click="if ($wire) {
-                                                            $wire.call('registerCustomerRefund', roomData.reservation.id).then(() => {
-                                                                $wire.call('loadRoomReleaseData', roomData.room_id).then((updatedData) => {
-                                                                    roomData = updatedData;
-                                                                    refundConfirmed = true;
-                                                                });
-                                                            });
-                                                        }"
-                                                        class="inline-flex items-center px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold rounded-xl transition-colors">
-                                                    <i class="fas fa-check-circle mr-2"></i>
-                                                    Registrar Devolución de Dinero
-                                                </button>
-                                                <p class="text-xs text-orange-700 mt-2">
-                                                    <i class="fas fa-info-circle mr-1"></i>
-                                                    Esta acción quedará registrada en el historial de auditoría y no se puede deshacer.
-                                                </p>
-                                            </div>
+                                            <p class="text-xs text-blue-700 italic mt-2">
+                                                <i class="fas fa-info-circle mr-1"></i>
+                                                La habitación sigue ocupada. La devolución solo se evalúa al finalizar la estadía.
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -392,9 +378,9 @@
                                         if (!paymentMethod) return;
                                         if (paymentMethod === 'transferencia' && !reference) return;
                                     }
-                                    if ((roomData.total_debt || 0) < 0 && (!roomData.refunds_history || roomData.refunds_history.length === 0)) {
-                                        return;
-                                    }
+                                    // ✅ NO bloquear liberación si hay pago adelantado (total_debt < 0)
+                                    // El pago adelantado es válido mientras esté ocupada
+                                    // La devolución solo se evalúa cuando stay.status = finished
                                     isLoading = true;
                                     if (roomData.cancel_url) {
                                         const form = document.createElement('form');
@@ -426,7 +412,7 @@
                                         }
                                     }
                                 "
-                                :disabled="isLoading || ((roomData.total_debt || 0) > 0 && (!paymentConfirmed || !paymentMethod || (paymentMethod === 'transferencia' && !reference))) || ((roomData.total_debt || 0) < 0 && (!roomData.refunds_history || roomData.refunds_history.length === 0))"
+                                :disabled="isLoading || ((roomData.total_debt || 0) > 0 && (!paymentConfirmed || !paymentMethod || (paymentMethod === 'transferencia' && !reference)))"
                                 :class="isLoading || ((roomData.total_debt || 0) > 0 && (!paymentConfirmed || !paymentMethod || (paymentMethod === 'transferencia' && !reference))) || ((roomData.total_debt || 0) < 0 && (!roomData.refunds_history || roomData.refunds_history.length === 0))
                                     ? 'bg-gray-400 cursor-not-allowed' 
                                     : 'bg-emerald-600 hover:bg-emerald-700'"

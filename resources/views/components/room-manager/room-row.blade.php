@@ -7,21 +7,25 @@
     
     // SINGLE SOURCE OF TRUTH: Usar solo getOperationalStatus()
     // Para fechas pasadas, este método retorna el estado histórico (inmutable)
+    // Valores permitidos: 'occupied', 'pending_checkout', 'pending_cleaning', 'free_clean'
     $operationalStatus = $room->getOperationalStatus($selectedDate);
     
     // SINGLE SOURCE OF TRUTH: Obtener stay UNA SOLA VEZ para la fecha seleccionada
-    // Esta stay se pasa a los componentes hijos para evitar duplicación de lógica
-    // Para fechas pasadas, retorna la stay que existía ese día (histórica)
-    $stay = $room->getAvailabilityService()->getStayForDate($selectedDate);
-    
-    // Eager loading de relaciones necesarias para evitar N+1 queries
-    if ($stay) {
-        $stay->loadMissing([
-            'reservation.customer',
-            'reservation.reservationRooms' => function ($query) use ($room) {
-                $query->where('room_id', $room->id);
-            }
-        ]);
+    // CRITICAL: Solo usar stay para mostrar info de huésped/cuenta cuando operationalStatus es 'occupied' o 'pending_checkout'
+    // Si operationalStatus es 'pending_cleaning' o 'free_clean', NO hay stay activa para mostrar
+    $stay = null;
+    if (in_array($operationalStatus, ['occupied', 'pending_checkout'])) {
+        $stay = $room->getAvailabilityService()->getStayForDate($selectedDate);
+        
+        // Eager loading de relaciones necesarias para evitar N+1 queries
+        if ($stay) {
+            $stay->loadMissing([
+                'reservation.customer',
+                'reservation.reservationRooms' => function ($query) use ($room) {
+                    $query->where('room_id', $room->id);
+                }
+            ]);
+        }
     }
 @endphp
 
@@ -30,6 +34,7 @@
         isReleasing: false,
         recentlyReleased: false,
         // Estado inicial desde BD (Single Source of Truth)
+        // Valores permitidos: 'occupied', 'pending_checkout', 'pending_cleaning', 'free_clean'
         operationalStatus: '{{ $operationalStatus }}',
         // Computed: Determina el estado visual a mostrar
         get displayState() {
@@ -39,14 +44,25 @@
         },
         // Computed: Determina si mostrar info de huésped y cuenta
         get shouldShowGuestInfo() {
-            // Solo mostrar cuando NO está en proceso de liberación Y el estado operativo es 'occupied'
-            return !this.isReleasing && !this.recentlyReleased && this.operationalStatus === 'occupied';
+            // Mostrar cuando NO está en proceso de liberación Y el estado operativo es 'occupied' o 'pending_checkout'
+            return !this.isReleasing && !this.recentlyReleased && 
+                   (this.operationalStatus === 'occupied' || this.operationalStatus === 'pending_checkout');
         },
     }"
     x-init="
         // CRITICAL: Las fechas pasadas son INMUTABLES - NO escuchar eventos reactivos
         // Solo hoy y fechas futuras pueden cambiar en tiempo real
         const isPastDate = {{ $isPastDate ? 'true' : 'false' }};
+        
+        // PERFORMANCE: Listener para cambio de vista - Resetear estados Alpine inmediatamente
+        // Esto evita estados congelados y lag perceptible al cambiar de fecha
+        window.addEventListener('room-view-changed', () => {
+            // Resetear estados locales para evitar estados congelados del día anterior
+            this.isReleasing = false;
+            this.recentlyReleased = false;
+            // El operationalStatus se actualizará automáticamente cuando Livewire re-renderice
+            // con el nuevo valor desde PHP (getOperationalStatus para la nueva fecha)
+        });
         
         if (!isPastDate) {
             // Listener: Inicio de liberación - Congela estado visual (solo para hoy/futuro)
@@ -92,6 +108,7 @@
     :class="{
         'bg-emerald-50': displayState === 'released',
         'bg-red-50/40': displayState === 'occupied',
+        'bg-orange-50/30': displayState === 'pending_checkout',
         'bg-yellow-50/30': displayState === 'pending_cleaning',
         'bg-emerald-50/30': displayState === 'free_clean'
     }"
@@ -117,8 +134,9 @@
                 'bg-gray-100 text-gray-600': displayState === 'releasing',
                 'bg-emerald-100 text-emerald-700 border border-emerald-200': displayState === 'released',
                 'bg-red-100 text-red-700 border border-red-200': displayState === 'occupied',
+                'bg-orange-100 text-orange-700 border border-orange-200': displayState === 'pending_checkout',
                 'bg-yellow-100 text-yellow-700 border border-yellow-200': displayState === 'pending_cleaning',
-                'bg-emerald-100 text-emerald-700': displayState === 'free_clean'
+                'bg-emerald-100 text-emerald-700 border border-emerald-200': displayState === 'free_clean'
             }">
             <span class="w-1.5 h-1.5 rounded-full mr-2" :class="displayState === 'releasing' ? 'animate-spin' : ''" style="background-color: currentColor"></span>
             <template x-if="displayState === 'releasing'">
@@ -130,8 +148,13 @@
             <template x-if="displayState === 'occupied'">
                 <span>Ocupada</span>
             </template>
+            <template x-if="displayState === 'pending_checkout'">
+                <span><i class="fas fa-door-open mr-1"></i>Pendiente por checkout</span>
+            </template>
             <template x-if="displayState === 'pending_cleaning'">
-                <span><i class="fas fa-broom mr-1"></i>Pendiente por aseo</span>
+                {{-- CRITICAL: Estado operativo 'pending_cleaning' significa que la habitación está LIBRE pero necesita limpieza --}}
+                {{-- El estado de LIMPIEZA se muestra en su propia columna separada --}}
+                <span>Libre</span>
             </template>
             <template x-if="displayState === 'free_clean'">
                 <span>Libre</span>

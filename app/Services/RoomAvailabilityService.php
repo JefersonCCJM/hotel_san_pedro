@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Room;
+use App\Models\Stay;
 use App\Enums\RoomDisplayStatus;
 use Carbon\Carbon;
 
@@ -66,32 +67,47 @@ class RoomAvailabilityService
         $startOfDay = $date->copy()->startOfDay();
         $endOfDay = $date->copy()->endOfDay();
 
-        // Subquery para obtener check_out_at real: si IS NULL, usar reservation_rooms.check_out_date
-        // Eager loading de relaciones necesarias para evitar N+1 queries
-        $stayQuery = $this->room->stays()
+        // CRITICAL: Usar nueva query directamente, NO la relación en memoria
+        // Esto evita problemas de caché cuando se crea una nueva stay
+        $stayQuery = \App\Models\Stay::query()
+            ->where('room_id', $this->room->id)
             ->with([
                 'reservation.customer',
                 'reservation.reservationRooms' => function ($query) {
                     $query->where('room_id', $this->room->id);
                 }
             ])
-            ->where('check_in_at', '<', $endOfDay);
+            ->where('check_in_at', '<=', $endOfDay);
 
         // CRÍTICO: Debe haber un check_out que sea >= startOfDay
         // Si check_out_at IS NULL, usamos la fecha de checkout de reservation_rooms
-        $stayQuery->where(function ($query) use ($startOfDay) {
+        // IMPORTANTE: Para fechas futuras, solo retornar stay si la fecha está ANTES del checkout
+        $isFutureDate = $date->isFuture();
+        
+        $stayQuery->where(function ($query) use ($startOfDay, $endOfDay, $isFutureDate) {
             $query->where(function ($q) use ($startOfDay) {
                 // Caso 1: check_out_at IS NOT NULL y es >= startOfDay
+                // Esto significa que el checkout ocurrió en o después de esta fecha
                 $q->whereNotNull('check_out_at')
                   ->where('check_out_at', '>=', $startOfDay);
             })
-            ->orWhere(function ($q) use ($startOfDay) {
-                // Caso 2: check_out_at IS NULL, pero reservation_rooms.check_out_date >= startOfDay
+            ->orWhere(function ($q) use ($startOfDay, $endOfDay, $isFutureDate) {
+                // Caso 2: check_out_at IS NULL, pero reservation_rooms.check_out_date debe ser >= startOfDay
                 $q->whereNull('check_out_at')
-                  ->whereHas('reservation', function ($r) use ($startOfDay) {
-                      $r->whereHas('reservationRooms', function ($rr) use ($startOfDay) {
+                  ->whereHas('reservation', function ($r) use ($startOfDay, $endOfDay, $isFutureDate) {
+                      $r->whereHas('reservationRooms', function ($rr) use ($startOfDay, $endOfDay, $isFutureDate) {
                           $rr->where('room_id', $this->room->id)
                              ->where('check_out_date', '>=', $startOfDay->toDateString());
+                          
+                          // CRITICAL: Para fechas futuras, solo retornar si la fecha consultada está DENTRO del rango
+                          // Regla: check_out_date >= endOfDay (la fecha consultada es <= día del checkout)
+                          // Esto asegura que:
+                          // - Si la fecha consultada es ANTES del checkout: check_out_date > endOfDay → retorna stay
+                          // - Si la fecha consultada ES el día del checkout: check_out_date = endOfDay → retorna stay
+                          // - Si la fecha consultada es DESPUÉS del checkout: check_out_date < endOfDay → NO retorna stay
+                          if ($isFutureDate) {
+                              $rr->where('check_out_date', '>=', $endOfDay->toDateString());
+                          }
                       });
                   });
             });

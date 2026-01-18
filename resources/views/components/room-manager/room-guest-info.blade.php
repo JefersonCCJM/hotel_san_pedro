@@ -2,38 +2,46 @@
 
 @php
     // SINGLE SOURCE OF TRUTH: Este componente recibe $stay explícitamente
-    // Si no hay stay, no hay información de huésped para mostrar
+    // GUARD CLAUSE OBLIGATORIO: Si no hay stay, no hay información de huésped para mostrar
     if (!$stay) {
+        echo '<span class="text-xs text-gray-400 italic">Sin huésped</span>';
         return;
     }
 
     // Obtener reserva desde la stay (Single Source of Truth)
     $reservation = $stay->reservation;
-    $customer = $reservation?->customer;
     
-    // Obtener ReservationRoom asociado para acceder a huéspedes adicionales
-    $reservationRoom = null;
-    if ($reservation) {
-        $reservationRoom = $reservation->reservationRooms
-            ->firstWhere('room_id', $room->id);
+    // GUARD CLAUSE: Si no hay reserva, mostrar mensaje apropiado
+    if (!$reservation) {
+        echo '<span class="text-xs text-amber-600 italic">Sin reserva asociada</span>';
+        return;
     }
     
-    // Obtener huéspedes adicionales desde reservationRoom
+    // SINGLE SOURCE OF TRUTH: Cliente principal SIEMPRE viene de reservation->customer
+    $customer = $reservation->customer;
+    
+    // Obtener ReservationRoom asociado para acceder a huéspedes adicionales
+    $reservationRoom = $reservation->reservationRooms
+        ->firstWhere('room_id', $room->id);
+    
+    // SINGLE SOURCE OF TRUTH: Huéspedes adicionales SIEMPRE vienen de reservationRoom->getGuests()
+    // Ruta: reservation_room_guests → reservation_guest_id → reservation_guests.guest_id → customers.id
     $additionalGuests = collect();
     if ($reservationRoom) {
         try {
             $additionalGuests = $reservationRoom->getGuests();
         } catch (\Exception $e) {
             // Silently handle error - no mostrar huéspedes adicionales si hay error
-            \Log::warning('Error loading additional guests', [
-                'reservation_room_id' => $reservationRoom->id,
+            \Log::warning('Error loading additional guests in room-guest-info', [
+                'reservation_room_id' => $reservationRoom->id ?? null,
                 'error' => $e->getMessage()
             ]);
+            $additionalGuests = collect();
         }
     }
     
     // Calcular total de huéspedes (principal + adicionales)
-    $totalGuests = 1; // Cliente principal
+    $totalGuests = $customer ? 1 : 0; // Cliente principal cuenta solo si existe
     if ($additionalGuests->isNotEmpty()) {
         $totalGuests += $additionalGuests->count();
     }
@@ -53,12 +61,24 @@
              });
          "
          title="Click para ver todos los huéspedes">
+        {{-- Cliente principal --}}
         <span class="text-sm font-semibold text-gray-900">{{ $customer->name }}</span>
+        
+        {{-- Huéspedes adicionales --}}
+        @if($additionalGuests->isNotEmpty())
+            @foreach($additionalGuests as $guest)
+                <span class="text-xs font-medium text-gray-700 mt-0.5">{{ $guest->name }}</span>
+            @endforeach
+        @endif
+        
+        {{-- Información de salida --}}
         @if($reservationRoom && $reservationRoom->check_out_date)
-            <span class="text-xs text-blue-600 font-medium">
+            <span class="text-xs text-blue-600 font-medium mt-1">
                 Salida: {{ \Carbon\Carbon::parse($reservationRoom->check_out_date)->format('d/m/Y') }}
             </span>
         @endif
+        
+        {{-- Contador solo si hay más de un huésped --}}
         @if($totalGuests > 1)
             <span class="text-[10px] text-gray-500 mt-1">
                 <i class="fas fa-users mr-1"></i>
@@ -71,11 +91,17 @@
     <div class="flex flex-col space-y-1">
         <div class="flex items-center gap-1.5">
             <i class="fas fa-exclamation-triangle text-yellow-600 text-xs"></i>
-            <span class="text-sm text-yellow-700 font-semibold">Ocupada sin huésped</span>
+            <span class="text-sm text-yellow-700 font-semibold">Cliente no asignado</span>
         </div>
         <div class="text-xs text-gray-500">
-            La estadía existe pero no hay cliente asignado.
+            La reserva existe pero no hay cliente principal asignado.
         </div>
+        @if($additionalGuests->isNotEmpty())
+            <div class="text-xs text-gray-600 mt-1">
+                <i class="fas fa-users mr-1"></i>
+                {{ $additionalGuests->count() }} huésped(es) adicional(es)
+            </div>
+        @endif
         <button type="button"
                 wire:click="openQuickRent({{ $room->id }})"
                 class="text-xs text-blue-600 hover:text-blue-800 underline font-medium mt-1">

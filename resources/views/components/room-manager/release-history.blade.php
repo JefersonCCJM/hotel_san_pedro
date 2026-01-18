@@ -21,7 +21,7 @@
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-                @forelse($releaseHistory as $history)
+                @forelse($releaseHistory ?? [] as $history)
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="text-sm font-bold text-gray-900">{{ \Carbon\Carbon::parse($history->release_date)->format('d/m/Y') }}</div>
@@ -98,9 +98,9 @@
     </div>
 
     <!-- Paginación -->
-    @if($releaseHistory->hasPages())
+    @if($releaseHistory && method_exists($releaseHistory, 'hasPages') && $releaseHistory->hasPages())
         <div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
-            {{ $releaseHistory->links() }}
+            {{ $releaseHistory->links('pagination::tailwind', ['pageName' => 'releaseHistoryPage']) }}
         </div>
     @endif
 </div>

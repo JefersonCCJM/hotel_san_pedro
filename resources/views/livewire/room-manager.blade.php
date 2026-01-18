@@ -38,7 +38,7 @@
      @scroll.window="closeActionsMenu()">
     
     <!-- HEADER -->
-    <x-room-manager.header :roomsCount="isset($rooms) ? $rooms->total() : (isset($releaseHistory) ? $releaseHistory->total() : 0)" />
+    <x-room-manager.header :roomsCount="isset($rooms) ? $rooms->total() : (isset($releaseHistory) ? (method_exists($releaseHistory, 'total') ? $releaseHistory->total() : $releaseHistory->count()) : 0)" />
 
     <!-- PESTAÑAS -->
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm mb-6">

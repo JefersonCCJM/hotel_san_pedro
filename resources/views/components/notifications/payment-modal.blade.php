@@ -435,14 +435,24 @@ function paymentModal() {
         },
 
         confirm() {
+            console.log('[Payment Modal] confirm() called', {
+                paymentAmount: this.paymentAmount,
+                paymentMethod: this.paymentMethod,
+                reservationId: this.reservationId,
+                bankName: this.bankName,
+                reference: this.reference
+            });
+            
             // Validar monto
             if (!this.validateAmount()) {
+                console.warn('[Payment Modal] Amount validation failed');
                 return;
             }
 
             // Validar transferencia si aplica
             if (this.paymentMethod === 'transferencia') {
                 if (!this.validateTransferFields()) {
+                    console.warn('[Payment Modal] Transfer fields validation failed');
                     this.error = 'Por favor complete todos los campos de transferencia';
                     return;
                 }
@@ -450,6 +460,7 @@ function paymentModal() {
 
             this.loading = true;
             this.error = '';
+            console.log('[Payment Modal] Setting loading = true');
 
             // Preparar datos
             const paymentData = {
@@ -459,6 +470,8 @@ function paymentModal() {
                 bankName: this.paymentMethod === 'transferencia' ? this.bankName : null,
                 reference: this.paymentMethod === 'transferencia' ? this.reference : null
             };
+
+            console.log('[Payment Modal] Dispatching register-payment-event', paymentData);
 
             // Enviar evento DOM personalizado que el listener en scripts.blade.php capturará
             try {
@@ -471,10 +484,10 @@ function paymentModal() {
                         reference: paymentData.reference
                     }
                 }));
-                console.log('Payment event dispatched successfully');
+                console.log('[Payment Modal] Payment event dispatched successfully');
                 // El listener en scripts.blade.php manejará la llamada al método
             } catch (e) {
-                console.error('Exception dispatching payment event:', e);
+                console.error('[Payment Modal] Exception dispatching payment event:', e);
                 this.error = 'Error al procesar el pago: ' + e.message;
                 this.loading = false;
             }
@@ -489,12 +502,33 @@ function paymentModal() {
         init() {
             // Escuchar evento para cerrar el modal desde el servidor
             window.addEventListener('close-payment-modal', () => {
+                console.log('[Payment Modal] close-payment-modal event received');
                 this.cancel();
+            });
+            
+            // Escuchar evento para resetear loading en caso de error
+            window.addEventListener('reset-payment-modal-loading', (event) => {
+                console.error('[Payment Modal] reset-payment-modal-loading event received', {
+                    timestamp: new Date().toISOString(),
+                    event: event,
+                    currentState: {
+                        loading: this.loading,
+                        error: this.error,
+                        paymentAmount: this.paymentAmount,
+                        paymentMethod: this.paymentMethod,
+                        reservationId: this.reservationId
+                    },
+                    stackTrace: new Error().stack
+                });
+                this.loading = false;
+                this.error = 'Error al procesar el pago. Por favor, intente nuevamente.';
             });
             
             // Escuchar eventos de Livewire para cerrar el modal después del pago
             document.addEventListener('livewire:init', () => {
                 Livewire.on('payment-registered', () => {
+                    console.log('[Payment Modal] payment-registered event received from Livewire');
+                    this.loading = false;
                     this.cancel();
                 });
             });
@@ -502,9 +536,13 @@ function paymentModal() {
             // También escuchar si Livewire ya está inicializado
             if (window.Livewire) {
                 Livewire.on('payment-registered', () => {
+                    console.log('[Payment Modal] payment-registered event received from Livewire (already initialized)');
+                    this.loading = false;
                     this.cancel();
                 });
             }
+            
+            console.log('[Payment Modal] Initialized with event listeners');
         },
 
         formatCurrency(amount) {

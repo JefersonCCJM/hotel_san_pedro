@@ -47,8 +47,8 @@
                     <div class="flex items-center space-x-3">
                         <i class="fas fa-door-open text-2xl text-blue-600"></i>
                         <div>
-                            <h3 class="text-xl font-bold text-gray-900">Habitación #{{ $releaseHistoryDetail->room_number }}</h3>
-                            <p class="text-sm text-gray-500">Detalle de liberación - {{ \Carbon\Carbon::parse($releaseHistoryDetail->release_date)->format('d/m/Y') }}</p>
+                            <h3 class="text-xl font-bold text-gray-900">Habitación #{{ $releaseHistoryDetail['room_number'] ?? 'N/A' }}</h3>
+                            <p class="text-sm text-gray-500">Detalle de liberación - {{ \Carbon\Carbon::parse($releaseHistoryDetail['release_date'] ?? now())->format('d/m/Y') }}</p>
                         </div>
                     </div>
                     <button 
@@ -65,19 +65,19 @@
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <p class="text-xs text-gray-500 uppercase mb-1">Nombre</p>
-                                <p class="text-sm font-bold text-gray-900">{{ $releaseHistoryDetail->customer_name }}</p>
+                                <p class="text-sm font-bold text-gray-900">{{ $releaseHistoryDetail['customer_name'] ?? 'N/A' }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-gray-500 uppercase mb-1">Identificación</p>
-                                <p class="text-sm font-bold text-gray-900">{{ $releaseHistoryDetail->customer_identification ?? 'N/A' }}</p>
+                                <p class="text-sm font-bold text-gray-900">{{ $releaseHistoryDetail['customer_identification'] ?? 'N/A' }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-gray-500 uppercase mb-1">Teléfono</p>
-                                <p class="text-sm font-bold text-gray-900">{{ $releaseHistoryDetail->customer_phone ?? 'N/A' }}</p>
+                                <p class="text-sm font-bold text-gray-900">{{ $releaseHistoryDetail['customer_phone'] ?? 'N/A' }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-gray-500 uppercase mb-1">Email</p>
-                                <p class="text-sm font-bold text-gray-900">{{ $releaseHistoryDetail->customer_email ?? 'N/A' }}</p>
+                                <p class="text-sm font-bold text-gray-900">{{ $releaseHistoryDetail['customer_email'] ?? 'N/A' }}</p>
                             </div>
                         </div>
                     </div>
@@ -88,39 +88,39 @@
                         <div class="grid grid-cols-3 gap-4 mb-4">
                             <div class="p-4 bg-gray-50 rounded-xl">
                                 <p class="text-xs text-gray-500 uppercase mb-1">Check In</p>
-                                <p class="text-sm font-bold text-gray-900">{{ \Carbon\Carbon::parse($releaseHistoryDetail->check_in_date)->format('d/m/Y') }}</p>
+                                <p class="text-sm font-bold text-gray-900">{{ \Carbon\Carbon::parse($releaseHistoryDetail['check_in_date'] ?? now())->format('d/m/Y') }}</p>
                             </div>
                             <div class="p-4 bg-gray-50 rounded-xl">
                                 <p class="text-xs text-gray-500 uppercase mb-1">Check Out</p>
-                                <p class="text-sm font-bold text-gray-900">{{ \Carbon\Carbon::parse($releaseHistoryDetail->check_out_date)->format('d/m/Y') }}</p>
+                                <p class="text-sm font-bold text-gray-900">{{ \Carbon\Carbon::parse($releaseHistoryDetail['check_out_date'] ?? now())->format('d/m/Y') }}</p>
                             </div>
                             <div class="p-4 bg-gray-50 rounded-xl">
                                 <p class="text-xs text-gray-500 uppercase mb-1">Huéspedes</p>
-                                <p class="text-sm font-bold text-gray-900">{{ $releaseHistoryDetail->guests_count }}</p>
+                                <p class="text-sm font-bold text-gray-900">{{ $releaseHistoryDetail['guests_count'] ?? 0 }}</p>
                             </div>
                         </div>
                         <div class="grid grid-cols-4 gap-4">
                             <div class="p-4 bg-blue-50 rounded-xl text-center">
                                 <p class="text-xs text-blue-600 uppercase mb-1">Total Hospedaje</p>
-                                <p class="text-lg font-bold text-blue-900">${{ number_format($releaseHistoryDetail->total_amount, 0, ',', '.') }}</p>
+                                <p class="text-lg font-bold text-blue-900">${{ number_format($releaseHistoryDetail['total_amount'] ?? 0, 0, ',', '.') }}</p>
                             </div>
                             <div class="p-4 bg-green-50 rounded-xl text-center">
                                 <p class="text-xs text-green-600 uppercase mb-1">Abono</p>
-                                <p class="text-lg font-bold text-green-900">${{ number_format($releaseHistoryDetail->deposit, 0, ',', '.') }}</p>
+                                <p class="text-lg font-bold text-green-900">${{ number_format($releaseHistoryDetail['deposit'] ?? 0, 0, ',', '.') }}</p>
                             </div>
                             <div class="p-4 bg-gray-50 rounded-xl text-center">
                                 <p class="text-xs text-gray-600 uppercase mb-1">Consumos</p>
-                                <p class="text-lg font-bold text-gray-900">${{ number_format($releaseHistoryDetail->consumptions_total, 0, ',', '.') }}</p>
+                                <p class="text-lg font-bold text-gray-900">${{ number_format($releaseHistoryDetail['consumptions_total'] ?? 0, 0, ',', '.') }}</p>
                             </div>
-                            <div class="p-4 {{ (float)$releaseHistoryDetail->pending_amount < 0 ? 'bg-blue-50' : 'bg-red-50' }} rounded-xl text-center">
-                                <p class="text-xs {{ (float)$releaseHistoryDetail->pending_amount < 0 ? 'text-blue-600' : 'text-red-600' }} uppercase mb-1">Pendiente</p>
-                                <p class="text-lg font-bold {{ (float)$releaseHistoryDetail->pending_amount < 0 ? 'text-blue-900' : 'text-red-900' }}">${{ number_format(abs((float)$releaseHistoryDetail->pending_amount), 0, ',', '.') }}</p>
+                            <div class="p-4 {{ (float)($releaseHistoryDetail['pending_amount'] ?? 0) < 0 ? 'bg-blue-50' : 'bg-red-50' }} rounded-xl text-center">
+                                <p class="text-xs {{ (float)($releaseHistoryDetail['pending_amount'] ?? 0) < 0 ? 'text-blue-600' : 'text-red-600' }} uppercase mb-1">Pendiente</p>
+                                <p class="text-lg font-bold {{ (float)($releaseHistoryDetail['pending_amount'] ?? 0) < 0 ? 'text-blue-900' : 'text-red-900' }}">${{ number_format(abs((float)($releaseHistoryDetail['pending_amount'] ?? 0)), 0, ',', '.') }}</p>
                             </div>
                         </div>
                     </div>
 
                     {{-- Consumos --}}
-                    @if(!empty($releaseHistoryDetail->sales_data))
+                    @if(!empty($releaseHistoryDetail['sales_data']))
                     <div class="mb-6">
                         <h4 class="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Consumos</h4>
                         <div class="overflow-x-auto">
@@ -135,7 +135,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-200">
-                                    @foreach($releaseHistoryDetail->sales_data as $sale)
+                                    @foreach($releaseHistoryDetail['sales_data'] ?? [] as $sale)
                                         @php
                                             $sale = is_array($sale) ? $sale : (array) $sale;
                                         @endphp
@@ -160,7 +160,7 @@
                     @endif
 
                     {{-- Abonos --}}
-                    @if(!empty($releaseHistoryDetail->deposits_data))
+                    @if(!empty($releaseHistoryDetail['deposits_data']))
                     <div class="mb-6">
                         <h4 class="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Historial de Abonos</h4>
                         <div class="overflow-x-auto">
@@ -174,7 +174,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-200">
-                                    @foreach($releaseHistoryDetail->deposits_data as $deposit)
+                                    @foreach($releaseHistoryDetail['deposits_data'] ?? [] as $deposit)
                                         @php
                                             $deposit = is_array($deposit) ? $deposit : (array) $deposit;
                                         @endphp
@@ -197,8 +197,8 @@
 
                     {{-- Historial de Devoluciones --}}
                     @php
-                        $refundsHistory = isset($releaseHistoryDetail->refunds_history) ? $releaseHistoryDetail->refunds_history : [];
-                        $totalRefunds = $releaseHistoryDetail->total_refunds ?? 0;
+                        $refundsHistory = $releaseHistoryDetail['refunds_history'] ?? [];
+                        $totalRefunds = $releaseHistoryDetail['total_refunds'] ?? 0;
                     @endphp
                     @if(!empty($refundsHistory) && count($refundsHistory) > 0)
                     <div class="mb-6">
@@ -233,11 +233,11 @@
                     @endif
 
                     {{-- Huéspedes --}}
-                    @if(!empty($releaseHistoryDetail->guests_data))
+                    @if(!empty($releaseHistoryDetail['guests_data']))
                     <div class="mb-6">
                         <h4 class="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Huéspedes</h4>
                         <div class="space-y-3">
-                            @foreach($releaseHistoryDetail->guests_data as $guest)
+                            @foreach($releaseHistoryDetail['guests_data'] ?? [] as $guest)
                                 @php
                                     $guest = is_array($guest) ? $guest : (array) $guest;
                                 @endphp
@@ -271,23 +271,23 @@
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <p class="text-xs text-gray-500 uppercase mb-1">Liberado Por</p>
-                                <p class="text-sm font-bold text-gray-900">{{ $releaseHistoryDetail->releasedBy->name ?? 'N/A' }}</p>
+                                <p class="text-sm font-bold text-gray-900">{{ $releaseHistoryDetail['released_by_name'] ?? 'N/A' }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-gray-500 uppercase mb-1">Estado Final</p>
                                 <span class="inline-block px-3 py-1 text-xs font-bold rounded-full 
-                                    {{ $releaseHistoryDetail->target_status === 'libre' ? 'bg-emerald-100 text-emerald-800' : 
-                                       ($releaseHistoryDetail->target_status === 'limpia' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800') }}">
-                                    {{ ucfirst(str_replace('_', ' ', $releaseHistoryDetail->target_status)) }}
+                                    {{ ($releaseHistoryDetail['target_status'] ?? '') === 'libre' ? 'bg-emerald-100 text-emerald-800' : 
+                                       (($releaseHistoryDetail['target_status'] ?? '') === 'limpia' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800') }}">
+                                    {{ ucfirst(str_replace('_', ' ', $releaseHistoryDetail['target_status'] ?? 'N/A')) }}
                                 </span>
                             </div>
                             <div>
                                 <p class="text-xs text-gray-500 uppercase mb-1">Fecha de Liberación</p>
-                                <p class="text-sm font-bold text-gray-900">{{ \Carbon\Carbon::parse($releaseHistoryDetail->release_date)->format('d/m/Y') }}</p>
+                                <p class="text-sm font-bold text-gray-900">{{ \Carbon\Carbon::parse($releaseHistoryDetail['release_date'] ?? now())->format('d/m/Y') }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-gray-500 uppercase mb-1">Hora de Registro</p>
-                                <p class="text-sm font-bold text-gray-900">{{ \Carbon\Carbon::parse($releaseHistoryDetail->created_at)->format('H:i:s') }}</p>
+                                <p class="text-sm font-bold text-gray-900">{{ \Carbon\Carbon::parse($releaseHistoryDetail['created_at'] ?? now())->format('H:i:s') }}</p>
                             </div>
                         </div>
                     </div>

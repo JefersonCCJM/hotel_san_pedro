@@ -285,8 +285,28 @@ class Room extends Model
         // Check if room is currently occupied (Dependency Inversion - uses abstraction)
         $isOccupied = $this->isOccupied($date);
 
-        // If room is NOT occupied, it stays clean indefinitely (Open/Closed Principle)
+        // If room is NOT occupied, check if there was a recent checkout that needs cleaning
         if (!$isOccupied) {
+            // Check if there was a checkout on or before this date
+            $lastFinishedStay = $this->stays()
+                ->whereNotNull('check_out_at')
+                ->whereDate('check_out_at', '<=', $date)
+                ->latest('check_out_at')
+                ->first();
+
+            if ($lastFinishedStay) {
+                // There was a checkout - verify if it was cleaned after checkout
+                $cleaningDate = $this->last_cleaned_at instanceof \Carbon\Carbon
+                    ? $this->last_cleaned_at
+                    : \Carbon\Carbon::parse($this->last_cleaned_at);
+
+                // If cleaned before checkout or never cleaned properly → needs cleaning
+                if ($cleaningDate->lt($lastFinishedStay->check_out_at)) {
+                    return $this->getPendingCleaningStatus();
+                }
+            }
+
+            // No checkout or already cleaned after checkout → clean
             return $this->getCleanStatus();
         }
 
@@ -363,24 +383,33 @@ class Room extends Model
     /**
      * SINGLE SOURCE OF TRUTH: Get operational status for room actions menu.
      * 
+     * FUNCIÓN PURA: El estado es una función pura de (habitación + fecha).
+     * Nunca del "estado actual". No usa cache, no usa flags globales.
+     * 
      * CRITICAL: For PAST dates, this method calculates the state based on what happened
      * ON THAT SPECIFIC DATE, not the current state. Past dates are IMMUTABLE.
      * 
      * Returns the operational state of the room based on:
      * - Active stays (occupied)
+     * - Pending checkout (pending_checkout)
      * - Last checkout + cleaning status (pending_cleaning)
      * - Default state (free_clean)
+     * 
+     * REGLAS DE NEGOCIO:
+     * - OCUPADA: check_in_at <= fecha <= check_out_date
+     * - PENDIENTE POR CHECKOUT: fecha == check_out_date y checkout no ejecutado
+     * - PENDIENTE POR ASEO: fecha > check_out_date y last_cleaned_at < check_out_at
+     * - LIBRE Y LIMPIA: fecha > check_out_date y last_cleaned_at >= check_out_at
      * 
      * This method drives the room-actions-menu buttons.
      * 
      * @param \Carbon\Carbon $date Date to check
-     * @return string 'occupied' | 'pending_cleaning' | 'free_clean'
+     * @return string 'occupied' | 'pending_checkout' | 'pending_cleaning' | 'free_clean'
      */
     public function getOperationalStatus(Carbon $date): string
     {
         $today = Carbon::today();
         $queryDate = $date->copy()->startOfDay();
-        $endOfQueryDay = $queryDate->copy()->endOfDay();
         $isPastDate = $queryDate->lt($today);
 
         // CRITICAL: For PAST dates, use historical logic (immutable)
@@ -395,6 +424,9 @@ class Room extends Model
     /**
      * Calculate operational status for PAST dates (historical, immutable).
      * 
+     * FUNCIÓN PURA: El estado es una función pura de (habitación + fecha).
+     * No usa estado actual, no usa cache, no usa flags globales.
+     * 
      * Uses ONLY information that existed ON or BEFORE the query date.
      * Never uses current state or future events.
      * 
@@ -402,16 +434,44 @@ class Room extends Model
      * stays.check_out_at, last_cleaned_at, and the selected date.
      * 
      * @param \Carbon\Carbon $date
-     * @return string
+     * @return string 'occupied' | 'pending_checkout' | 'pending_cleaning' | 'free_clean'
      */
     private function calculateHistoricalOperationalStatus(Carbon $date): string
     {
+        $queryDate = $date->copy()->startOfDay();
+        $endOfQueryDay = $date->copy()->endOfDay();
+
         // Get stay that intersected this date
         $stay = $this->getAvailabilityService()->getStayForDate($date);
 
-        // 1. OCCUPIED: If there was a stay active on this date (check_out_at is NULL or after this date)
-        if ($stay && (is_null($stay->check_out_at) || $stay->check_out_at->gt($date->copy()->endOfDay()))) {
-            return 'occupied';
+        // 1. OCCUPIED: If there was a stay active on this date
+        if ($stay) {
+            // Obtener reservation_room para verificar check_out_date
+            $reservationRoom = $stay->reservation
+                ->reservationRooms
+                ->where('room_id', $this->id)
+                ->first();
+
+            if ($reservationRoom && $reservationRoom->check_out_date) {
+                $checkoutDate = \Carbon\Carbon::parse($reservationRoom->check_out_date)->startOfDay();
+
+                // Si la fecha está ANTES del checkout → ocupada
+                if ($queryDate->lt($checkoutDate)) {
+                    return 'occupied';
+                }
+
+                // Si la fecha ES el día del checkout y checkout no ejecutado → pending_checkout
+                // (Para fechas pasadas, esto solo aplica si check_out_at es NULL o después de esta fecha)
+                if ($queryDate->equalTo($checkoutDate) && 
+                    (is_null($stay->check_out_at) || $stay->check_out_at->gt($endOfQueryDay))) {
+                    return 'pending_checkout';
+                }
+            } else {
+                // Si no hay reservation_room o check_out_date, verificar check_out_at
+                if (is_null($stay->check_out_at) || $stay->check_out_at->gt($endOfQueryDay)) {
+                    return 'occupied';
+                }
+            }
         }
 
         // 2. PENDING_CLEANING: If there was a checkout on or before this date
@@ -423,8 +483,6 @@ class Room extends Model
             ->first();
 
         if ($lastFinishedStay) {
-            $endOfQueryDay = $date->copy()->endOfDay();
-            
             // If never cleaned OR cleaned before checkout OR cleaned after the query date
             if (!$this->last_cleaned_at) {
                 return 'pending_cleaning';
@@ -499,35 +557,82 @@ class Room extends Model
             return false;
         }
 
-        // Check if check_out_date is in the past (before today)
+        // Check if check_out_date equals the queried date (today)
         $checkoutDate = \Carbon\Carbon::parse($reservationRoom->check_out_date)->startOfDay();
-        $today = Carbon::today();
+        $queryDate = $date->copy()->startOfDay();
 
-        // Pending checkout if check_out_date < today AND stay is still active
-        return $checkoutDate->lt($today);
+        // Pending checkout if fecha == check_out_date AND checkout no ejecutado
+        return $checkoutDate->equalTo($queryDate);
     }
 
     /**
      * Calculate operational status for TODAY and FUTURE dates (reactive).
      * 
+     * FUNCIÓN PURA: El estado es una función pura de (habitación + fecha).
+     * No usa estado actual, no usa cache, no usa flags globales.
+     * 
      * SINGLE SOURCE OF TRUTH: Based exclusively on stays, reservation_rooms.check_out_date,
      * stays.check_out_at, last_cleaned_at, and the selected date.
      * 
+     * REGLAS DE NEGOCIO:
+     * - OCUPADA: check_in_at <= fecha < check_out_date
+     * - PENDIENTE POR CHECKOUT: fecha == check_out_date y checkout no ejecutado (check_out_at IS NULL)
+     * - PENDIENTE POR ASEO: fecha > check_out_date y last_cleaned_at < check_out_at
+     * - LIBRE Y LIMPIA: fecha > check_out_date y last_cleaned_at >= check_out_at
+     * 
      * @param \Carbon\Carbon $date
-     * @return string
+     * @return string 'occupied' | 'pending_checkout' | 'pending_cleaning' | 'free_clean'
      */
     private function calculateCurrentOperationalStatus(Carbon $date): string
     {
-        // Get stay that intersects this date
+        $queryDate = $date->copy()->startOfDay();
+        $endOfQueryDay = $date->copy()->endOfDay();
+
+        // 1️⃣ Buscar stay que INTERSECTE con la fecha
         $stay = $this->getAvailabilityService()->getStayForDate($date);
 
-        // 1. OCCUPIED: If there's an active stay on this date (check_out_at is NULL)
-        if ($stay && is_null($stay->check_out_at)) {
-            return 'occupied';
+        // 2️⃣ OCUPADA: solo si la fecha está DENTRO del rango real de la estancia
+        if ($stay) {
+            // Obtener reservation_room para verificar check_out_date
+            $reservationRoom = $stay->reservation
+                ->reservationRooms
+                ->where('room_id', $this->id)
+                ->first();
+
+            if (!$reservationRoom || !$reservationRoom->check_out_date) {
+                // Si no hay reservation_room o check_out_date, asumir ocupada
+                return 'occupied';
+            }
+
+            $checkoutDate = \Carbon\Carbon::parse($reservationRoom->check_out_date)->startOfDay();
+
+            // Caso A: aún no ha hecho checkout (check_out_at es NULL)
+            if (is_null($stay->check_out_at)) {
+                // Si la fecha está ANTES del checkout → ocupada
+                if ($queryDate->lt($checkoutDate)) {
+                    return 'occupied';
+                }
+                
+                // Si la fecha ES el día del checkout → pendiente por checkout
+                if ($queryDate->equalTo($checkoutDate)) {
+                    return 'pending_checkout';
+                }
+                
+                // Si la fecha es DESPUÉS del checkout, la stay ya terminó
+                // Continuar con la lógica de pending_cleaning
+            } else {
+                // Caso B: checkout ya ejecutado (check_out_at IS NOT NULL)
+                // Si checkout ocurrió DESPUÉS de esta fecha → ocupada
+                if ($stay->check_out_at->gt($endOfQueryDay)) {
+                    return 'occupied';
+                }
+                // Si checkout ocurrió en o antes de esta fecha, la stay ya terminó
+                // Continuar con la lógica de pending_cleaning
+            }
         }
 
-        // 2. PENDING_CLEANING: If there was a checkout before or on this date
-        // and it wasn't cleaned after checkout
+        // 3️⃣ PENDIENTE POR ASEO
+        // Si hubo checkout ANTES o EN esta fecha y no se limpió después
         $lastFinishedStay = $this->stays()
             ->whereNotNull('check_out_at')
             ->whereDate('check_out_at', '<=', $date)
@@ -535,13 +640,13 @@ class Room extends Model
             ->first();
 
         if ($lastFinishedStay) {
-            // If never cleaned OR cleaned before the checkout
+            // Si nunca se limpió O se limpió antes del checkout
             if (!$this->last_cleaned_at || $this->last_cleaned_at->lt($lastFinishedStay->check_out_at)) {
                 return 'pending_cleaning';
             }
         }
 
-        // 3. FREE_CLEAN: Default state (free and clean)
+        // 4️⃣ LIBRE Y LIMPIA
         return 'free_clean';
     }
 
