@@ -207,6 +207,111 @@ class RoomManager extends Component
     }
 
     /**
+     * Garantiza que exista un registro de noche para una fecha específica en una estadía.
+     * 
+     * SINGLE SOURCE OF TRUTH para el cobro por noches:
+     * - Si ya existe una noche para esa fecha, no hace nada
+     * - Si no existe, crea una nueva noche con precio calculado desde tarifas
+     * - El precio se calcula basándose en la cantidad de huéspedes de la reserva
+     * 
+     * REGLA: Cada noche que una habitación está ocupada debe tener un registro en stay_nights
+     * 
+     * @param \App\Models\Stay $stay La estadía activa
+     * @param \Carbon\Carbon $date Fecha de la noche a crear
+     * @return \App\Models\StayNight|null La noche creada o existente, o null si falla
+     */
+    private function ensureNightForDate(\App\Models\Stay $stay, Carbon $date): ?\App\Models\StayNight
+    {
+        try {
+            // Verificar si ya existe una noche para esta fecha
+            $existingNight = \App\Models\StayNight::where('stay_id', $stay->id)
+                ->whereDate('date', $date->toDateString())
+                ->first();
+
+            if ($existingNight) {
+                // Ya existe, retornar sin crear
+                return $existingNight;
+            }
+
+            // Obtener reserva y habitación para calcular precio
+            $reservation = $stay->reservation;
+            $room = $stay->room;
+
+            if (!$reservation || !$room) {
+                \Log::error('ensureNightForDate: Missing reservation or room', [
+                    'stay_id' => $stay->id,
+                    'date' => $date->toDateString()
+                ]);
+                return null;
+            }
+
+            // Cargar tarifas de la habitación si no están cargadas
+            $room->loadMissing('rates');
+
+            // Calcular cantidad de huéspedes de la reserva
+            $totalGuests = (int)($reservation->total_guests ?? 1);
+            if ($totalGuests <= 0) {
+                $totalGuests = 1; // Mínimo 1 huésped
+            }
+
+            // Calcular precio usando findRateForGuests (mismo método que en Quick Rent)
+            $price = $this->findRateForGuests($room, $totalGuests);
+
+            // Si el precio es 0, usar el total_amount dividido entre noches como fallback
+            if ($price <= 0) {
+                $reservationRoom = $reservation->reservationRooms()
+                    ->where('room_id', $room->id)
+                    ->first();
+
+                if ($reservationRoom) {
+                    $checkIn = Carbon::parse($reservationRoom->check_in_date);
+                    $checkOut = Carbon::parse($reservationRoom->check_out_date);
+                    $totalNights = max(1, $checkIn->diffInDays($checkOut));
+                    $totalAmount = (float)($reservation->total_amount ?? 0);
+
+                    if ($totalNights > 0 && $totalAmount > 0) {
+                        $price = round($totalAmount / $totalNights, 2);
+                    }
+                }
+
+                // Si aún es 0, usar base_price_per_night como último recurso
+                if ($price <= 0) {
+                    $price = (float)($room->base_price_per_night ?? 0);
+                }
+            }
+
+            // Crear la noche
+            $stayNight = \App\Models\StayNight::create([
+                'stay_id' => $stay->id,
+                'reservation_id' => $reservation->id,
+                'room_id' => $room->id,
+                'date' => $date->toDateString(),
+                'price' => $price,
+                'is_paid' => false, // Por defecto, pendiente
+            ]);
+
+            \Log::info('ensureNightForDate: Night created', [
+                'stay_id' => $stay->id,
+                'reservation_id' => $reservation->id,
+                'room_id' => $room->id,
+                'date' => $date->toDateString(),
+                'price' => $price,
+                'guests' => $totalGuests
+            ]);
+
+            return $stayNight;
+        } catch (\Exception $e) {
+            \Log::error('ensureNightForDate: Error creating night', [
+                'stay_id' => $stay->id,
+                'date' => $date->toDateString(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return null;
+        }
+    }
+
+    /**
      * Recalcula total, noches y guests_count cuando cambia personas o fechas.
      */
     private function recalculateQuickRentTotals(?Room $room = null): void
@@ -560,6 +665,134 @@ class RoomManager extends Component
     }
 
     /**
+     * Continúa la estadía (extiende el checkout por un día).
+     * 
+     * Reactiva la estadía extendiendo la fecha de checkout de la reserva.
+     * Esto quita el estado de "pending_checkout" permitiendo que la habitación
+     * siga ocupada un día más.
+     * 
+     * REGLAS DE NEGOCIO:
+     * - Solo funciona para estadías que están en "pending_checkout" (check_out_date = hoy)
+     * - Extiende reservation_rooms.check_out_date en 1 día
+     * - NO toca pagos (el total_amount se mantiene, se pagará después)
+     * - NO crea nueva estadía (la stay actual continúa)
+     * - NO rompe auditoría (solo extiende fecha)
+     * 
+     * @param int $roomId ID de la habitación
+     * @return void
+     */
+    public function continueStay(int $roomId): void
+    {
+        try {
+            $room = Room::findOrFail($roomId);
+            $availabilityService = $room->getAvailabilityService();
+            $today = Carbon::today();
+
+            // Validar que no sea fecha histórica
+            if ($availabilityService->isHistoricDate($today)) {
+                $this->dispatch('notify', [
+                    'type' => 'error',
+                    'message' => 'No se pueden hacer cambios en fechas históricas.'
+                ]);
+                return;
+            }
+
+            // Obtener stay activa para hoy
+            $stay = $availabilityService->getStayForDate($today);
+
+            if (!$stay) {
+                $this->dispatch('notify', [
+                    'type' => 'error',
+                    'message' => 'No hay una estadía activa para continuar.'
+                ]);
+                return;
+            }
+
+            // Obtener reserva y reservation_room
+            $reservation = $stay->reservation;
+            if (!$reservation) {
+                $this->dispatch('notify', [
+                    'type' => 'error',
+                    'message' => 'La estadía no tiene reserva asociada.'
+                ]);
+                return;
+            }
+
+            $reservationRoom = $reservation->reservationRooms()
+                ->where('room_id', $roomId)
+                ->first();
+
+            if (!$reservationRoom) {
+                $this->dispatch('notify', [
+                    'type' => 'error',
+                    'message' => 'No se encontró la relación reserva-habitación.'
+                ]);
+                return;
+            }
+
+            // Verificar que la fecha de checkout sea hoy (estado pending_checkout)
+            $checkoutDate = Carbon::parse($reservationRoom->check_out_date)->startOfDay();
+            if (!$checkoutDate->equalTo($today)) {
+                $this->dispatch('notify', [
+                    'type' => 'warning',
+                    'message' => 'La estadía no está en estado de checkout pendiente para continuar.'
+                ]);
+                return;
+            }
+
+            // Extender el checkout por un día
+            $newCheckOutDate = $checkoutDate->copy()->addDay();
+
+            // Actualizar reservation_room (solo la fecha, NO tocar pagos)
+            $reservationRoom->update([
+                'check_out_date' => $newCheckOutDate->toDateString()
+            ]);
+
+            // Asegurar que el stay esté activo (por si acaso tiene status incorrecto)
+            if ($stay->status !== 'active') {
+                $stay->update([
+                    'status' => 'active',
+                    'check_out_at' => null // Asegurar que siga activa
+                ]);
+            }
+
+            // 🔥 GENERAR NOCHE PARA LA NOCHE REAL (crítico)
+            // 🔐 REGLA HOTELERA: La noche cobrable es la ANTERIOR al nuevo checkout
+            // Ejemplo: Checkout anterior 19, nuevo checkout 20 → Noche cobrable: 19 (NO 20)
+            $nightToCharge = $newCheckOutDate->copy()->subDay();
+            $this->ensureNightForDate($stay, $nightToCharge);
+
+            // Refrescar vista
+            $this->loadRooms();
+
+            \Log::info('Continue stay executed', [
+                'room_id' => $roomId,
+                'stay_id' => $stay->id,
+                'reservation_id' => $reservation->id,
+                'old_checkout_date' => $checkoutDate->toDateString(),
+                'new_checkout_date' => $newCheckOutDate->toDateString()
+            ]);
+
+            $this->dispatch('notify', [
+                'type' => 'success',
+                'message' => "La estadía ha sido continuada hasta el {$newCheckOutDate->format('d/m/Y')}."
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error in continueStay', [
+                'room_id' => $roomId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Error al continuar la estadía: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
      * Marca una habitación como limpia actualizando last_cleaned_at.
      * Solo permitido cuando operational_status === 'pending_cleaning'.
      */
@@ -634,6 +867,53 @@ class RoomManager extends Component
     {
         $this->date = $this->date->copy()->addDay();
         $this->currentDate = $this->date;
+
+        // 🔥 GENERAR NOCHE PARA FECHA ACTUAL si hay stay activa
+        // 🔐 PROTECCIÓN: Solo generar noches para HOY, nunca para fechas futuras
+        // 🔐 PROTECCIÓN EXTRA: NO generar noche si HOY es checkout o después
+        try {
+            $today = Carbon::today();
+            
+            // Protección explícita: NO generar noches futuras
+            if ($this->date->isAfter($today)) {
+                // Fecha futura: NO generar noches aquí
+                return;
+            }
+            
+            // Solo generar noche si la fecha nueva es HOY
+            if ($this->date->equalTo($today)) {
+                // Obtener todas las habitaciones con stay activa para hoy
+                $activeStays = \App\Models\Stay::whereDate('check_in_at', '<=', $today->endOfDay())
+                    ->where(function($q) use ($today) {
+                        $q->whereNull('check_out_at')
+                          ->orWhereDate('check_out_at', '>=', $today->startOfDay());
+                    })
+                    ->where('status', 'active')
+                    ->with(['reservation.reservationRooms', 'room'])
+                    ->get();
+
+                foreach ($activeStays as $stay) {
+                    // 🔐 PROTECCIÓN CRÍTICA: NO generar noche si HOY es checkout o después
+                    $reservationRoom = $stay->reservation->reservationRooms->first();
+                    if ($reservationRoom && $reservationRoom->check_out_date) {
+                        $checkout = Carbon::parse($reservationRoom->check_out_date)->startOfDay();
+                        
+                        // Si HOY es >= checkout, NO generar noche (la noche del checkout NO se cobra)
+                        if ($today->gte($checkout)) {
+                            continue; // Saltar esta stay
+                        }
+                    }
+                    
+                    // Generar noche solo si HOY < checkout
+                    $this->ensureNightForDate($stay, $today);
+                }
+            }
+        } catch (\Exception $e) {
+            // No crítico, solo log
+            \Log::warning('Error generating nights in nextDay', [
+                'error' => $e->getMessage()
+            ]);
+        }
 
         // CRITICAL: Forzar actualización inmediata
         $this->loadRooms();
@@ -719,6 +999,32 @@ class RoomManager extends Component
         $stayHistory = [];
 
         if ($activeReservation) {
+            // 🔥 GENERAR NOCHES FALTANTES para todo el rango de la estadía
+            try {
+                $stay = $availabilityService->getStayForDate($this->date);
+                if ($stay) {
+                    $reservationRoom = $room->reservationRooms->first();
+                    if ($reservationRoom) {
+                        $checkIn = Carbon::parse($reservationRoom->check_in_date);
+                        $checkOut = Carbon::parse($reservationRoom->check_out_date);
+                        
+                        // 🔐 REGLA HOTELERA: La noche del check-out NO se cobra
+                        // Generar noches para todo el rango desde check-in hasta check-out (exclusivo)
+                        // Ejemplo: Check-in 18, Check-out 20 → Noches: 18 y 19 (NO 20)
+                        $currentDate = $checkIn->copy();
+                        while ($currentDate->lt($checkOut)) {
+                            $this->ensureNightForDate($stay, $currentDate);
+                            $currentDate->addDay();
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                // No crítico, solo log
+                \Log::warning('Error generating nights in openRoomDetail', [
+                    'room_id' => $roomId,
+                    'error' => $e->getMessage()
+                ]);
+            }
             $sales = $activeReservation->sales ?? collect();
             $payments = $activeReservation->payments ?? collect();
 
@@ -729,63 +1035,58 @@ class RoomManager extends Component
             $abonoRealizado = (float)($payments->where('amount', '>', 0)->sum('amount') ?? 0);
             $refundsTotal = abs((float)($payments->where('amount', '<', 0)->sum('amount') ?? 0)); // Valor absoluto (ya es negativo)
 
-            // ===== SSOT ABSOLUTO DEL HOSPEDAJE: reservation.total_amount =====
-            // REGLA CRÍTICA: El total del hospedaje fue definido al arrendar (Quick Rent con precio manual)
-            // NO se recalcula desde tarifas después de crear la reserva
-            // pricePerNight es SOLO una representación visual para la UI
-            $totalHospedaje = (float)($activeReservation->total_amount ?? 0);
+            // ===== SSOT ABSOLUTO DEL HOSPEDAJE: stay_nights (NUEVO) =====
+            // REGLA CRÍTICA: El total del hospedaje se calcula sumando todas las noches reales desde stay_nights
+            // Esto permite rastrear cada noche individualmente y su estado de pago
+            try {
+                // Intentar usar stay_nights (si existe)
+                $stayNights = \App\Models\StayNight::where('reservation_id', $activeReservation->id)
+                    ->orderBy('date')
+                    ->get();
 
-            $reservationRoom = $room->reservationRooms->first();
-            $nights = 0;
-            $pricePerNight = 0;
-
-            if ($reservationRoom) {
-                $checkIn = Carbon::parse($reservationRoom->check_in_date);
-                $checkOut = Carbon::parse($reservationRoom->check_out_date);
-                $nights = $reservationRoom->nights ?? $checkIn->diffInDays($checkOut);
-                if ($nights <= 0) {
-                    $nights = 1; // mostrar al menos una noche
-                }
-
-                // ===== CALCULAR pricePerNight SOLO PARA UI (NO PARA CÁLCULOS FINANCIEROS) =====
-                // pricePerNight se deriva del total real (SSOT), NO se recalcula desde tarifas
-                if ($totalHospedaje > 0 && $nights > 0) {
-                    $pricePerNight = round($totalHospedaje / $nights, 2);
+                if ($stayNights->isNotEmpty()) {
+                    // ✅ NUEVO SSOT: Calcular desde stay_nights
+                    $totalHospedaje = (float)$stayNights->sum('price');
+                    
+                    // ✅ NUEVO SSOT: Leer stay_history desde stay_nights
+                    $stayHistory = $stayNights->map(function($night) {
+                        return [
+                            'date' => $night->date->format('Y-m-d'),
+                            'price' => (float)$night->price,
+                            'is_paid' => (bool)$night->is_paid,
+                        ];
+                    })->toArray();
                 } else {
-                    // Fallback solo si totalHospedaje es 0 (caso edge, no debería pasar)
-                    // Esto es solo para visualización, NO afecta cálculos financieros
-                    $pricePerNight = (float)($reservationRoom->price_per_night ?? 0);
-                    if ($pricePerNight == 0 && $room->rates?->isNotEmpty()) {
-                        $pricePerNight = (float)($room->rates->sortBy('min_guests')->first()->price_per_night ?? 0);
-                    }
-                    if ($pricePerNight == 0) {
-                        $pricePerNight = (float)($room->base_price_per_night ?? 0);
+                    // FALLBACK: Si no hay stay_nights aún, usar total_amount (compatibilidad)
+                    $totalHospedaje = (float)($activeReservation->total_amount ?? 0);
+                    
+                    $reservationRoom = $room->reservationRooms->first();
+                    if ($reservationRoom) {
+                        $checkIn = Carbon::parse($reservationRoom->check_in_date);
+                        $checkOut = Carbon::parse($reservationRoom->check_out_date);
+                        $nights = max(1, $checkIn->diffInDays($checkOut));
+                        $pricePerNight = $nights > 0 ? round($totalHospedaje / $nights, 2) : 0;
+                        
+                        // Calcular stay_history desde fechas (fallback)
+                        for ($i = 0; $i < $nights; $i++) {
+                            $currentDate = $checkIn->copy()->addDays($i);
+                            $stayHistory[] = [
+                                'date' => $currentDate->format('Y-m-d'),
+                                'price' => $pricePerNight,
+                                'is_paid' => false, // Por defecto pendiente si no hay stay_nights
+                            ];
+                        }
                     }
                 }
-
-                // ===== CALCULAR stay_history (solo representación visual) =====
-                // REGLA: stay_history muestra qué noches están "pagadas" visualmente
-                // NO decide pagos, solo los representa basándose en abonos REALES (positivos)
-                $remainingPaid = $abonoRealizado; // Usar SOLO pagos positivos (SSOT)
+            } catch (\Exception $e) {
+                // Si falla (tabla no existe aún), usar fallback
+                \Log::warning('Error reading stay_nights, using fallback', [
+                    'reservation_id' => $activeReservation->id,
+                    'error' => $e->getMessage()
+                ]);
                 
-                for ($i = 0; $i < $nights; $i++) {
-                    $currentDate = $checkIn->copy()->addDays($i);
-                    $nightPrice = $pricePerNight;
-                    
-                    // Una noche está pagada si el monto restante de abonos cubre su precio
-                    $isPaid = $remainingPaid >= $nightPrice && $nightPrice > 0;
-                    
-                    $stayHistory[] = [
-                        'date' => $currentDate->format('Y-m-d'),
-                        'price' => $nightPrice,
-                        'is_paid' => $isPaid,
-                    ];
-                    
-                    // Si la noche está pagada, restar su precio del monto disponible
-                    if ($isPaid) {
-                        $remainingPaid -= $nightPrice;
-                    }
-                }
+                $totalHospedaje = (float)($activeReservation->total_amount ?? 0);
+                $stayHistory = [];
             }
 
             // ===== VALIDACIÓN: Si totalHospedaje sigue siendo 0, algo está mal =====
@@ -970,7 +1271,21 @@ class RoomManager extends Component
 
             $paymentsTotal = (float)($reservation->payments()->sum('amount') ?? 0);
             $salesDebt = (float)($reservation->sales?->where('is_paid', false)->sum('total') ?? 0);
-            $totalAmount = (float)($reservation->total_amount ?? 0);
+            
+            // ✅ NUEVO SSOT: Calcular desde stay_nights si existe
+            try {
+                $totalAmount = (float)\App\Models\StayNight::where('reservation_id', $reservationId)
+                    ->sum('price');
+                
+                // Si no hay noches, usar fallback
+                if ($totalAmount <= 0) {
+                    $totalAmount = (float)($reservation->total_amount ?? 0);
+                }
+            } catch (\Exception $e) {
+                // Si falla (tabla no existe), usar fallback
+                $totalAmount = (float)($reservation->total_amount ?? 0);
+            }
+            
             $balanceDue = $totalAmount - $paymentsTotal + $salesDebt;
 
             return [
@@ -1045,7 +1360,21 @@ class RoomManager extends Component
             // Obtener balance antes del pago para determinar el mensaje
             $paymentsTotalBefore = (float)($reservation->payments()->sum('amount') ?? 0);
             $salesDebt = (float)($reservation->sales?->where('is_paid', false)->sum('total') ?? 0);
-            $totalAmount = (float)($reservation->total_amount ?? 0);
+            
+            // ✅ NUEVO SSOT: Calcular desde stay_nights si existe
+            try {
+                $totalAmount = (float)\App\Models\StayNight::where('reservation_id', $reservation->id)
+                    ->sum('price');
+                
+                // Si no hay noches, usar fallback
+                if ($totalAmount <= 0) {
+                    $totalAmount = (float)($reservation->total_amount ?? 0);
+                }
+            } catch (\Exception $e) {
+                // Si falla (tabla no existe), usar fallback
+                $totalAmount = (float)($reservation->total_amount ?? 0);
+            }
+            
             $balanceDueBefore = $totalAmount - $paymentsTotalBefore + $salesDebt;
 
             // Validar que el monto no exceda el saldo pendiente
@@ -1317,7 +1646,20 @@ class RoomManager extends Component
             // ===== PASO 1: Calcular totales reales (REGLA FINANCIERA CORRECTA) =====
             // Solo contar pagos POSITIVOS (dinero que el cliente pagó)
             $totalPaid = (float)($reservation->payments->where('amount', '>', 0)->sum('amount') ?? 0);
-            $totalAmount = (float)($reservation->total_amount ?? 0);
+            
+            // ✅ NUEVO SSOT: Calcular desde stay_nights si existe
+            try {
+                $totalAmount = (float)\App\Models\StayNight::where('reservation_id', $reservationId)
+                    ->sum('price');
+                
+                // Si no hay noches, usar fallback
+                if ($totalAmount <= 0) {
+                    $totalAmount = (float)($reservation->total_amount ?? 0);
+                }
+            } catch (\Exception $e) {
+                // Si falla (tabla no existe), usar fallback
+                $totalAmount = (float)($reservation->total_amount ?? 0);
+            }
             
             // Calcular saldo a favor (pago en exceso)
             // overpaid > 0 significa que el cliente pagó MÁS de lo que debe
@@ -1467,8 +1809,13 @@ class RoomManager extends Component
             $reservation->refresh();
             $reservation->load('payments', 'sales');
             
-            $paymentsTotalAfter = (float)($reservation->payments->sum('amount') ?? 0);
-            $balanceDueAfter = $totalAmount - $paymentsTotalAfter + $salesDebt;
+            // CRÍTICO: Separar pagos positivos y negativos (devoluciones)
+            $paymentsTotalAfter = (float)($reservation->payments->where('amount', '>', 0)->sum('amount') ?? 0);
+            $refundsTotalAfter = abs((float)($reservation->payments->where('amount', '<', 0)->sum('amount') ?? 0));
+            $salesDebt = (float)($reservation->sales->where('is_paid', false)->sum('total') ?? 0);
+            
+            // Fórmula: deuda = (hospedaje - abonos_reales) + devoluciones + consumos_pendientes
+            $balanceDueAfter = ($totalAmount - $paymentsTotalAfter) + $refundsTotalAfter + $salesDebt;
 
             // Actualizar estado de pago de la reserva
             $paymentStatusCode = $balanceDueAfter <= 0 ? 'paid' : ($paymentsTotalAfter > 0 ? 'partial' : 'pending');
@@ -2623,15 +2970,32 @@ class RoomManager extends Component
             $sales = $activeReservation->sales ?? collect();
             $payments = $activeReservation->payments ?? collect();
 
-            $totalHospedaje = (float)($activeReservation->total_amount ?? 0);
+            // ✅ NUEVO SSOT: Total del hospedaje desde stay_nights si existe
+            try {
+                $totalHospedaje = (float)\App\Models\StayNight::where('reservation_id', $activeReservation->id)
+                    ->sum('price');
+                
+                // Si no hay noches, usar fallback
+                if ($totalHospedaje <= 0) {
+                    $totalHospedaje = (float)($activeReservation->total_amount ?? 0);
+                }
+            } catch (\Exception $e) {
+                // Si falla (tabla no existe), usar fallback
+                $totalHospedaje = (float)($activeReservation->total_amount ?? 0);
+            }
+
             // Usar suma real de pagos positivos (SSOT financiero), no deposit_amount que puede estar desactualizado
             $totalPaidPositive = (float)($payments->where('amount', '>', 0)->sum('amount') ?? 0);
             $abonoRealizado = $totalPaidPositive > 0 ? $totalPaidPositive : (float)($activeReservation->deposit_amount ?? 0);
+            
+            // Devoluciones (solo negativos, valor absoluto)
+            $refundsTotal = abs((float)($payments->where('amount', '<', 0)->sum('amount') ?? 0));
+            
             $salesTotal = (float)($sales->sum('total') ?? 0);
             $salesDebt = (float)($sales->where('is_paid', false)->sum('total') ?? 0);
             
             // ===== REGLA HOTELERA CRÍTICA: Calcular deuda solo si NO hay stay activa =====
-            // REGLA: Mientras la habitación esté OCUPADA, pagos > total_amount es PAGO ADELANTADO, NO saldo a favor
+            // REGLA: Mientras la habitación esté OCUPADA, pagos > total_hospedaje es PAGO ADELANTADO, NO saldo a favor
             // Solo se evalúa saldo a favor cuando stay.status = finished (checkout completado)
             $hasActiveStay = \App\Models\Stay::where('reservation_id', $activeReservation->id)
                 ->whereNull('check_out_at')
@@ -2640,9 +3004,10 @@ class RoomManager extends Component
 
             if ($hasActiveStay) {
                 // ===== HABITACIÓN OCUPADA: Calcular deuda normal =====
-                // Si totalPaid > total_amount, totalDebt será NEGATIVO (pago adelantado)
+                // Fórmula: deuda = (hospedaje - abonos_reales) + devoluciones + consumos_pendientes
+                // Si totalPaid > total_hospedaje, totalDebt será NEGATIVO (pago adelantado)
                 // PERO NO es "saldo a favor" - es crédito para noches futuras/consumos
-                $totalDebt = ($totalHospedaje - $totalPaidPositive) + $salesDebt;
+                $totalDebt = ($totalHospedaje - $totalPaidPositive) + $refundsTotal + $salesDebt;
                 // ✅ totalDebt < 0 = Pago adelantado (válido mientras esté ocupada)
                 // ✅ totalDebt > 0 = Deuda pendiente
                 // ✅ totalDebt = 0 = Al día
@@ -2652,10 +3017,10 @@ class RoomManager extends Component
                 $overpaid = $totalPaidPositive - $totalHospedaje;
                 if ($overpaid > 0) {
                     // Hay saldo a favor real (habrá que devolver)
-                    $totalDebt = -$overpaid + $salesDebt;  // Negativo = se le debe
+                    $totalDebt = -$overpaid + $refundsTotal + $salesDebt;  // Negativo = se le debe
                 } else {
                     // No hay saldo a favor o hay deuda pendiente
-                    $totalDebt = abs($overpaid) + $salesDebt;
+                    $totalDebt = abs($overpaid) + $refundsTotal + $salesDebt;
                 }
             }
             
@@ -2804,8 +3169,19 @@ class RoomManager extends Component
             // 🔁 RECALCULAR TODA LA DEUDA REAL DESDE SSOT
             $reservation->load(['payments', 'sales']);
             
-            // Total del hospedaje (SSOT)
-            $totalHospedaje = (float)($reservation->total_amount ?? 0);
+            // ✅ NUEVO SSOT: Total del hospedaje desde stay_nights
+            try {
+                $totalHospedaje = (float)\App\Models\StayNight::where('reservation_id', $reservation->id)
+                    ->sum('price');
+                
+                // Si no hay noches aún, usar fallback
+                if ($totalHospedaje <= 0) {
+                    $totalHospedaje = (float)($reservation->total_amount ?? 0);
+                }
+            } catch (\Exception $e) {
+                // Si falla (tabla no existe), usar fallback
+                $totalHospedaje = (float)($reservation->total_amount ?? 0);
+            }
             
             // SOLO pagos positivos (SSOT financiero)
             $totalPaid = (float)($reservation->payments
@@ -2898,20 +3274,36 @@ class RoomManager extends Component
                 return;
             }
 
-            // ===== PASO 5: Cerrar la STAY =====
+            // ===== PASO 5: Marcar TODAS las noches como pagadas =====
+            // 🔥 CRÍTICO: Al liberar, todas las noches hasta HOY quedan pagadas
+            // 🔐 PROTECCIÓN: Solo marcar noches hasta hoy (evitar pagar noches futuras accidentalmente)
+            try {
+                \App\Models\StayNight::where('reservation_id', $reservation->id)
+                    ->where('date', '<=', now()->toDateString()) // Solo noches hasta hoy
+                    ->where('is_paid', false)
+                    ->update(['is_paid' => true]);
+            } catch (\Exception $e) {
+                // No crítico, solo log (si la tabla no existe aún, continuar)
+                \Log::warning('Error marking nights as paid in releaseRoom', [
+                    'reservation_id' => $reservation->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+
+            // ===== PASO 6: Cerrar la STAY =====
             $activeStay->update([
                 'check_out_at' => now(),
                 'status' => 'finished',
             ]);
 
-            // ===== PASO 6: Actualizar estado de la reserva =====
+            // ===== PASO 7: Actualizar estado de la reserva =====
             $reservation->balance_due = 0;
             $reservation->payment_status_id = DB::table('payment_statuses')
                 ->where('code', 'paid')
                 ->value('id');
             $reservation->save();
 
-            // ===== PASO 7: Crear registro en historial de liberación =====
+            // ===== PASO 8: Crear registro en historial de liberación =====
             try {
                 // Cargar relaciones necesarias (NO cargar 'guests' porque la relación está rota)
                 $reservation->loadMissing([
@@ -2922,13 +3314,23 @@ class RoomManager extends Component
                 ]);
                 
                 // ===== CALCULAR TOTALES (SSOT FINANCIERO) =====
-                // REGLA CRÍTICA: total_amount es SSOT - NO se recalcula, solo se lee de BD
-                // El total del hospedaje fue definido al arrendar y NO cambia durante el release
-                $totalAmount = (float)($reservation->total_amount ?? 0);
+                // ✅ NUEVO SSOT: Calcular desde stay_nights si existe
+                try {
+                    $totalAmount = (float)\App\Models\StayNight::where('reservation_id', $reservation->id)
+                        ->sum('price');
+                    
+                    // Si no hay noches aún, usar fallback
+                    if ($totalAmount <= 0) {
+                        $totalAmount = (float)($reservation->total_amount ?? 0);
+                    }
+                } catch (\Exception $e) {
+                    // Si falla (tabla no existe), usar fallback
+                    $totalAmount = (float)($reservation->total_amount ?? 0);
+                }
                 
-                // VALIDACIÓN CRÍTICA: Verificar que total_amount existe y es válido
+                // VALIDACIÓN CRÍTICA: Verificar que totalAmount existe y es válido
                 if ($totalAmount <= 0) {
-                    \Log::error('Release Room: total_amount is 0 or null', [
+                    \Log::error('Release Room: totalAmount is 0 or null', [
                         'reservation_id' => $reservation->id,
                         'total_amount' => $reservation->total_amount,
                         'room_id' => $room->id,
@@ -2939,7 +3341,7 @@ class RoomManager extends Component
                     if ($reservationRoom && $reservationRoom->price_per_night > 0) {
                         $nights = $reservationRoom->nights ?? 1;
                         $totalAmount = (float)($reservationRoom->price_per_night * $nights);
-                        \Log::warning('Release Room: Using fallback total_amount from ReservationRoom', [
+                        \Log::warning('Release Room: Using fallback totalAmount from ReservationRoom', [
                             'reservation_id' => $reservation->id,
                             'fallback_total' => $totalAmount,
                         ]);

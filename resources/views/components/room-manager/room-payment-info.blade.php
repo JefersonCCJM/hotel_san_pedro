@@ -26,8 +26,19 @@
         // Eager load payments y sales si no están cargados
         $reservation->loadMissing(['payments', 'sales']);
         
-        // Total contractual del hospedaje (SSOT)
-        $totalAmount = (float)($reservation->total_amount ?? 0);
+        // ✅ NUEVO SSOT: Total del hospedaje desde stay_nights si existe
+        try {
+            $totalAmount = (float)\App\Models\StayNight::where('reservation_id', $reservation->id)
+                ->sum('price');
+            
+            // Si no hay noches, usar fallback
+            if ($totalAmount <= 0) {
+                $totalAmount = (float)($reservation->total_amount ?? 0);
+            }
+        } catch (\Exception $e) {
+            // Si falla (tabla no existe), usar fallback
+            $totalAmount = (float)($reservation->total_amount ?? 0);
+        }
         
         // Pagos reales (SOLO positivos) - SSOT financiero
         // REGLA CRÍTICA: Separar pagos y devoluciones para coherencia financiera
