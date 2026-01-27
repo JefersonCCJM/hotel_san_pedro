@@ -62,12 +62,15 @@ SQL);
 
         // Eliminar columnas antiguas
         Schema::table('reservation_guests', function (Blueprint $table) {
-            // Quitar FKs previas si existían
-            if (Schema::hasColumn('reservation_guests', 'reservation_id')) {
-                $table->dropForeign(['reservation_id']);
+            // Quitar FKs previas si existían - verificar nombres específicos
+            $reservationIdFk = DB::selectOne("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reservation_guests' AND CONSTRAINT_NAME LIKE '%reservation_id%' AND REFERENCED_TABLE_NAME = 'reservations' LIMIT 1");
+            if ($reservationIdFk) {
+                $table->dropForeign($reservationIdFk->CONSTRAINT_NAME);
             }
-            if (Schema::hasColumn('reservation_guests', 'customer_id')) {
-                $table->dropForeign(['customer_id']);
+            
+            $customerIdFk = DB::selectOne("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'reservation_guests' AND CONSTRAINT_NAME LIKE '%customer_id%' AND REFERENCED_TABLE_NAME = 'customers' LIMIT 1");
+            if ($customerIdFk) {
+                $table->dropForeign($customerIdFk->CONSTRAINT_NAME);
             }
 
             if (Schema::hasColumn('reservation_guests', 'reservation_id')) {
