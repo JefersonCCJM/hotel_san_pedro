@@ -18,7 +18,7 @@
             <div>
                 <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Estado</label>
                 <div class="relative">
-                    <select wire:model.live="status"
+                    <select wire:model.live="statusFilter"
                             class="block w-full pl-3 pr-10 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white">
                         <option value="">Todos los estados</option>
                         @foreach($statuses as $s)
@@ -34,7 +34,7 @@
             <div>
                 <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Ventilación</label>
                 <div class="relative">
-                    <select wire:model.live="ventilation_type"
+                    <select wire:model.live="ventilationTypeFilter"
                             class="block w-full pl-3 pr-10 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white">
                         <option value="">Todos los tipos</option>
                         @foreach($ventilationTypes as $vt)

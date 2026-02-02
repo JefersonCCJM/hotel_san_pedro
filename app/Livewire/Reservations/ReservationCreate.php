@@ -6,9 +6,11 @@ use Livewire\Component;
 use App\Models\Room;
 use App\Models\Customer;
 use App\Models\Reservation;
+use App\Models\ReservationRoom;
 use App\Models\CompanyTaxSetting;
 use App\Models\DianMunicipality;
 use App\Http\Controllers\ReservationController;
+use App\Support\HotelTime;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -115,10 +117,12 @@ class ReservationCreate extends Component
         'customerId' => 'required|exists:customers,id',
         'checkIn' => 'required|date|after_or_equal:today',
         'checkOut' => 'required|date|after:checkIn',
-        'checkInTime' => ['nullable', 'regex:/^([0-1]\d|2[0-3]):[0-5]\d$/', 'after_or_equal_to_hotel_checkin'],
+        // 🔥 MVP: Validación de hora pospuesta para Fase 2
+        // 'checkInTime' => ['nullable', 'regex:/^([0-1]\d|2[0-3]):[0-5]\d$/', 'after_or_equal_to_hotel_checkin'],
         'total' => 'required|numeric|min:0',
         'deposit' => 'required|numeric|min:0',
-        'guestsCount' => 'nullable|integer|min:0',
+        // 🔥 MVP: Validación de huéspedes pospuesta para Fase 2
+        // 'guestsCount' => 'nullable|integer|min:0',
     ];
 
     protected function messages()
@@ -130,23 +134,26 @@ class ReservationCreate extends Component
             'checkIn.after_or_equal' => 'La fecha de entrada no puede ser anterior al día actual.',
             'checkOut.required' => 'La fecha de salida es obligatoria.',
             'checkOut.after' => 'La fecha de salida debe ser posterior a la fecha de entrada.',
-            'checkInTime.regex' => 'El formato de hora debe ser HH:MM (24 horas).',
-            'checkInTime.after_or_equal_to_hotel_checkin' => 'La hora de ingreso debe ser a partir de las ' . config('hotel.check_in_time', '15:00') . '.',
+            // 🔥 MVP: Mensajes de validación de hora pospuestos para Fase 2
+            // 'checkInTime.regex' => 'El formato de hora debe ser HH:MM (24 horas).',
+            // 'checkInTime.after_or_equal_to_hotel_checkin' => 'La hora de ingreso debe ser a partir de las ' . config('hotel.check_in_time', '15:00') . '.',
             'total.required' => 'El total es obligatorio.',
             'total.min' => 'El total debe ser mayor o igual a 0.',
             'deposit.required' => 'El abono es obligatorio.',
             'deposit.min' => 'El abono debe ser mayor o igual a 0.',
-            'guestsCount.min' => 'El número de personas no puede ser negativo.',
+            // 🔥 MVP: Mensajes de validación de huéspedes pospuestos para Fase 2
+            // 'guestsCount.min' => 'El número de personas no puede ser negativo.',
         ];
     }
 
     public function boot()
     {
+        // 🔥 MVP: Validación personalizada de hora pospuesta para Fase 2
         // Registrar regla de validación personalizada para hora mínima de check-in
-        \Illuminate\Support\Facades\Validator::extend('after_or_equal_to_hotel_checkin', function ($attribute, $value, $parameters, $validator) {
-            $hotelCheckInTime = config('hotel.check_in_time', '15:00');
-            return $value >= $hotelCheckInTime;
-        });
+        // \Illuminate\Support\Facades\Validator::extend('after_or_equal_to_hotel_checkin', function ($attribute, $value, $parameters, $validator) {
+        //     $hotelCheckInTime = config('hotel.check_in_time', '15:00');
+        //     return $value >= $hotelCheckInTime;
+        // });
     }
 
     public function mount(
@@ -165,24 +172,39 @@ class ReservationCreate extends Component
         $this->legalOrganizations = is_array($legalOrganizations) ? $legalOrganizations : [];
         $this->tributes = is_array($tributes) ? $tributes : [];
         $this->municipalities = is_array($municipalities) ? $municipalities : [];
+        
+        // 🔥 Cargar catálogos desde BD
+        $this->identificationDocuments = \App\Models\DianIdentificationDocument::query()->orderBy('name')->get();
+        
         $this->checkIn = now()->format('Y-m-d');
         $this->checkOut = now()->addDay()->format('Y-m-d');
         
         // Establecer hora de check-in desde configuración si está vacía
         if (empty($this->checkInTime)) {
-            $this->checkInTime = config('hotel.check_in_time', '15:00');
+            $this->checkInTime = HotelTime::checkInTime();
         }
 
         // Validate initial dates
         $this->validateDates();
+        
+        // 🔥 SOLUCIÓN CRÍTICA: Si ya hay fechas válidas al montar, cargar disponibilidad
+        if ($this->checkIn && $this->checkOut) {
+            $this->datesCompleted = true;
+            $this->checkAvailabilityIfReady();
+        }
     }
 
     public function updatedCheckIn($value)
     {
+        \Log::error('🔥 Livewire updatedCheckIn - Iniciando');
+        \Log::error('Nuevo checkIn: ' . $value);
+        \Log::error('checkOut actual: ' . $this->checkOut);
+        
         $this->clearDateErrors();
         $this->resetAvailabilityState();
 
         if (empty($value)) {
+            \Log::error('CheckIn vacío - limpiando selección');
             $this->setDatesIncomplete();
             $this->total = 0;
             // Clear room selections when dates are incomplete
@@ -205,6 +227,8 @@ class ReservationCreate extends Component
 
         $this->calculateTotal();
         $this->checkAvailabilityIfReady();
+        
+        \Log::error('🔥 Livewire updatedCheckIn - Completado');
     }
 
     public function updatedCheckOut($value)
@@ -261,32 +285,48 @@ class ReservationCreate extends Component
         }
     }
 
-    public function updatedCheckInTime($value)
-    {
-        if (!empty($value) && !preg_match('/^([0-1]\d|2[0-3]):[0-5]\d$/', $value)) {
-            $this->addError('checkInTime', 'Formato de hora inválido. Use formato HH:MM (24 horas).');
-            $this->checkInTime = '14:00';
-        }
-    }
+    // 🔥 MVP: Validación de hora pospuesta para Fase 2
+    // public function updatedCheckInTime($value)
+    // {
+    //     if (!empty($value) && !preg_match('/^([0-1]\d|2[0-3]):[0-5]\d$/', $value)) {
+    //         $this->addError('checkInTime', 'Formato de hora inválido. Use formato HH:MM (24 horas).');
+    //         $this->checkInTime = '14:00';
+    //     }
+    // }
 
     public function updatedCustomerId($value)
     {
+        \Log::error('🔥 Livewire updatedCustomerId - Iniciando');
+        \Log::error('Nuevo customerId: ' . $value);
+        
         // Clear search when customer is selected
         if (!empty($value)) {
+            \Log::error('CustomerId no vacío - limpiando búsqueda');
             $this->customerSearchTerm = '';
             $this->showCustomerDropdown = false;
             
             // Si no es modo múltiple y hay una habitación seleccionada, asignar automáticamente el cliente
             if (!$this->showMultiRoomSelector && !empty($this->roomId)) {
+                \Log::error('Asignando cliente automáticamente a habitación ' . $this->roomId);
                 $this->autoAssignMainCustomerToRoom();
             }
+        } else {
+            \Log::error('CustomerId vacío');
         }
+        
+        \Log::error('🔥 Livewire updatedCustomerId - Completado');
         // The selectedCustomerInfo is computed automatically via getSelectedCustomerInfoProperty()
     }
 
     public function updatedRoomId($value)
     {
+        \Log::error('🔥 Livewire updatedRoomId - Iniciando');
+        \Log::error('Nuevo roomId: ' . $value);
+        \Log::error('checkIn actual: ' . $this->checkIn);
+        \Log::error('checkOut actual: ' . $this->checkOut);
+        
         if (empty($value)) {
+            \Log::error('roomId vacío - limpiando');
             $this->roomId = '';
             $this->total = 0;
             $this->resetAvailabilityState();
@@ -297,12 +337,14 @@ class ReservationCreate extends Component
         $roomIdInt = is_numeric($value) ? (int) $value : 0;
 
         if ($roomIdInt <= 0) {
+            \Log::error('roomId inválido - limpiando');
             $this->roomId = '';
             return;
         }
 
         // Store as string for Livewire compatibility, but always use int for roomGuests keys
         $this->roomId = (string) $roomIdInt;
+        \Log::error('roomId normalizado: ' . $this->roomId);
 
         // Initialize empty roomGuests array with integer key
         if (!isset($this->roomGuests[$roomIdInt]) || !is_array($this->roomGuests[$roomIdInt])) {
@@ -316,6 +358,8 @@ class ReservationCreate extends Component
 
         $this->calculateTotal();
         $this->checkAvailabilityIfReady();
+        
+        \Log::error('🔥 Livewire updatedRoomId - Completado');
     }
 
     public function updatedSelectedRoomIds($value)
@@ -452,14 +496,23 @@ class ReservationCreate extends Component
 
     public function calculateTotal()
     {
+        \Log::error('🔥 Livewire calculateTotal - Iniciando');
+        \Log::error('checkIn: ' . $this->checkIn);
+        \Log::error('checkOut: ' . $this->checkOut);
+        \Log::error('roomId: ' . $this->roomId);
+        \Log::error('selectedRoomIds: ' . json_encode($this->selectedRoomIds));
+        \Log::error('showMultiRoomSelector: ' . ($this->showMultiRoomSelector ? 'true' : 'false'));
+        
         // Guard clause 1: dates must be present
         if (empty($this->checkIn) || empty($this->checkOut)) {
+            \Log::error('Fechas vacías - total = 0');
             $this->total = 0;
             return;
         }
 
         // Guard clause 2: dates must be valid (no errors)
         if ($this->hasDateValidationErrors()) {
+            \Log::error('Errores en fechas - total = 0');
             $this->total = 0;
             return;
         }
@@ -468,9 +521,12 @@ class ReservationCreate extends Component
             $checkIn = Carbon::parse($this->checkIn);
             $checkOut = Carbon::parse($this->checkOut);
             $nights = $checkIn->diffInDays($checkOut);
+            
+            \Log::error('Fechas parseadas - nights: ' . $nights);
 
             // Guard clause 3: nights must be > 0
             if ($nights <= 0) {
+                \Log::error('Noches <= 0 - total = 0');
                 $this->total = 0;
                 return;
             }
@@ -536,14 +592,24 @@ class ReservationCreate extends Component
 
                 $pricePerNight = $this->calculatePriceForRoom($selectedRoom, $guestCount);
                 $this->total = $pricePerNight * $nights;
+                
+                \Log::error('🔥 Livewire calculateTotal - Single room mode');
+                \Log::error('  guestCount: ' . $guestCount);
+                \Log::error('  capacity: ' . $capacity);
+                \Log::error('  pricePerNight: ' . $pricePerNight);
+                \Log::error('  nights: ' . $nights);
+                \Log::error('  total calculado: ' . $this->total);
             }
         } catch (\Exception $e) {
+            \Log::error('🔥 Livewire calculateTotal - ERROR: ' . $e->getMessage());
             Log::error('Error calculating total: ' . $e->getMessage(), [
                 'checkIn' => $this->checkIn,
                 'checkOut' => $this->checkOut
             ]);
             $this->total = 0;
         }
+        
+        \Log::error('🔥 Livewire calculateTotal - Final: ' . $this->total);
     }
 
     public function checkAvailability()
@@ -563,8 +629,14 @@ class ReservationCreate extends Component
 
         try {
             $roomId = (int) $this->roomId;
-            $checkIn = Carbon::parse($this->checkIn)->startOfDay();
-            $checkOut = Carbon::parse($this->checkOut)->startOfDay();
+            // 🔥 MVP CORRECCIÓN: Usar solo DATE para reservas (sin horas)
+            $checkIn = Carbon::parse($this->checkIn);
+            $checkOut = Carbon::parse($this->checkOut);
+
+            Log::error("Verificando disponibilidad MVP (solo fechas):");
+            Log::error("  - Check-in: " . $checkIn->format('Y-m-d'));
+            Log::error("  - Check-out: " . $checkOut->format('Y-m-d'));
+            Log::error("  - Room ID: " . $roomId);
 
             // Use direct DB query instead of HTTP call to avoid timeouts
             // This method checks both reservations table and reservation_rooms pivot table
@@ -1477,9 +1549,19 @@ class ReservationCreate extends Component
     public function getFilteredRoomsProperty(): array
     {
         $availableRooms = $this->availableRooms;
+        
+        Log::error('=== DEPURACIÓN getFilteredRoomsProperty ===');
+        Log::error('availableRooms count: ' . count($availableRooms));
+        Log::error('availableRooms contenido: ' . json_encode($availableRooms));
+        
         if (!is_array($availableRooms) || empty($availableRooms)) {
+            Log::error('availableRooms vacío o no es array - retornando array vacío');
             return [];
         }
+        
+        Log::error('Retornando availableRooms directamente');
+        Log::error('=== FIN DEPURACIÓN getFilteredRoomsProperty ===');
+        
         return $availableRooms;
     }
 
@@ -2080,7 +2162,10 @@ class ReservationCreate extends Component
     protected function hasDateValidationErrors(): bool
     {
         $errors = $this->getErrorBag();
-        return $errors->has('checkIn') || $errors->has('checkOut');
+        $hasCheckInError = $errors->has('checkIn');
+        $hasCheckOutError = $errors->has('checkOut');
+        
+        return $hasCheckInError || $hasCheckOutError;
     }
 
     private function canCheckAvailability(): bool
@@ -2126,13 +2211,19 @@ class ReservationCreate extends Component
 
         // Guard clause 4: verify checkOut > checkIn before checking availability
         try {
-            $checkIn = Carbon::parse($this->checkIn)->startOfDay();
-            $checkOut = Carbon::parse($this->checkOut)->startOfDay();
+            // 🔥 MVP CORRECCIÓN: Usar solo DATE para validación
+            $checkIn = Carbon::parse($this->checkIn);
+            $checkOut = Carbon::parse($this->checkOut);
 
             if ($checkOut->lte($checkIn)) {
+                Log::error("Check-out ({$checkOut->format('Y-m-d')}) <= Check-in ({$checkIn->format('Y-m-d')}) - inválido");
                 $this->resetAvailabilityState();
                 return;
             }
+            
+            Log::error("Validación de fechas MVP - OK:");
+            Log::error("  - Check-in: " . $checkIn->format('Y-m-d'));
+            Log::error("  - Check-out: " . $checkOut->format('Y-m-d'));
         } catch (\Exception $e) {
             $this->resetAvailabilityState();
             return;
@@ -2148,45 +2239,74 @@ class ReservationCreate extends Component
 
     public function getAvailableRoomsProperty(): array
     {
+        Log::error('=== getAvailableRoomsProperty INICIO ===');
+        Log::error('checkIn: ' . var_export($this->checkIn, true));
+        Log::error('checkOut: ' . var_export($this->checkOut, true));
+        Log::error('datesCompleted: ' . var_export($this->datesCompleted, true));
+        Log::error('hasDateValidationErrors: ' . var_export($this->hasDateValidationErrors(), true));
+        
         // If dates are not set or not valid, return empty array (no rooms available)
         if (empty($this->checkIn) || empty($this->checkOut)) {
+            Log::error('Fechas vacías - retornando array vacío');
             return [];
         }
 
         // If dates have validation errors, return empty array
         if ($this->hasDateValidationErrors()) {
+            Log::error('Errores de validación de fechas - retornando array vacío');
             return [];
         }
 
         // Only filter if dates are completed and valid
         if (!$this->datesCompleted) {
+            Log::error('Fechas no completadas - retornando array vacío');
             return [];
         }
 
+        Log::error('Pasó todas las validaciones - procesando habitaciones...');
+
         try {
-            $checkIn = Carbon::parse($this->checkIn)->startOfDay();
-            $checkOut = Carbon::parse($this->checkOut)->startOfDay();
+            // 🔥 MVP CORRECCIÓN: Usar solo DATE para reservas
+            $checkIn = Carbon::parse($this->checkIn);
+            $checkOut = Carbon::parse($this->checkOut);
+
+            Log::error("getAvailableRooms - MVP (solo fechas):");
+            Log::error("  - Check-in: " . $checkIn->format('Y-m-d'));
+            Log::error("  - Check-out: " . $checkOut->format('Y-m-d'));
 
             // Validate date range
             if ($checkOut->lte($checkIn)) {
+                Log::error('Rango de fechas inválido - checkOut <= checkIn');
                 return [];
             }
 
             $availableRooms = [];
             $allRooms = $this->rooms ?? [];
 
+            Log::error('Total habitaciones cargadas: ' . count($allRooms));
+            Log::error('allRooms contenido: ' . json_encode($allRooms));
+
             foreach ($allRooms as $room) {
                 if (!is_array($room) || empty($room['id'])) {
+                    Log::error('Habitación inválida encontrada', ['room' => $room]);
                     continue;
                 }
 
                 $roomId = (int) $room['id'];
 
+                Log::error("Verificando habitación ID: {$roomId}");
+
                 // Check if room is available using the same logic as ReservationController
-                if ($this->isRoomAvailableForDates($roomId, $checkIn, $checkOut)) {
+                $isAvailable = $this->isRoomAvailableForDates($roomId, $checkIn, $checkOut);
+                Log::error("Habitación ID: {$roomId} disponible: " . ($isAvailable ? 'SÍ' : 'NO'));
+
+                if ($isAvailable) {
                     $availableRooms[] = $room;
                 }
             }
+
+            Log::error('Total habitaciones disponibles: ' . count($availableRooms));
+            Log::error('=== getAvailableRoomsProperty FIN ===');
 
             return $availableRooms;
         } catch (\Exception $e) {
@@ -2220,11 +2340,17 @@ class ReservationCreate extends Component
         }
 
         try {
-            $checkIn = Carbon::parse($this->checkIn)->startOfDay();
-            $checkOut = Carbon::parse($this->checkOut)->startOfDay();
+            // 🔥 MVP CORRECCIÓN: Usar solo DATE como en getAvailableRoomsProperty
+            $checkIn = Carbon::parse($this->checkIn);
+            $checkOut = Carbon::parse($this->checkOut);
+
+            Log::error("clearUnavailableRooms - MVP (solo fechas):");
+            Log::error("  - Check-in: " . $checkIn->format('Y-m-d'));
+            Log::error("  - Check-out: " . $checkOut->format('Y-m-d'));
 
             if ($checkOut->lte($checkIn)) {
                 // Invalid date range, clear all selections
+                Log::error('Rango de fechas inválido - checkOut <= checkIn');
                 $this->roomId = '';
                 $this->selectedRoomIds = [];
                 $this->roomGuests = [];
@@ -2236,7 +2362,11 @@ class ReservationCreate extends Component
             // Clear single room selection if not available
             if (!empty($this->roomId)) {
                 $roomId = (int) $this->roomId;
-                if (!$this->isRoomAvailableForDates($roomId, $checkIn, $checkOut)) {
+                $isAvailable = $this->isRoomAvailableForDates($roomId, $checkIn, $checkOut);
+                Log::error("clearUnavailableRooms - Habitación {$roomId} disponible: " . ($isAvailable ? 'SÍ' : 'NO'));
+                
+                if (!$isAvailable) {
+                    Log::error("clearUnavailableRooms - Limpiando habitación {$roomId} por no estar disponible");
                     $this->roomId = '';
                     if (isset($this->roomGuests[$roomId])) {
                         unset($this->roomGuests[$roomId]);
@@ -2250,12 +2380,15 @@ class ReservationCreate extends Component
                 $validRoomIds = [];
                 foreach ($this->selectedRoomIds as $roomId) {
                     $roomIdInt = (int) $roomId;
-                    if ($this->isRoomAvailableForDates($roomIdInt, $checkIn, $checkOut)) {
-                        $validRoomIds[] = $roomIdInt;
+                    $isAvailable = $this->isRoomAvailableForDates($roomIdInt, $checkIn, $checkOut);
+                    Log::error("clearUnavailableRooms - Multi-habitación {$roomIdInt} disponible: " . ($isAvailable ? 'SÍ' : 'NO'));
+                    
+                    if ($isAvailable) {
+                        $validRoomIds[] = $roomId;
                     } else {
-                        // Remove guests for unavailable room
-                        if (isset($this->roomGuests[$roomIdInt])) {
-                            unset($this->roomGuests[$roomIdInt]);
+                        Log::error("clearUnavailableRooms - Removiendo habitación {$roomIdInt} por no estar disponible");
+                        if (isset($this->roomGuests[$roomId])) {
+                            unset($this->roomGuests[$roomId]);
                         }
                     }
                 }
@@ -2278,47 +2411,49 @@ class ReservationCreate extends Component
 
     private function isRoomAvailableForDates(int $roomId, Carbon $checkIn, Carbon $checkOut): bool
     {
-        // 🔥 AJUSTE CRÍTICO 1: Verificar stays activas (ocupación real)
-        // Una habitación NO está disponible si tiene una stay activa que intersecta el rango solicitado
-        $hasActiveStay = \App\Models\Stay::where('room_id', $roomId)
+        // 🔥 MVP: Validación simplificada - verificar stays activas y reservaciones futuras
+        
+        // 1. Verificar stays activas (ocupación real)
+        $activeStay = \App\Models\Stay::where('room_id', $roomId)
             ->where('status', 'active')
             ->where(function ($q) use ($checkIn, $checkOut) {
-                $q->where('check_in_at', '<', $checkOut->endOfDay())
+                $q->where('check_in_at', '<', $checkOut)
                   ->where(function ($q2) use ($checkIn) {
                       $q2->whereNull('check_out_at')
-                         ->orWhere('check_out_at', '>', $checkIn->startOfDay());
+                         ->orWhere('check_out_at', '>', $checkIn);
                   });
             })
-            ->exists();
+            ->first();
 
-        if ($hasActiveStay) {
-            return false; // ❌ Habitación ocupada por stay activa
-        }
-
-        // Check in main reservations table (single room reservations)
-        $existsInReservations = Reservation::where('room_id', $roomId)
-            ->where(function ($query) use ($checkIn, $checkOut) {
-                $query->where('check_in_date', '<', $checkOut)
-                      ->where('check_out_date', '>', $checkIn);
-            })
-            ->exists();
-
-        if ($existsInReservations) {
+        if ($activeStay) {
+            Log::error("Habitación {$roomId} NO disponible - Stay activa encontrada");
             return false;
         }
 
-        // Check in reservation_rooms table (multi-room reservations)
-        $existsInPivot = DB::table('reservation_rooms')
-            ->join('reservations', 'reservation_rooms.reservation_id', '=', 'reservations.id')
-            ->where('reservation_rooms.room_id', $roomId)
-            ->whereNull('reservations.deleted_at')
-            ->where(function ($query) use ($checkIn, $checkOut) {
-                $query->where('reservations.check_in_date', '<', $checkOut)
-                      ->where('reservations.check_out_date', '>', $checkIn);
+        // 2. 🔥 MVP: Verificar reservaciones futuras (excluyendo las que tienen stays)
+        $hasReservation = \App\Models\ReservationRoom::where('room_id', $roomId)
+            ->where(function ($q) use ($checkIn, $checkOut) {
+                $q->where('check_in_date', '<', $checkOut)
+                  ->where('check_out_date', '>', $checkIn);
+            })
+            ->whereHas('reservation', function ($q) {
+                $q->whereNull('deleted_at'); // Solo reservas activas
+            })
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('stays')
+                    ->whereColumn('stays.reservation_id', 'reservation_rooms.reservation_id')
+                    ->whereIn('stays.status', ['active', 'pending_checkout', 'finished']);
             })
             ->exists();
 
-        return !$existsInPivot;
+        if ($hasReservation) {
+            Log::error("Habitación {$roomId} NO disponible - Reservación futura encontrada");
+            return false;
+        }
+
+        Log::error("Habitación {$roomId} disponible - Sin stays activas ni reservaciones");
+        return true;
     }
 
     public function updateMainCustomerRequiredFields(): void
@@ -2416,7 +2551,8 @@ class ReservationCreate extends Component
 
         $rules = [
             'newMainCustomer.name' => 'required|string|max:255',
-            'newMainCustomer.identification' => 'required|string|max:10',
+            'newMainCustomer.identification_type_id' => 'required|exists:dian_identification_documents,id',
+            'newMainCustomer.identification' => 'required|string|max:15',
             'newMainCustomer.phone' => 'required|string|max:20',
             'newMainCustomer.email' => 'nullable|email|max:255',
             'newMainCustomer.address' => 'nullable|string|max:500',
@@ -2425,8 +2561,10 @@ class ReservationCreate extends Component
         $messages = [
             'newMainCustomer.name.required' => 'El nombre es obligatorio.',
             'newMainCustomer.name.max' => 'El nombre no puede exceder 255 caracteres.',
+            'newMainCustomer.identification_type_id.required' => 'El tipo de documento es obligatorio.',
+            'newMainCustomer.identification_type_id.exists' => 'El tipo de documento seleccionado no es válido.',
             'newMainCustomer.identification.required' => 'La identificación es obligatoria.',
-            'newMainCustomer.identification.max' => 'La identificación no puede exceder 10 dígitos.',
+            'newMainCustomer.identification.max' => 'La identificación no puede exceder 15 dígitos.',
             'newMainCustomer.phone.required' => 'El teléfono es obligatorio.',
             'newMainCustomer.phone.max' => 'El teléfono no puede exceder 20 caracteres. Por favor, ingrese un número válido.',
             'newMainCustomer.email.email' => 'El email debe tener un formato válido (ejemplo: correo@dominio.com).',
@@ -2470,6 +2608,8 @@ class ReservationCreate extends Component
                 'phone' => $this->newMainCustomer['phone'],
                 'email' => $this->newMainCustomer['email'] ?? null,
                 'address' => $this->newMainCustomer['address'] ?? null,
+                'identification_number' => $this->newMainCustomer['identification'] ?? null,
+                'identification_type_id' => $this->newMainCustomer['identification_type_id'] ?? null,
                 'is_active' => true,
                 'requires_electronic_invoice' => $requiresElectronicInvoice,
             ]);
@@ -2704,7 +2844,8 @@ class ReservationCreate extends Component
 
         $rules = [
             'newCustomer.name' => 'required|string|max:255',
-            'newCustomer.identification' => 'required|string|max:10',
+            'newCustomer.identification_type_id' => 'required|exists:dian_identification_documents,id',
+            'newCustomer.identification' => 'required|string|max:15',
             'newCustomer.phone' => 'required|string|max:20',
             'newCustomer.email' => 'nullable|email|max:255',
             'newCustomer.address' => 'nullable|string|max:500',
@@ -2713,11 +2854,13 @@ class ReservationCreate extends Component
         $messages = [
             'newCustomer.name.required' => 'El nombre es obligatorio.',
             'newCustomer.name.max' => 'El nombre no puede exceder 255 caracteres.',
+            'newCustomer.identification_type_id.required' => 'El tipo de documento es obligatorio.',
+            'newCustomer.identification_type_id.exists' => 'El tipo de documento seleccionado no es válido.',
             'newCustomer.identification.required' => 'La identificación es obligatoria.',
-            'newCustomer.identification.max' => 'La identificación no puede exceder 10 dígitos.',
+            'newCustomer.identification.max' => 'La identificación no puede exceder 15 dígitos.',
             'newCustomer.phone.required' => 'El teléfono es obligatorio.',
-            'newCustomer.phone.max' => 'El teléfono no puede exceder 20 caracteres. Por favor, ingrese un número válido.',
-            'newCustomer.email.email' => 'El email debe tener un formato válido (ejemplo: correo@dominio.com).',
+            'newCustomer.phone.max' => 'El teléfono no puede exceder 20 caracteres.',
+            'newCustomer.email.email' => 'El email debe tener un formato válido.',
             'newCustomer.email.max' => 'El email no puede exceder 255 caracteres.',
             'newCustomer.address.max' => 'La dirección no puede exceder 500 caracteres.',
         ];
@@ -2758,6 +2901,8 @@ class ReservationCreate extends Component
                 'phone' => $this->newCustomer['phone'],
                 'email' => $this->newCustomer['email'] ?? null,
                 'address' => $this->newCustomer['address'] ?? null,
+                'identification_number' => $this->newCustomer['identification'] ?? null,
+                'identification_type_id' => $this->newCustomer['identification_type_id'] ?? null,
                 'is_active' => true,
                 'requires_electronic_invoice' => $requiresElectronicInvoice,
             ]);
@@ -2839,16 +2984,32 @@ class ReservationCreate extends Component
 
     public function render()
     {
+        \Log::error('🔥 Livewire Render - Iniciando render del componente');
+        \Log::error('Datos actuales del componente:', [
+            'customerId' => $this->customerId,
+            'roomId' => $this->roomId,
+            'selectedRoomIds' => $this->selectedRoomIds,
+            'checkIn' => $this->checkIn,
+            'checkOut' => $this->checkOut,
+            'total' => $this->total,
+            'deposit' => $this->deposit,
+            'formStep' => $this->formStep,
+            'datesCompleted' => $this->datesCompleted,
+        ]);
+        
         return view('livewire.reservations.reservation-create');
     }
 
     public function getFormActionProperty(): string
     {
-        return route('reservations.store');
+        $action = route('reservations.store');
+        \Log::error('🔥 Livewire Form Action: ' . $action);
+        return $action;
     }
 
     public function getFormMethodProperty(): string
     {
+        \Log::error('🔥 Livewire Form Method: POST');
         return 'POST';
     }
 
@@ -2865,5 +3026,252 @@ class ReservationCreate extends Component
     public function getReservationDateValueProperty(): string
     {
         return now()->format('Y-m-d');
+    }
+
+    /**
+     * Validar y crear la reserva
+     */
+    public function createReservation()
+    {
+        \Log::error('🔥 INICIANDO CREACIÓN DE RESERVA DESDE LIVEWIRE');
+        
+        // Limpiar errores anteriores
+        $this->resetErrorBag();
+        
+        try {
+            // Validación básica
+            $this->validateReservationData();
+            
+            // Preparar datos para el controller
+            $data = $this->prepareReservationData();
+            
+            \Log::error('📋 Datos preparados para reserva:', $data);
+            
+            // Mostrar loading
+            $this->loading = true;
+            
+            // Crear la reserva directamente desde Livewire
+            $reservation = $this->createReservationDirectly($data);
+            
+            \Log::error('✅ RESERVA CREADA EXITOSAMENTE - ID: ' . $reservation->id);
+            
+            // Redirigir a la página de reservas con mensaje de éxito
+            return redirect()->route('reservations.index')->with('success', 'Reserva creada exitosamente');
+            
+        } catch (ValidationException $e) {
+            \Log::error('❌ ERROR DE VALIDACIÓN EN LIVEWIRE:', $e->errors());
+            $this->loading = false;
+            throw $e;
+        } catch (\Exception $e) {
+            \Log::error('❌ ERROR GENERAL EN LIVEWIRE:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            $this->addError('general', 'Error al crear la reserva: ' . $e->getMessage());
+            $this->loading = false;
+        }
+    }
+    
+    /**
+     * Crear la reserva directamente desde Livewire
+     */
+    protected function createReservationDirectly(array $data)
+    {
+        \Log::error('🔥 CREANDO RESERVA DIRECTAMENTE DESDE LIVEWIRE');
+        
+        try {
+            DB::beginTransaction();
+            
+            // Determinar IDs de habitaciones
+            $roomIds = $this->showMultiRoomSelector ? $this->selectedRoomIds : [$this->roomId];
+            $roomIds = array_filter($roomIds); // Eliminar valores vacíos
+            
+            if (empty($roomIds)) {
+                throw new \Exception('No se han seleccionado habitaciones válidas');
+            }
+            
+            // Parsear fechas
+            $checkInDate = \Carbon\Carbon::parse($data['check_in_date']);
+            $checkOutDate = \Carbon\Carbon::parse($data['check_out_date']);
+            
+            \Log::error('📅 Fechas procesadas:', [
+                'check_in' => $checkInDate->format('Y-m-d'),
+                'check_out' => $checkOutDate->format('Y-m-d'),
+                'nights' => $checkInDate->diffInDays($checkOutDate)
+            ]);
+            
+            // Generar código de reserva único
+            $year = date('Y');
+            $prefix = "RES-{$year}-";
+            
+            // Obtener el último código del año actual
+            $lastCode = Reservation::where('reservation_code', 'like', "{$prefix}%")
+                ->orderBy('reservation_code', 'desc')
+                ->value('reservation_code');
+            
+            $nextNumber = 1;
+            if ($lastCode) {
+                // Extraer el número del último código (ej: RES-2026-0002 -> 0002)
+                $lastNumber = substr($lastCode, -4);
+                $nextNumber = intval($lastNumber) + 1;
+            }
+            
+            $reservationCode = $prefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+            
+            // Crear la reserva
+            $reservationData = [
+                'reservation_code' => $reservationCode,
+                'client_id' => $data['customerId'], // 🔥 USAR client_id
+                'status_id' => 1, // Status activo por defecto
+                'total_guests' => $data['guests_count'],
+                'adults' => $data['guests_count'], // MVP: todos como adultos
+                'children' => 0, // MVP: sin niños
+                'total_amount' => $data['total_amount'],
+                'deposit_amount' => $data['deposit'],
+                'balance_due' => $data['total_amount'] - $data['deposit'],
+                'payment_status_id' => 1, // Pendiente por defecto
+                'source_id' => 1, // Web por defecto
+                'created_by' => auth()->id() ?? 1,
+                'notes' => $data['notes'] ?? null,
+                'check_in_date' => $checkInDate->format('Y-m-d'),
+                'check_out_date' => $checkOutDate->format('Y-m-d'),
+                'room_id' => $roomIds[0], // Para compatibilidad
+            ];
+            
+            \Log::error('💾 Datos para crear reserva:', $reservationData);
+            
+            $reservation = Reservation::create($reservationData);
+            
+            \Log::error('✅ Reserva creada - ID: ' . $reservation->id);
+            
+            // Crear ReservationRooms para cada habitación
+            foreach ($roomIds as $roomId) {
+                $reservationRoomData = [
+                    'reservation_id' => $reservation->id,
+                    'room_id' => $roomId,
+                    'check_in_date' => $checkInDate->format('Y-m-d'),
+                    'check_out_date' => $checkOutDate->format('Y-m-d'),
+                    'check_in_time' => $data['check_in_time'] ?? '15:00',
+                    'check_out_time' => null, // MVP: sin check_out_time por ahora
+                    'nights' => max(1, $checkInDate->diffInDays($checkOutDate)),
+                    'price_per_night' => $data['total_amount'] / max(1, $checkInDate->diffInDays($checkOutDate)),
+                    'subtotal' => $data['total_amount'],
+                ];
+                
+                \Log::error('🏠 Creando ReservationRoom:', $reservationRoomData);
+                
+                ReservationRoom::create($reservationRoomData);
+            }
+            
+            DB::commit();
+            
+            \Log::error('✅ TRANSACCIÓN COMPLETADA - RESERVA ID: ' . $reservation->id);
+            
+            return $reservation;
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('❌ ERROR EN CREACIÓN DIRECTA:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
+    }
+    
+    /**
+     * Validar datos de la reserva
+     */
+    protected function validateReservationData()
+    {
+        \Log::error('🔍 VALIDANDO DATOS DE RESERVA');
+        
+        // Validar cliente
+        if (empty($this->customerId)) {
+            $this->addError('customerId', 'Debe seleccionar un cliente.');
+            \Log::error('❌ Cliente no seleccionado');
+        }
+        
+        // Validar habitación
+        $roomIds = $this->showMultiRoomSelector ? $this->selectedRoomIds : [$this->roomId];
+        if (empty($roomIds) || (is_array($roomIds) && empty(array_filter($roomIds)))) {
+            $this->addError('roomId', 'Debe seleccionar al menos una habitación.');
+            \Log::error('❌ Habitación no seleccionada');
+        }
+        
+        // Validar fechas
+        if (empty($this->checkIn) || empty($this->checkOut)) {
+            $this->addError('dates', 'Debe seleccionar las fechas de check-in y check-out.');
+            \Log::error('❌ Fechas no seleccionadas');
+        }
+        
+        // Validar lógica de fechas
+        if (!empty($this->checkIn) && !empty($this->checkOut)) {
+            $checkIn = \Carbon\Carbon::parse($this->checkIn);
+            $checkOut = \Carbon\Carbon::parse($this->checkOut);
+            
+            if ($checkIn >= $checkOut) {
+                $this->addError('dates', 'La fecha de check-out debe ser posterior a la de check-in.');
+                \Log::error('❌ Fechas inválidas: check-in >= check-out');
+            }
+            
+            if ($checkIn < now()->startOfDay()) {
+                $this->addError('dates', 'No se puede hacer check-in en fechas pasadas.');
+                \Log::error('❌ Check-in en fecha pasada');
+            }
+        }
+        
+        // Validar total
+        if ($this->total <= 0) {
+            $this->addError('total', 'El total debe ser mayor a 0.');
+            \Log::error('❌ Total inválido: ' . $this->total);
+        }
+        
+        // Validar depósito
+        if ($this->deposit < 0) {
+            $this->addError('deposit', 'El depósito no puede ser negativo.');
+            \Log::error('❌ Depósito inválido: ' . $this->deposit);
+        }
+        
+        // Validar que el depósito no exceda el total
+        if ($this->deposit > $this->total) {
+            $this->addError('deposit', 'El depósito no puede ser mayor al total.');
+            \Log::error('❌ Depósito mayor que el total');
+        }
+        
+        // Si hay errores, lanzar excepción
+        if ($this->getErrorBag()->isNotEmpty()) {
+            \Log::error('❌ ERRORES DE VALIDACIÓN ENCONTRADOS:', $this->getErrorBag()->toArray());
+            throw ValidationException::withMessages($this->getErrorBag()->toArray());
+        }
+        
+        \Log::error('✅ VALIDACIÓN EXITOSA');
+    }
+    
+    /**
+     * Preparar datos para el controller
+     */
+    protected function prepareReservationData(): array
+    {
+        $roomIds = $this->showMultiRoomSelector ? $this->selectedRoomIds : [$this->roomId];
+        
+        $data = [
+            'customerId' => $this->customerId,
+            'room_id' => $this->showMultiRoomSelector ? null : $this->roomId,
+            'room_ids' => $this->showMultiRoomSelector ? $roomIds : null,
+            'check_in_date' => $this->checkIn,
+            'check_out_date' => $this->checkOut,
+            'check_in_time' => $this->checkInTime ?: config('hotel.check_in_time', '15:00'),
+            'total_amount' => $this->total,
+            'deposit' => $this->deposit,
+            'guests_count' => $this->calculateTotalGuestsCount() ?: 1,
+            'notes' => $this->notes,
+            'payment_method' => 'efectivo', // Valor por defecto
+            'reservation_date' => now()->format('Y-m-d'),
+        ];
+        
+        \Log::error('📦 DATOS PREPARADOS:', $data);
+        
+        return $data;
     }
 }

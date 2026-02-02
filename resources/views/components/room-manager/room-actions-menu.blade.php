@@ -1,6 +1,8 @@
 @props(['room', 'currentDate'])
 
 @php
+    use App\Support\HotelTime;
+    
     // SINGLE SOURCE OF TRUTH: Estado operativo desde BD basado en stays y fecha seleccionada
     $isFutureDate = $currentDate->isFuture();
     $isPastDate = $currentDate->isPast() && !$currentDate->isToday();
@@ -101,8 +103,8 @@
 
     {{-- SIEMPRE VISIBLES (excepto fecha pasada para editar) --}}
     
-    {{-- Editar habitación (no disponible en fechas pasadas) --}}
-    @if(!$isPastDate)
+    {{-- Editar habitación (no disponible en fechas pasadas ni con stays activos) --}}
+    @if(!$isPastDate && !in_array($operationalStatus, ['occupied', 'pending_checkout']))
         <button type="button"
             wire:click="openRoomEdit({{ $room->id }})"
             wire:loading.attr="disabled"

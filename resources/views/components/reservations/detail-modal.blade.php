@@ -10,7 +10,7 @@
                     <i class="fas fa-bookmark"></i>
                 </div>
                 <div>
-                    <h3 class="text-2xl font-black tracking-tight" id="modal-customer-name">Cargando...</h3>
+                    <h3 class="text-2xl font-black tracking-tight" id="modal-customer-name-header">Cargando...</h3>
                     <p class="text-emerald-100 font-bold text-sm uppercase tracking-widest opacity-80" id="modal-reservation-id"></p>
                 </div>
             </div>
@@ -18,44 +18,82 @@
 
         <!-- Contenido -->
         <div class="p-8 space-y-8">
-            <!-- Grid de Información -->
-            <div class="grid grid-cols-2 gap-6">
-                <div class="space-y-1">
-                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Habitación</span>
-                    <div class="flex items-center text-gray-900">
-                        <i class="fas fa-door-open mr-2 text-emerald-500"></i>
-                        <span class="font-bold" id="modal-room-info"></span>
+            <!-- Información del Cliente -->
+            <div class="bg-gradient-to-r from-emerald-50 to-blue-50 rounded-3xl p-6 border border-emerald-100">
+                <div class="flex items-center space-x-3 mb-4">
+                    <div class="p-3 rounded-2xl bg-emerald-100 text-emerald-600">
+                        <i class="fas fa-user-circle text-xl"></i>
                     </div>
+                    <h4 class="text-lg font-bold text-gray-800">Información del Cliente</h4>
                 </div>
-                <div class="space-y-1 text-right">
-                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Estancia</span>
-                    <div class="flex items-center justify-end text-gray-900">
-                        <i class="fas fa-calendar-alt mr-2 text-emerald-500"></i>
-                        <span class="font-bold" id="modal-dates"></span>
+                <div class="grid grid-cols-1 gap-4">
+                    <div class="space-y-1">
+                        <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nombre Completo</span>
+                        <p class="text-sm font-semibold text-gray-900" id="modal-customer-name">Cargando...</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Identificación</span>
+                            <p class="text-sm font-semibold text-gray-900" id="modal-customer-id">-</p>
+                        </div>
+                        <div class="space-y-1">
+                            <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Teléfono</span>
+                            <p class="text-sm font-semibold text-gray-900" id="modal-customer-phone">-</p>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-3 gap-4">
-                <div class="space-y-1">
-                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Hora de ingreso</span>
-                    <div class="flex items-center text-gray-900">
-                        <i class="fas fa-clock mr-2 text-emerald-500"></i>
-                        <span class="font-bold" id="modal-checkin-time"></span>
+            <!-- Información de la Reserva -->
+            <div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-3xl p-6 border border-blue-100">
+                <div class="flex items-center space-x-3 mb-4">
+                    <div class="p-3 rounded-2xl bg-blue-100 text-blue-600">
+                        <i class="fas fa-calendar-check text-xl"></i>
+                    </div>
+                    <h4 class="text-lg font-bold text-gray-800">Detalles de la Reserva</h4>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1">
+                        <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Habitación</span>
+                        <div class="flex items-center text-gray-900">
+                            <i class="fas fa-door-open mr-2 text-blue-500"></i>
+                            <span class="font-bold" id="modal-room-info"></span>
+                        </div>
+                    </div>
+                    <div class="space-y-1 text-right">
+                        <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Estado</span>
+                        <div class="flex items-center justify-end">
+                            <span class="px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full" id="modal-status">Activa</span>
+                        </div>
                     </div>
                 </div>
-                <div class="space-y-1">
-                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Huéspedes</span>
+                <div class="mt-4 space-y-1">
+                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Período de Estancia</span>
                     <div class="flex items-center text-gray-900">
-                        <i class="fas fa-users mr-2 text-emerald-500"></i>
-                        <span class="font-bold" id="modal-guests-count"></span>
+                        <i class="fas fa-calendar-alt mr-2 text-blue-500"></i>
+                        <span class="font-bold" id="modal-dates"></span>
                     </div>
                 </div>
-                <div class="space-y-1 text-right">
-                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Método de pago</span>
-                    <div class="flex items-center justify-end text-gray-900">
-                        <i class="fas fa-credit-card mr-2 text-emerald-500"></i>
-                        <span class="font-bold" id="modal-payment-method"></span>
+                <div class="grid grid-cols-3 gap-4 mt-4">
+                    <div class="space-y-1">
+                        <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Check-in</span>
+                        <div class="flex items-center text-gray-900">
+                            <i class="fas fa-clock mr-2 text-blue-500"></i>
+                            <span class="font-bold" id="modal-checkin-time"></span>
+                        </div>
+                    </div>
+                    <div class="space-y-1">
+                        <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Huéspedes</span>
+                        <div class="flex items-center text-gray-900">
+                            <i class="fas fa-users mr-2 text-blue-500"></i>
+                            <span class="font-bold" id="modal-guests-count"></span>
+                        </div>
+                    </div>
+                    <div class="space-y-1 text-right">
+                        <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Noches</span>
+                        <div class="flex items-center justify-end text-gray-900">
+                            <span class="font-bold" id="modal-nights">-</span>
+                        </div>
                     </div>
                 </div>
             </div>

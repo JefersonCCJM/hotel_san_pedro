@@ -260,12 +260,14 @@ final class ReportService
             return $roomData;
         });
 
+        // TODO: Refactorizar para usar la nueva arquitectura sin status persistido
+        // Por ahora, mostrar solo habitaciones activas como disponibles
         $summary = [
             'total_rooms' => $rooms->count(),
-            'occupied_rooms' => $rooms->whereIn('status', [RoomStatus::OCUPADA, RoomStatus::RESERVADA])->count(),
-            'available_rooms' => $rooms->where('status', RoomStatus::LIBRE)->count(),
-            'cleaning_rooms' => $rooms->whereIn('status', [RoomStatus::LIMPIEZA, RoomStatus::SUCIA])->count(),
-            'maintenance_rooms' => $rooms->where('status', RoomStatus::MANTENIMIENTO)->count(),
+            'occupied_rooms' => $rooms->filter(fn($room) => $room->isOccupied())->count(),
+            'available_rooms' => $rooms->filter(fn($room) => !$room->isOccupied() && $room->is_active)->count(),
+            'cleaning_rooms' => $rooms->filter(fn($room) => $room->cleaningStatus()['code'] === 'pendiente')->count(),
+            'maintenance_rooms' => $rooms->where('is_active', false)->count(),
         ];
 
         $totalRevenue = $rooms->sum(function (Room $room): float {

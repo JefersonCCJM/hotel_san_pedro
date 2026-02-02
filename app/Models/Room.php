@@ -38,6 +38,14 @@ class Room extends Model
     ];
 
     /**
+     * Scope to get only active rooms.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
+
+    /**
      * Get the room type associated with the room.
      */
     public function RoomType()

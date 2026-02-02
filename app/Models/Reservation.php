@@ -81,12 +81,18 @@ class Reservation extends Model
     /**
      * Get the guests assigned to this reservation.
      * Maintained for backward compatibility.
+     * NOTE: This relation goes through reservation_rooms since guests are assigned to specific rooms.
      */
     public function guests()
     {
-        return $this->belongsToMany(Customer::class, 'reservation_guests')
-                    ->withTimestamps()
-                    ->withTrashed();
+        return $this->hasManyThrough(
+            Customer::class,
+            \App\Models\ReservationRoom::class,
+            'reservation_id', // FK in reservation_rooms
+            'id', // FK in customers (guest_id)
+            'id', // FK in reservations
+            'guest_id' // FK in reservation_rooms
+        );
     }
 
     /**
@@ -104,6 +110,31 @@ class Reservation extends Model
     public function payments()
     {
         return $this->hasMany(Payment::class, 'reservation_id');
+    }
+
+    /**
+     * Get the stay nights for this reservation.
+     */
+    public function stayNights()
+    {
+        return $this->hasMany(\App\Models\StayNight::class);
+    }
+
+    /**
+     * Calculate payment status based on actual payments
+     */
+    public function getPaymentStatusAttribute()
+    {
+        $totalPaid = $this->payments()->sum('amount');
+        $totalAmount = $this->total_amount;
+        
+        if ($totalPaid >= $totalAmount) {
+            return (object) ['code' => 'paid'];
+        } elseif ($totalPaid > 0) {
+            return (object) ['code' => 'partial'];
+        } else {
+            return (object) ['code' => 'pending'];
+        }
     }
 
     /**

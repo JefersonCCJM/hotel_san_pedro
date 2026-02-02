@@ -1,6 +1,8 @@
 @props(['room', 'stay'])
 
 @php
+    use App\Support\HotelTime;
+    
     // SINGLE SOURCE OF TRUTH: Este componente recibe $stay explícitamente
     // GUARD CLAUSE OBLIGATORIO: Si no hay stay, no hay información de huésped para mostrar
     if (!$stay) {
@@ -46,39 +48,53 @@
                 'reservation_room_id' => $reservationRoom->id ?? null,
                 'error' => $e->getMessage()
             ]);
-            $additionalGuests = collect();
         }
     }
-    
-    // Calcular total de huéspedes (principal + adicionales)
-    $totalGuests = $customer ? 1 : 0; // Cliente principal cuenta solo si existe
-    if ($additionalGuests->isNotEmpty()) {
-        $totalGuests += $additionalGuests->count();
-    }
-@endphp
+    @endphp
 
-@if($reservation && $customer)
-    {{-- CASO NORMAL: Reserva con cliente asignado --}}
-    <div class="flex flex-col cursor-pointer hover:opacity-80 transition-opacity" 
-         x-data
-         @click="
-             @this.call('loadRoomGuests', {{ $room->id }}).then((data) => {
-                 if (data && data.guests) {
-                     window.dispatchEvent(new CustomEvent('open-guests-modal', { detail: data }));
-                 }
-             }).catch(() => {
-                 // Silently handle error if reservation no longer exists
-             });
-         "
-         title="Click para ver todos los huéspedes">
-        {{-- Cliente principal --}}
-        <span class="text-sm font-semibold text-gray-900">{{ $customer->name }}</span>
+@if($stay && $reservation)
+    <div class="space-y-3">
+        {{-- Información del huésped principal --}}
+        <div class="flex items-start space-x-3">
+            <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-user text-sm"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">
+                    @if($reservation->customer)
+                        <button type="button"
+                                wire:click="dispatch('showAllGuests', [{{ $reservation->id }}, {{ $room->id }}])"
+                                class="text-blue-600 hover:text-blue-800 underline hover:bg-blue-50 px-1 rounded transition-colors">
+                            {{ $reservation->customer->name }}
+                        </button>
+                    @else
+                        Huésped no asignado
+                    @endif
+                </p>
+                @if($reservation->customer?->taxProfile)
+                    <p class="text-xs text-gray-500">
+                        {{ $reservation->customer->taxProfile->identification ?? 'Sin identificación' }}
+                    </p>
+                @endif
+                
+                {{-- 🔥 BOTÓN ASIGNAR HUÉSPED si no hay cliente asignado --}}
+                @if(!$reservation->customer || !$reservation->client_id)
+                    <button type="button"
+                            wire:click="dispatch('openAssignGuests', {{ $room->id }})"
+                            class="mt-2 text-xs text-blue-600 hover:text-blue-800 underline font-medium flex items-center space-x-1">
+                        <i class="fas fa-user-plus"></i>
+                        <span>Asignar huésped</span>
+                    </button>
+                @endif
+            </div>
+        </div>
         
-        {{-- Huéspedes adicionales --}}
-        @if($additionalGuests->isNotEmpty())
-            @foreach($additionalGuests as $guest)
-                <span class="text-xs font-medium text-gray-700 mt-0.5">{{ $guest->name }}</span>
-            @endforeach
+        {{-- Información de estancia --}}
+        @if($reservationRoom && $reservationRoom->check_in_date)
+            <div class="flex items-center space-x-2 text-xs text-gray-600">
+                <i class="fas fa-calendar-check"></i>
+                <span>Check-in: {{ \Carbon\Carbon::parse($reservationRoom->check_in_date)->format('d/m/Y') }}</span>
+            </div>
         @endif
         
         {{-- Información de salida --}}
@@ -88,35 +104,21 @@
             </span>
         @endif
         
-        {{-- Contador solo si hay más de un huésped --}}
-        @if($totalGuests > 1)
-            <span class="text-[10px] text-gray-500 mt-1">
-                <i class="fas fa-users mr-1"></i>
-                {{ $totalGuests }} huéspedes
+        {{-- Estado de pago --}}
+        <div class="flex items-center space-x-2">
+            @php
+                $paymentStatus = $reservation->payment_status?->code ?? 'pending';
+                $statusConfig = match($paymentStatus) {
+                    'paid' => ['text' => 'Pagado', 'color' => 'bg-emerald-100 text-emerald-800'],
+                    'partial' => ['text' => 'Parcial', 'color' => 'bg-amber-100 text-amber-800'],
+                    'pending' => ['text' => 'Pendiente', 'color' => 'bg-red-100 text-red-800'],
+                    default => ['text' => 'Desconocido', 'color' => 'bg-gray-100 text-gray-800'],
+                };
+            @endphp
+            <span class="px-2 py-1 text-xs font-bold rounded-full {{ $statusConfig['color'] }}">
+                {{ $statusConfig['text'] }}
             </span>
-        @endif
-    </div>
-@elseif($reservation && !$customer)
-    {{-- CASO EDGE: Reserva activa pero sin cliente asignado (walk-in sin asignar) --}}
-    <div class="flex flex-col space-y-1">
-        <div class="flex items-center gap-1.5">
-            <i class="fas fa-exclamation-triangle text-yellow-600 text-xs"></i>
-            <span class="text-sm text-yellow-700 font-semibold">Cliente no asignado</span>
         </div>
-        <div class="text-xs text-gray-500">
-            La reserva existe pero no hay cliente principal asignado.
-        </div>
-        @if($additionalGuests->isNotEmpty())
-            <div class="text-xs text-gray-600 mt-1">
-                <i class="fas fa-users mr-1"></i>
-                {{ $additionalGuests->count() }} huésped(es) adicional(es)
-            </div>
-        @endif
-        <button type="button"
-                wire:click="openAssignGuests({{ $room->id }})"
-                class="text-xs text-blue-600 hover:text-blue-800 underline font-medium mt-1">
-            Asignar huésped
-        </button>
     </div>
 @else
     {{-- CASO EDGE: Stay activo pero sin reserva asociada (inconsistencia de datos) --}}

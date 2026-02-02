@@ -1,6 +1,8 @@
 @props(['room', 'selectedDate'])
 
 @php
+    use App\Support\HotelTime;
+    
     // SINGLE SOURCE OF TRUTH: El estado de limpieza SOLO depende de last_cleaned_at y stays
     // NUNCA usar getOperationalStatus() ni estados operativos aquí
     $cleaningStatus = $room->cleaningStatus($selectedDate);
@@ -31,7 +33,7 @@
     
     // Determinar si es fecha pasada (no permitir cambios en fechas históricas)
     $today = \Carbon\Carbon::today();
-    $isPastDate = $selectedDate->copy()->startOfDay()->lt($today);
+    $isPastDate = $selectedDate->copy()->startOfDay()->lt($today); // Mantener lógica de fecha pasada
 @endphp
 
 <div 

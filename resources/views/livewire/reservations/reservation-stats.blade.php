@@ -16,7 +16,7 @@
     <div class="bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-shadow">
         <div class="flex items-center justify-between">
             <div>
-                <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Reservas Activas</p>
+                <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Reservas Vigentes</p>
                 <p class="text-2xl font-black text-green-600">{{ $this->activeReservations }}</p>
             </div>
             <div class="p-3 rounded-xl bg-green-50 text-green-600">
@@ -68,7 +68,7 @@
     <div class="bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-shadow">
         <div class="flex items-center justify-between">
             <div>
-                <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Huéspedes Hoy</p>
+                <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Huéspedes Planificados</p>
                 <p class="text-2xl font-black text-orange-600">{{ $this->totalGuestsToday }}</p>
             </div>
             <div class="p-3 rounded-xl bg-orange-50 text-orange-600">

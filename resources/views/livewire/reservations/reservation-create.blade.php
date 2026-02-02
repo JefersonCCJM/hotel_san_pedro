@@ -16,9 +16,10 @@
                 <a href="{{ route('reservations.index') }}" class="px-4 py-2 text-sm font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all">
                     Cancelar
                 </a>
-                <button type="submit" form="reservation-form"
-                        @if($this->loading) disabled @endif
-                        class="px-6 py-2 text-sm font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all flex items-center">
+                <button type="button" 
+                wire:click="createReservation"
+                @if($this->loading) disabled @endif
+                class="px-6 py-2 text-sm font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all flex items-center">
                     <i class="fas fa-save mr-2"></i>
                     {{ $this->submitButtonText }}
                 </button>
@@ -26,6 +27,28 @@
         </div>
     </div>
 
+
+    <!-- ERRORES DE VALIDACIÓN -->
+    @if($errors->any())
+        <div class="mb-6 bg-red-50 border border-red-200 rounded-2xl p-4">
+            <div class="flex items-start space-x-3">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-exclamation-triangle text-red-500 text-lg"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-sm font-bold text-red-800 mb-2">Por favor corrige los siguientes errores:</h3>
+                    <ul class="space-y-1">
+                        @foreach($errors->all() as $error)
+                            <li class="text-sm text-red-700 flex items-start">
+                                <i class="fas fa-times-circle text-red-500 mr-2 mt-0.5 text-xs"></i>
+                                <span>{{ $error }}</span>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            </div>
+        </div>
+    @endif
 
     <form id="reservation-form" method="POST" action="{{ $this->formAction }}" class="grid grid-cols-1 lg:grid-cols-3 gap-6" onsubmit="return validateFormBeforeSubmit(event)">
         @csrf
@@ -71,8 +94,14 @@
                                        wire:focus="openCustomerDropdown"
                                        wire:keydown.escape="closeCustomerDropdown"
                                        @if(!$this->datesCompleted) disabled @endif
-                                       class="block w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-emerald-500 focus:border-emerald-500 @if(!$this->datesCompleted) bg-gray-100 cursor-not-allowed @endif"
+                                       class="block w-full pl-10 pr-4 py-2.5 border {{ $errors->has('customerId') ? 'border-red-500 bg-red-50' : 'border-gray-300' }} rounded-xl text-sm focus:ring-emerald-500 focus:border-emerald-500 @if(!$this->datesCompleted) bg-gray-100 cursor-not-allowed @endif"
                                        placeholder="Buscar por nombre, identificación o teléfono...">
+
+                                @error('customerId')
+                                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                        <i class="fas fa-exclamation-circle text-red-500 text-sm"></i>
+                                    </div>
+                                @enderror
 
                                 @if($this->customerId)
                                     <button type="button"
@@ -250,29 +279,6 @@
                                 </span>
                             @enderror
                         </div>
-
-                        <!-- Hora de Ingreso -->
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Hora de Ingreso (Desde {{ config('hotel.check_in_time', '15:00') }})</label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                                    <i class="fas fa-clock text-sm"></i>
-                                </div>
-                                <input type="time" name="check_in_time" wire:model.live="checkInTime" value="{{ old('check_in_time', $this->checkInTime) }}"
-                                       min="{{ config('hotel.check_in_time', '15:00') }}"
-                                       class="block w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-emerald-500 focus:border-emerald-500 @error('checkInTime') border-red-500 @enderror @error('check_in_time') border-red-500 @enderror">
-                                @error('checkInTime')
-                                    <span class="mt-1 text-xs font-medium text-red-600 flex items-center">
-                                        <i class="fas fa-exclamation-circle mr-1.5"></i> {{ $message }}
-                                    </span>
-                                @enderror
-                                @error('check_in_time')
-                                    <span class="mt-1 text-xs font-medium text-red-600 flex items-center">
-                                        <i class="fas fa-exclamation-circle mr-1.5"></i> {{ $message }}
-                                    </span>
-                                @enderror
-                            </div>
-                        </div>
                     </div>
 
                     <div class="space-y-4">
@@ -392,32 +398,6 @@
                                 @endif
                             </div>
                         </div>
-
-                        <!-- Detalles Habitación (modo una habitación) -->
-                        @if(!$this->showMultiRoomSelector && $this->selectedRoom)
-                            <div class="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex flex-col justify-center space-y-3">
-                                <div class="flex justify-between items-center text-sm">
-                                    <span class="text-gray-500 font-medium italic">Precio por noche:</span>
-                                    <span class="font-bold text-gray-900">${{ number_format($this->priceForGuests, 0, ',', '.') }}</span>
-                                </div>
-                                @php
-                                    $assignedCount = $this->getRoomGuestsCount($this->roomId);
-                                @endphp
-                                @if($assignedCount > 0)
-                                    <div class="text-[10px] text-gray-500 italic text-center">
-                                        <span>Para {{ $assignedCount }} {{ $assignedCount == 1 ? 'persona' : 'personas' }}</span>
-                                    </div>
-                                @endif
-                                <div class="flex justify-between items-center">
-                                    <span class="px-2 py-1 bg-white border border-gray-200 rounded-lg text-[10px] font-bold text-gray-600 uppercase">{{ $this->selectedRoom['beds'] ?? 0 }} {{ ($this->selectedRoom['beds'] ?? 0) == 1 ? 'Cama' : 'Camas' }}</span>
-                                    <div class="flex items-center text-xs text-gray-600">
-                                        <i class="fas fa-users mr-1.5 opacity-60"></i>
-                                        <span>Capacidad: {{ $this->selectedRoom['capacity'] ?? 0 }} pers.</span>
-                                    </div>
-                                </div>
-                            </div>
-                        @endif
-
                         <!-- Intentionally hidden: user requested no selected-rooms list below in multi mode -->
                     </div>
 
@@ -669,6 +649,9 @@
 
                 <!-- Footer del Resumen -->
                 <div class="px-6 py-4 bg-black/20 text-center">
+                    <!-- ✅ CAMPOS CRÍTICOS: Enviar fechas al controller -->
+                    <input type="hidden" name="check_in_date" value="{{ $this->checkIn }}">
+                    <input type="hidden" name="check_out_date" value="{{ $this->checkOut }}">
                     <input type="hidden" name="reservation_date" value="{{ $this->reservationDateValue }}">
 
                     <!-- Single room mode: guest_ids (backward compatibility) -->
@@ -790,20 +773,42 @@
                             </div>
 
                             <!-- Identificación y Teléfono -->
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                        Tipo de Documento <span class="text-red-500">*</span>
+                                    </label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                            <i class="fas fa-id-card text-sm"></i>
+                                        </div>
+                                        <select wire:model.live="newMainCustomer.identification_type_id"
+                                                class="block w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-emerald-500 focus:border-emerald-500 @error('newMainCustomer.identification_type_id') border-red-500 @enderror appearance-none">
+                                            <option value="">Seleccione...</option>
+                                            @foreach($identificationDocuments ?? [] as $doc)
+                                                <option value="{{ $doc->id }}">{{ $doc->name }}@if($doc->code) ({{ $doc->code }})@endif</option>
+                                            @endforeach
+                                        </select>
+                                        @error('newMainCustomer.identification_type_id')
+                                            <span class="mt-1 text-xs font-medium text-red-600 block">
+                                                <i class="fas fa-exclamation-triangle mr-1"></i> {{ $message }}
+                                            </span>
+                                        @enderror
+                                    </div>
+                                </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                                         Número de identificación <span class="text-red-500">*</span>
                                     </label>
                                     <div class="relative">
                                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                                            <i class="fas fa-id-card text-sm"></i>
+                                            <i class="fas fa-hashtag text-sm"></i>
                                         </div>
                                         <input type="text" wire:model.live="newMainCustomer.identification"
                                                wire:blur="checkMainCustomerIdentification"
-                                               maxlength="10"
+                                               maxlength="15"
                                                class="block w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-emerald-500 focus:border-emerald-500 @error('newMainCustomer.identification') border-red-500 @enderror"
-                                               placeholder="Ej: 12345678">
+                                               placeholder="Ej: 123456789">
                                     </div>
                                     @if($mainCustomerIdentificationMessage)
                                         <span class="mt-1 text-[10px] font-bold {{ $mainCustomerIdentificationExists ? 'text-red-500' : 'text-emerald-600' }} uppercase tracking-tighter block">
@@ -1263,20 +1268,42 @@
                                     @enderror
                                 </div>
 
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                                            Tipo de Documento <span class="text-red-500">*</span>
+                                        </label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                                <i class="fas fa-id-card text-sm"></i>
+                                            </div>
+                                            <select wire:model.live="newCustomer.identification_type_id"
+                                                    class="block w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-purple-500 focus:border-purple-500 @error('newCustomer.identification_type_id') border-red-500 @enderror appearance-none">
+                                                <option value="">Seleccione...</option>
+                                                @foreach($identificationDocuments ?? [] as $doc)
+                                                    <option value="{{ $doc->id }}">{{ $doc->name }}@if($doc->code) ({{ $doc->code }})@endif</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        @error('newCustomer.identification_type_id')
+                                            <span class="mt-1 text-xs font-medium text-red-600 block">
+                                                <i class="fas fa-exclamation-triangle mr-1"></i> {{ $message }}
+                                            </span>
+                                        @enderror
+                                    </div>
                                     <div>
                                         <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                                             Número de identificación <span class="text-red-500">*</span>
                                         </label>
                                         <div class="relative">
                                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                                                <i class="fas fa-id-card text-sm"></i>
+                                                <i class="fas fa-hashtag text-sm"></i>
                                             </div>
                                             <input type="text" wire:model.live="newCustomer.identification"
                                                    wire:blur="checkCustomerIdentification"
-                                                   maxlength="10"
+                                                   maxlength="15"
                                                    class="block w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-purple-500 focus:border-purple-500 @error('newCustomer.identification') border-red-500 @enderror"
-                                                   placeholder="Ej: 12345678">
+                                                   placeholder="Ej: 123456789">
                                         </div>
                                         @if($customerIdentificationMessage)
                                             <span class="mt-1 text-xs font-medium {{ $customerIdentificationExists ? 'text-red-600' : 'text-emerald-600' }} block">
@@ -1569,10 +1596,11 @@
         const checkOutDate = form.querySelector('input[name="check_out_date"]')?.value;
         const totalAmount = form.querySelector('input[name="total_amount"]')?.value;
         const deposit = form.querySelector('input[name="deposit"]')?.value;
-        const guestsCount = form.querySelector('input[name="guests_count"]')?.value;
+        // const guestsCount = form.querySelector('input[name="guests_count"]')?.value; // MVP: Validación básica de huéspedes pospuesta
 
         let errors = [];
 
+        // Validaciones básicas MVP
         if (!customerId || customerId === '') {
             errors.push('Debe seleccionar un cliente.');
         }
@@ -1593,6 +1621,7 @@
             errors.push('La fecha de check-out debe ser posterior a la fecha de check-in.');
         }
 
+        // MVP: Validaciones básicas de montos
         if (!totalAmount || parseFloat(totalAmount) <= 0) {
             errors.push('El monto total debe ser mayor a cero.');
         }
@@ -1601,9 +1630,17 @@
             errors.push('El abono inicial es obligatorio.');
         }
 
-        if (!guestsCount || parseInt(guestsCount) < 1) {
-            errors.push('Debe asignar al menos un huésped.');
-        }
+        // 🔥 MVP: Validación de huéspedes pospuesta para Fase 2
+        // if (!guestsCount || parseInt(guestsCount) < 1) {
+        //     errors.push('Debe asignar al menos un huésped.');
+        // }
+
+        // 🔥 FASE 2: Validaciones pospuestas (no eliminar, solo comentar)
+        // - Validar montos exactos contra cálculos del sistema
+        // - Validar huéspedes por habitación (capacidad)
+        // - Validar asignación específica de huéspedes
+        // - Validar cruces con estadías existentes
+        // - Validar bloqueos por limpieza/mantenimiento
 
         if (errors.length > 0) {
             event.preventDefault();

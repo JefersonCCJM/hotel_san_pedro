@@ -140,6 +140,16 @@
         />
     @endif
 
+    <!-- MODAL: EDITAR PRECIOS -->
+    <x-room-manager.edit-prices-modal 
+        :editPricesForm="$editPricesForm"
+    />
+
+    <!-- MODAL: TODOS LOS HUÉSPEDES -->
+    <x-room-manager.all-guests-modal 
+        :allGuestsForm="$allGuestsForm"
+    />
+
     <!-- SCRIPTS -->
     <x-room-manager.scripts />
 </div>

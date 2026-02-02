@@ -28,20 +28,25 @@ class AuditService
             $customer = $reservation->customer;
             $roomNumbers = Room::whereIn('id', $roomIds)->pluck('room_number')->toArray();
 
+            // Handle null customer case (walk-in reservations)
+            $customerName = $customer?->name ?? 'Cliente no asignado';
+            $customerId = $customer?->id ?? null;
+
             AuditLog::create([
                 'user_id' => Auth::id(),
                 'event' => 'reservation_created',
-                'description' => "Creó la reserva #{$reservation->id} para el cliente {$customer->name}",
+                'description' => "Creó la reserva #{$reservation->id} para el cliente {$customerName}",
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
                 'metadata' => [
                     'reservation_id' => $reservation->id,
-                    'customer_id' => $reservation->customer_id,
-                    'customer_name' => $customer->name,
+                    'customer_id' => $customerId,
+                    'customer_name' => $customerName,
                     'room_ids' => $roomIds,
                     'room_numbers' => $roomNumbers,
-                    'check_in_date' => $reservation->check_in_date?->format('Y-m-d'),
-                    'check_out_date' => $reservation->check_out_date?->format('Y-m-d'),
+                    // 🔥 NOTA: Las fechas reales están en reservation_rooms, no en reservation
+                    'check_in_date' => $reservation->check_in_date,
+                    'check_out_date' => $reservation->check_out_date,
                     'total_amount' => (float) $reservation->total_amount,
                     'deposit' => (float) $reservation->deposit,
                     'guests_count' => (int) $reservation->guests_count,
@@ -78,8 +83,8 @@ class AuditService
 
             $newValues = [
                 'room_id' => $reservation->room_id,
-                'check_in_date' => $reservation->check_in_date?->format('Y-m-d'),
-                'check_out_date' => $reservation->check_out_date?->format('Y-m-d'),
+                'check_in_date' => $reservation->check_in_date,
+                'check_out_date' => $reservation->check_out_date,
                 'total_amount' => (float) $reservation->total_amount,
                 'deposit' => (float) $reservation->deposit,
                 'guests_count' => (int) $reservation->guests_count,
@@ -96,16 +101,20 @@ class AuditService
                 }
             }
 
+            // Handle null customer case (walk-in reservations)
+            $customerName = $customer?->name ?? 'Cliente no asignado';
+            $customerId = $customer?->id ?? null;
+
             AuditLog::create([
                 'user_id' => Auth::id(),
                 'event' => 'reservation_updated',
-                'description' => "Actualizó la reserva #{$reservation->id} del cliente {$customer->name}",
+                'description' => "Actualizó la reserva #{$reservation->id} del cliente {$customerName}",
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
                 'metadata' => [
                     'reservation_id' => $reservation->id,
-                    'customer_id' => $reservation->customer_id,
-                    'customer_name' => $customer->name,
+                    'customer_id' => $customerId,
+                    'customer_name' => $customerName,
                     'room_id' => $reservation->room_id,
                     'room_number' => $room ? $room->room_number : null,
                     'changes' => $changes,
@@ -137,16 +146,20 @@ class AuditService
 
             $customer = $reservation->customer;
 
+            // Handle null customer case (walk-in reservations)
+            $customerName = $customer?->name ?? 'Cliente no asignado';
+            $customerId = $customer?->id ?? null;
+
             AuditLog::create([
                 'user_id' => Auth::id(),
                 'event' => 'reservation_cancelled',
-                'description' => "Canceló la reserva #{$reservation->id} del cliente {$customer->name}",
+                'description' => "Canceló la reserva #{$reservation->id} del cliente {$customerName}",
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
                 'metadata' => [
                     'reservation_id' => $reservation->id,
-                    'customer_id' => $reservation->customer_id,
-                    'customer_name' => $customer->name,
+                    'customer_id' => $customerId,
+                    'customer_name' => $customerName,
                 ]
             ]);
         } catch (\Exception $e) {

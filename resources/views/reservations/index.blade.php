@@ -24,7 +24,15 @@
 
 <x-reservations.detail-modal />
 <x-reservations.delete-modal />
-<x-reservations.create-modal />
+<x-reservations.create-modal 
+    :modalRooms="$modalRooms ?? []"
+    :modalRoomsData="$modalRoomsData ?? []"
+    :modalCustomers="$modalCustomers ?? []"
+    :modalIdentificationDocuments="$modalIdentificationDocuments ?? []"
+    :modalLegalOrganizations="$modalLegalOrganizations ?? []"
+    :modalTributes="$modalTributes ?? []"
+    :modalMunicipalities="$modalMunicipalities ?? []"
+/>
 <x-room-manager.room-release-confirmation-modal />
 <x-reservations.calendar-scripts />
 @endsection

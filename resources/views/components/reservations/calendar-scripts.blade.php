@@ -7,7 +7,21 @@ document.addEventListener('DOMContentLoaded', function() {
     
     cells.forEach(cell => {
         cell.addEventListener('mouseenter', function(e) {
-            const tooltipData = JSON.parse(this.getAttribute('data-tooltip'));
+            const tooltipAttr = this.getAttribute('data-tooltip');
+            console.log('🔍 Tooltip data:', tooltipAttr);
+            
+            if (!tooltipAttr || tooltipAttr.trim() === '') {
+                console.log('❌ Empty tooltip - skipping');
+                return;
+            }
+            
+            let tooltipData;
+            try {
+                tooltipData = JSON.parse(tooltipAttr);
+            } catch (error) {
+                console.error('❌ JSON parse error:', error, 'Raw data:', tooltipAttr);
+                return;
+            }
             
             // Remove existing tooltip
             if (tooltip) {
@@ -84,35 +98,119 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function openReservationDetail(data) {
+    console.log('🔥 openReservationDetail called with:', data);
     const modal = document.getElementById('reservation-detail-modal');
 
-    document.getElementById('modal-customer-name').innerText = data.customer_name;
+    // Validar que todos los datos necesarios existan
+    if (!data || !data.id) {
+        console.error('❌ Invalid reservation data:', data);
+        return;
+    }
+
+    // Llenar los campos de la modal
+    document.getElementById('modal-customer-name').innerText = data.customer_name || 'Cliente no disponible';
+    document.getElementById('modal-customer-name-header').innerText = data.customer_name || 'Cliente no disponible';
     document.getElementById('modal-reservation-id').innerText = 'Reserva #' + data.id;
-    document.getElementById('modal-room-info').innerText = 'Hab. ' + data.room_number + ' (' + data.beds_count + ')';
-    document.getElementById('modal-dates').innerText = data.check_in + ' - ' + data.check_out;
-    document.getElementById('modal-checkin-time').innerText = data.check_in_time;
-    document.getElementById('modal-guests-count').innerText = data.guests_count;
-    document.getElementById('modal-payment-method').innerText = data.payment_method;
-    document.getElementById('modal-total').innerText = '$' + data.total;
-    document.getElementById('modal-deposit').innerText = '$' + data.deposit;
-    document.getElementById('modal-balance').innerText = '$' + data.balance;
-    document.getElementById('modal-notes').innerText = data.notes;
+    document.getElementById('modal-room-info').innerText = data.rooms || 'Sin habitaciones';
+    document.getElementById('modal-dates').innerText = (data.check_in || 'N/A') + ' - ' + (data.check_out || 'N/A');
+    document.getElementById('modal-checkin-time').innerText = data.check_in_time || 'N/A';
+    document.getElementById('modal-guests-count').innerText = data.guests_count || '0';
+    // document.getElementById('modal-payment-method').innerText = data.payment_method || 'N/A'; // Eliminado de la modal
+    document.getElementById('modal-total').innerText = '$' + (data.total || '0');
+    document.getElementById('modal-deposit').innerText = '$' + (data.deposit || '0');
+    document.getElementById('modal-balance').innerText = '$' + (data.balance || '0');
+    document.getElementById('modal-notes').innerText = data.notes || 'Sin notas adicionales';
+    
+    // Nuevos campos adicionales
+    document.getElementById('modal-customer-id').innerText = data.customer_identification || '-';
+    document.getElementById('modal-customer-phone').innerText = data.customer_phone || '-';
+    document.getElementById('modal-status').innerText = data.status || 'Activa';
+    
+    // Calcular noches
+    if (data.check_in && data.check_out) {
+        try {
+            const checkIn = new Date(data.check_in.split('/').reverse().join('-'));
+            const checkOut = new Date(data.check_out.split('/').reverse().join('-'));
+            const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+            document.getElementById('modal-nights').innerText = nights + ' noche' + (nights !== 1 ? 's' : '');
+        } catch (e) {
+            document.getElementById('modal-nights').innerText = '-';
+        }
+    } else {
+        document.getElementById('modal-nights').innerText = '-';
+    }
 
-    document.getElementById('modal-edit-btn').href = data.edit_url;
-    document.getElementById('modal-pdf-btn').href = data.pdf_url;
-    document.getElementById('modal-delete-btn').onclick = () => {
-        closeReservationDetail();
-        openDeleteModal(data.id);
-    };
+    // Configurar los botones de acción
+    const editBtn = document.getElementById('modal-edit-btn');
+    const pdfBtn = document.getElementById('modal-pdf-btn');
+    const deleteBtn = document.getElementById('modal-delete-btn');
 
+    if (editBtn && data.edit_url) {
+        editBtn.href = data.edit_url;
+        editBtn.style.display = 'flex';
+    } else {
+        editBtn.style.display = 'none';
+    }
+
+    if (pdfBtn && data.pdf_url) {
+        pdfBtn.href = data.pdf_url;
+        pdfBtn.style.display = 'flex';
+    } else {
+        pdfBtn.style.display = 'none';
+    }
+
+    if (deleteBtn && data.id) {
+        deleteBtn.onclick = () => {
+            closeReservationDetail();
+            openDeleteModal(data.id);
+        };
+        deleteBtn.style.display = 'flex';
+    } else {
+        deleteBtn.style.display = 'none';
+    }
+
+    console.log('🔥 Modal found:', modal);
+    console.log('🔥 Showing modal for reservation:', data.id);
+    
+    // Mostrar la modal
     modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
+    
+    // Agregar animación de entrada
+    setTimeout(() => {
+        modal.querySelector('.relative').classList.add('scale-100');
+        modal.querySelector('.relative').classList.remove('scale-95');
+    }, 10);
+    
+    console.log('🔥 Modal should be visible now');
 }
 
 function closeReservationDetail() {
-    document.getElementById('reservation-detail-modal').classList.add('hidden');
-    document.body.style.overflow = 'auto';
+    console.log('🔥 Closing modal');
+    const modal = document.getElementById('reservation-detail-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+        console.log('🔥 Modal closed');
+    } else {
+        console.error('❌ Modal not found for closing');
+    }
 }
+
+// Función de prueba para verificar que la modal existe
+function testModal() {
+    const modal = document.getElementById('reservation-detail-modal');
+    console.log('🧪 Test Modal - Modal exists:', !!modal);
+    if (modal) {
+        console.log('🧪 Test Modal - Modal classes:', modal.className);
+        console.log('🧪 Test Modal - Modal hidden:', modal.classList.contains('hidden'));
+    }
+}
+
+// Ejecutar prueba cuando se carga la página
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(testModal, 1000);
+});
 
 function openDeleteModal(id) {
     // Check if reservation has started - if so, show release confirmation modal instead

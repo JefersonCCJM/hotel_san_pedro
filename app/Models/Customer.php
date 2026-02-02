@@ -41,6 +41,8 @@ class Customer extends Model
         'notes',
         'is_active',
         'requires_electronic_invoice',
+        'identification_number',
+        'identification_type_id',
     ];
 
     /**
@@ -93,6 +95,14 @@ class Customer extends Model
     public function reservations(): HasMany
     {
         return $this->hasMany(Reservation::class);
+    }
+
+    /**
+     * Get the identification type for the customer.
+     */
+    public function identificationType()
+    {
+        return $this->belongsTo(\App\Models\DianIdentificationDocument::class, 'identification_type_id');
     }
 
     /**

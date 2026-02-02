@@ -1,9 +1,11 @@
 @props(['room', 'currentDate'])
 
 @php
+    use App\Support\HotelTime;
+    
     $selectedDate = $currentDate instanceof \Carbon\Carbon ? $currentDate : \Carbon\Carbon::parse($currentDate);
     $today = \Carbon\Carbon::today();
-    $isPastDate = $selectedDate->copy()->startOfDay()->lt($today);
+    $isPastDate = $selectedDate->copy()->startOfDay()->lt($today); // Mantener lógica de fecha pasada
     
     // SINGLE SOURCE OF TRUTH: Usar solo getOperationalStatus()
     // Para fechas pasadas, este método retorna el estado histórico (inmutable)
@@ -30,12 +32,13 @@
 @endphp
 
 <tr
-    x-data="{
+    x-data="{ 
         isReleasing: false,
         recentlyReleased: false,
         // Estado inicial desde BD (Single Source of Truth)
         // Valores permitidos: 'occupied', 'pending_checkout', 'pending_cleaning', 'free_clean'
         operationalStatus: '{{ $operationalStatus }}',
+        isPastDate: @js($isPastDate),
         // Computed: Determina el estado visual a mostrar
         get displayState() {
             if (this.isReleasing) return 'releasing';
@@ -50,10 +53,6 @@
         },
     }"
     x-init="
-        // CRITICAL: Las fechas pasadas son INMUTABLES - NO escuchar eventos reactivos
-        // Solo hoy y fechas futuras pueden cambiar en tiempo real
-        const isPastDate = {{ $isPastDate ? 'true' : 'false' }};
-        
         // PERFORMANCE: Listener para cambio de vista - Resetear estados Alpine inmediatamente
         // Esto evita estados congelados y lag perceptible al cambiar de fecha
         window.addEventListener('room-view-changed', () => {
@@ -64,7 +63,7 @@
             // con el nuevo valor desde PHP (getOperationalStatus para la nueva fecha)
         });
         
-        if (!isPastDate) {
+        if (!this.isPastDate) {
             // Listener: Inicio de liberación - Congela estado visual (solo para hoy/futuro)
             window.addEventListener('room-release-start', e => {
                 if (e.detail?.roomId === {{ $room->id }}) {

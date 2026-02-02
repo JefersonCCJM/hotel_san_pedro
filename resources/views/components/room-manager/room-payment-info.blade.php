@@ -107,6 +107,14 @@
                 <i class="fas fa-check-circle mr-1"></i> Al día
             </span>
         @endif
+
+        {{-- Botón Editar Precios --}}
+        <button type="button"
+                wire:click="dispatch('openEditPrices', [{{ $reservation->id }}])"
+                class="mt-2 text-xs text-blue-600 hover:text-blue-800 underline font-medium flex items-center space-x-1">
+            <i class="fas fa-edit"></i>
+            <span>Editar precios</span>
+        </button>
     </div>
 @else
     {{-- CASO EDGE: Stay activo pero sin reserva asociada (inconsistencia de datos) --}}

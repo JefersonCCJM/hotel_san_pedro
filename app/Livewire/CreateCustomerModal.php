@@ -366,6 +366,8 @@ class CreateCustomerModal extends Component
                 'address' => $this->formData['address'] ?? null,
                 'is_active' => true,
                 'requires_electronic_invoice' => $requiresElectronicInvoice,
+                'identification_number' => $this->formData['identification'] ?? null,
+                'identification_type_id' => $this->formData['identification_document_id'] ?? null,
             ]);
 
             $municipalityId = $requiresElectronicInvoice

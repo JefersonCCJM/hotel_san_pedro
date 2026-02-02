@@ -179,7 +179,7 @@
                                             $deposit = is_array($deposit) ? $deposit : (array) $deposit;
                                         @endphp
                                         <tr>
-                                            <td class="px-4 py-3 text-sm text-gray-900">{{ \Carbon\Carbon::parse($deposit['created_at'])->format('d/m/Y H:i') }}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-900">{{ \Carbon\Carbon::parse($deposit['created_at'] ?? now())->format('d/m/Y H:i') }}</td>
                                             <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">${{ number_format($deposit['amount'] ?? 0, 0, ',', '.') }}</td>
                                             <td class="px-4 py-3 text-center">
                                                 <span class="px-2 py-1 text-xs font-bold rounded-full {{ $deposit['payment_method'] === 'efectivo' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800' }}">

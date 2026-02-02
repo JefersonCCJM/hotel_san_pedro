@@ -36,7 +36,6 @@ function openCreateReservationModal() {
     const modal = document.getElementById('create-reservation-modal');
     if (modal) {
         modal.classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
     }
 }
 
@@ -44,7 +43,6 @@ function closeCreateReservationModal() {
     const modal = document.getElementById('create-reservation-modal');
     if (modal) {
         modal.classList.add('hidden');
-        document.body.style.overflow = '';
     }
 }
 
@@ -58,20 +56,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-
-    // Cerrar modal con tecla ESC
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            const modal = document.getElementById('create-reservation-modal');
-            if (modal && !modal.classList.contains('hidden')) {
-                closeCreateReservationModal();
-            }
-        }
-    });
 });
 
-// Escuchar evento de Livewire para cerrar modal después de crear reserva
-window.addEventListener('reservation-created', function() {
-    closeCreateReservationModal();
-});
 </script>

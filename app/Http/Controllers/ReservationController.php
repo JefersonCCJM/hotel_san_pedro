@@ -18,6 +18,7 @@ use App\Services\ReservationReportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Database\Eloquent\Collection;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -51,9 +52,9 @@ class ReservationController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
+    public function index(Request $request, $date = null)
     {
-        Carbon::setLocale('es');
+        $date = $date ? Carbon::parse($date) : Carbon::today();
         $view = $request->get('view', 'calendar');
         $dateStr = $request->get('month', now()->format('Y-m'));
         $date = Carbon::createFromFormat('Y-m', $dateStr);
@@ -72,14 +73,16 @@ class ReservationController extends Controller
         $hasPastDates = $startOfMonth->lt($today);
         
         // Load snapshots for past dates (immutable historical data)
+        // ✅ CORRECCIÓN CRÍTICA: Cargar TODAS reservationRooms y stays
         $roomsQuery = Room::with([
-            'reservations' => function ($query) use ($startOfMonth, $endOfMonth) {
-                $query->where(function ($q) use ($startOfMonth, $endOfMonth) {
-                    $q->where('check_in_date', '<=', $endOfMonth)
-                        ->where('check_out_date', '>=', $startOfMonth);
-                });
+            'reservationRooms' => function ($query) {
+                // 🔥 Cargar TODAS las reservationRooms con sus relaciones
+                $query->with(['reservation.customer']);
             },
-            'reservations.customer',
+            'stays' => function ($query) {
+                // 🔥 Cargar TODOS los stays con sus relaciones (no solo activos)
+                $query->with(['reservation.customer']);
+            },
         ]);
         
         // Load daily statuses for past dates if viewing past months
@@ -108,7 +111,7 @@ class ReservationController extends Controller
                 ->orderBy('name')
                 ->get();
 
-            $roomsForModal = Room::where('status', '!=', \App\Enums\RoomStatus::MANTENIMIENTO)->get();
+            $roomsForModal = Room::active()->get();
             $roomsData = $this->prepareRoomsData($roomsForModal);
             $dianCatalogs = $this->getDianCatalogs();
 
@@ -203,7 +206,7 @@ class ReservationController extends Controller
                 ->get();
 
             // Fetch rooms with error handling
-            $rooms = Room::where('status', '!=', \App\Enums\RoomStatus::MANTENIMIENTO)->get();
+            $rooms = Room::active()->get();
 
             // Prepare rooms data for frontend (always returns array)
             $roomsData = $this->prepareRoomsData($rooms);
@@ -301,25 +304,32 @@ class ReservationController extends Controller
     public function store(StoreReservationRequest $request)
     {
         try {
-            // Log the incoming request data for debugging
-            \Log::info('Reservation store request', [
+            // 🔥 DEBUG: Log the incoming request data for debugging
+            \Log::error('=== INICIO CREACIÓN RESERVA ===');
+            \Log::error('Reservation store request', [
                 'all_data' => $request->all(),
-                'customer_id' => $request->customer_id,
+                'client_id' => $request->customerId,
                 'room_id' => $request->room_id,
                 'room_ids' => $request->room_ids,
                 'total_amount' => $request->total_amount,
                 'deposit' => $request->deposit,
                 'guests_count' => $request->guests_count,
+                'check_in_date' => $request->check_in_date,
+                'check_out_date' => $request->check_out_date,
             ]);
 
             $data = $request->validated();
+            \Log::error('Datos validados:', $data);
 
             // Determine if using multiple rooms or single room (backward compatibility)
             $roomIds = $request->has('room_ids') && is_array($request->room_ids)
                 ? $request->room_ids
                 : ($request->room_id ? [$request->room_id] : []);
 
+            \Log::error('Room IDs determinados:', $roomIds);
+
             if (empty($roomIds)) {
+                \Log::error('ERROR: No hay habitaciones seleccionadas');
                 return back()->withInput()->withErrors(['room_id' => 'Debe seleccionar al menos una habitación.']);
             }
 
@@ -327,35 +337,46 @@ class ReservationController extends Controller
             $checkInDate = Carbon::parse($request->check_in_date);
             $checkOutDate = Carbon::parse($request->check_out_date);
 
+            \Log::error('Fechas procesadas:', [
+                'check_in' => $checkInDate->format('Y-m-d H:i'),
+                'check_out' => $checkOutDate->format('Y-m-d H:i'),
+                'is_today_checkin' => $checkInDate->isToday(),
+            ]);
+
             $dateValidation = $this->validateDates($checkInDate, $checkOutDate);
             if (!$dateValidation['valid']) {
+                \Log::error('ERROR: Validación de fechas falló:', $dateValidation['errors']);
                 return back()->withInput()->withErrors($dateValidation['errors']);
             }
 
-            // Validate availability for all rooms
-            $availabilityErrors = $this->validateRoomsAvailability($roomIds, $checkInDate, $checkOutDate);
-            if (!empty($availabilityErrors)) {
-                return back()->withInput()->withErrors($availabilityErrors);
-            }
+            \Log::error('Validación de fechas OK');
 
+            // 🔥 MVP: Validación de disponibilidad pospuesta para Fase 2
+            // Validate availability for all rooms
+            // $availabilityErrors = $this->validateRoomsAvailability($roomIds, $checkInDate, $checkOutDate);
+            // if (!empty($availabilityErrors)) {
+            //     return back()->withInput()->withErrors($availabilityErrors);
+            // }
+
+            // 🔥 MVP: Validación de asignación de huéspedes pospuesta para Fase 2
             // Validate guest assignment
-            $roomGuests = $request->room_guests ?? [];
+            // $roomGuests = $request->room_guests ?? [];
 
             // Normalize roomGuests keys to integers (form sends them as strings)
-            $normalizedRoomGuests = [];
-            foreach ($roomGuests as $roomId => $assignedGuestIds) {
-                $roomIdInt = is_numeric($roomId) ? (int) $roomId : 0;
-                if ($roomIdInt > 0) {
-                    $normalizedRoomGuests[$roomIdInt] = $assignedGuestIds;
-                }
-            }
+            // $normalizedRoomGuests = [];
+            // foreach ($roomGuests as $roomId => $assignedGuestIds) {
+            //     $roomIdInt = is_numeric($roomId) ? (int) $roomId : 0;
+            //     if ($roomIdInt > 0) {
+            //         $normalizedRoomGuests[$roomIdInt] = $assignedGuestIds;
+            //     }
+            // }
 
-            $rooms = Room::whereIn('id', $roomIds)->get()->keyBy('id');
+            // $rooms = Room::whereIn('id', $roomIds)->get()->keyBy('id');
 
-            $guestValidationErrors = $this->validateGuestAssignment($normalizedRoomGuests, $rooms);
-            if (!empty($guestValidationErrors)) {
-                return back()->withInput()->withErrors($guestValidationErrors);
-            }
+            // $guestValidationErrors = $this->validateGuestAssignment($normalizedRoomGuests, $rooms);
+            // if (!empty($guestValidationErrors)) {
+            //     return back()->withInput()->withErrors($guestValidationErrors);
+            // }
 
             // Remove payment_method from data if not provided (it's optional)
             if (!isset($data['payment_method']) || empty($data['payment_method'])) {
@@ -365,53 +386,111 @@ class ReservationController extends Controller
             // For backward compatibility, use first room_id for the room_id field
             $data['room_id'] = $roomIds[0];
 
-            $reservation = Reservation::create($data);
+            \Log::error('Datos finales para crear reserva:', $data);
 
+            $reservation = Reservation::create($data);
+            
+            \Log::error('✅ RESERVA CREADA - ID: ' . $reservation->id);
+            \Log::error('Datos de reserva creada:', [
+                'id' => $reservation->id,
+                'client_id' => $reservation->client_id,
+                'room_id' => $reservation->room_id,
+                'total_amount' => $reservation->total_amount,
+                'deposit' => $reservation->deposit,
+            ]);
+
+            // 🔥 MVP: Asignación de huéspedes pospuesta para Fase 2
             // Attach all rooms to reservation via pivot table
             foreach ($roomIds as $roomId) {
+                \Log::error("Creando ReservationRoom para habitación {$roomId}");
+                
+                // ✅ CORRECCIÓN CRÍTICA: Guardar fechas en reservation_rooms
                 $reservationRoom = ReservationRoom::create([
                     'reservation_id' => $reservation->id,
                     'room_id' => $roomId,
+                    'check_in_date' => $checkInDate->toDateString(),
+                    'check_out_date' => $checkOutDate->toDateString(),
+                    'check_in_time' => $request->check_in_time ?? null,
+                    'check_out_time' => $request->check_out_time ?? null,
+                    'nights' => max(1, $checkInDate->diffInDays($checkOutDate)),
+                    'price_per_night' => 0, // 🔥 MVP: Valor temporal para evitar NULL
+                    'subtotal' => 0, // 🔥 MVP: Valor temporal para evitar NULL
                 ]);
 
+                \Log::error("✅ ReservationRoom creado - ID: {$reservationRoom->id}");
+                \Log::error("Datos del ReservationRoom:", [
+                    'id' => $reservationRoom->id,
+                    'reservation_id' => $reservationRoom->reservation_id,
+                    'room_id' => $reservationRoom->room_id,
+                    'check_in_date' => $reservationRoom->check_in_date,
+                    'check_out_date' => $reservationRoom->check_out_date,
+                    'check_in_time' => $reservationRoom->check_in_time,
+                    'nights' => $reservationRoom->nights,
+                ]);
+
+                // 🔥 MVP: Asignación de huéspedes a habitación específica pospuesta para Fase 2
                 // Assign guests to this specific room if provided (use normalized array)
-                $roomIdInt = is_numeric($roomId) ? (int) $roomId : 0;
-                $this->assignGuestsToRoom($reservationRoom, $normalizedRoomGuests[$roomIdInt] ?? []);
+                // $roomIdInt = is_numeric($roomId) ? (int) $roomId : 0;
+                // $this->assignGuestsToRoom($reservationRoom, $normalizedRoomGuests[$roomIdInt] ?? []);
             }
 
-            // Backward compatibility: Assign guests to reservation if using old format
-            if ($request->has('guest_ids') && is_array($request->guest_ids) && !$request->has('room_guests')) {
-                $this->assignGuestsToReservationLegacy($reservation, $request->guest_ids);
-            }
-
+            // 🔥 MVP: NO crear Stay automáticamente - solo al check-in real
             // 🔥 AJUSTE CRÍTICO 1 y 2: Crear Stay y StayNight si check-in es HOY
-            if ($checkInDate->isToday()) {
-                foreach ($roomIds as $roomId) {
-                    // Crear Stay activa (check-in inmediato)
-                    $stay = \App\Models\Stay::create([
-                        'reservation_id' => $reservation->id,
-                        'room_id' => $roomId,
-                        'check_in_at' => now(), // Check-in INMEDIATO (timestamp)
-                        'check_out_at' => null, // Se completará al checkout
-                        'status' => 'active', // Estados: active, pending_checkout, finished
-                    ]);
+            // if ($checkInDate->isToday()) {
+            //     \Log::error('🔥 Check-in es HOY - Creando Stay activa');
+            //     foreach ($roomIds as $roomId) {
+            //         \Log::error("Creando Stay para habitación {$roomId}");
+                    
+            //         // Crear Stay activa (check-in inmediato)
+            //         $stay = \App\Models\Stay::create([
+            //             'reservation_id' => $reservation->id,
+            //             'room_id' => $roomId,
+            //             'check_in_at' => now(), // Check-in INMEDIATO (timestamp)
+            //             'check_out_at' => null, // Se completará al checkout
+            //             'status' => 'active', // Estados: active, pending_checkout, finished
+            //         ]);
 
-                    // 🔥 Generar la primera noche (StayNight)
-                    $this->ensureNightForDate($stay, $checkInDate);
+            //         \Log::error("✅ Stay creado - ID: {$stay->id}");
+            //         \Log::error("Datos del Stay:", [
+            //             'id' => $stay->id,
+            //             'reservation_id' => $stay->reservation_id,
+            //             'room_id' => $stay->room_id,
+            //             'check_in_at' => $stay->check_in_at?->format('Y-m-d H:i:s'),
+            //             'check_out_at' => $stay->check_out_at,
+            //             'status' => $stay->status,
+            //         ]);
 
-                    // 🔥 AJUSTE CRÍTICO 3: Estado de limpieza pendiente_aseo
-                    // Poner last_cleaned_at = null para que quede en estado pendiente_aseo
-                    Room::where('id', $roomId)->update([
-                        'last_cleaned_at' => null, // Pendiente por aseo
-                    ]);
-                }
-            }
+            //         // 🔥 Generar la primera noche (StayNight)
+            //         $this->ensureNightForDate($stay, $checkInDate);
+
+            //         // 🔥 AJUSTE CRÍTICO 3: Estado de limpieza pendiente_aseo
+            //         // Poner last_cleaned_at = null para que quede en estado pendiente_aseo
+            //         Room::where('id', $roomId)->update([
+            //             'last_cleaned_at' => null, // Pendiente por aseo
+            //         ]);
+                    
+            //         \Log::error("Habitación {$roomId} marcada como pendiente de limpieza");
+            //     }
+            // } else {
+            //     \Log::error('Check-in NO es hoy - no se crea Stay activa');
+            // }
+
+            \Log::error('🔥 MVP: Stay NO creado - la reserva solo existe en tabla reservations');
+            \Log::error('🔥 El Stay se creará solo cuando el huésped haga check-in real');
 
             // Audit log for reservation creation
             $this->auditService->logReservationCreated($reservation, $request, $roomIds);
 
+            \Log::error('🔥 Generando room_daily_statuses_data para el calendario');
+            // 🔥 CRÍTICO: Generar room_daily_statuses_data para el calendario
+            $roomDailyStatusService = app(\App\Services\RoomDailyStatusService::class);
+            $roomDailyStatusService->generateForReservation($reservation);
+
             // Dispatch Livewire event for stats update
             $this->safeLivewireDispatch('reservation-created');
+
+            \Log::error('=== FIN CREACIÓN RESERVA EXITOSA ===');
+            \Log::error("Redirigiendo a calendario del mes: {$checkInDate->format('Y-m')}");
 
             // Redirect to reservations index with calendar view for the check-in month
             $month = $checkInDate->format('Y-m');
@@ -458,7 +537,7 @@ class ReservationController extends Controller
                 ->orderBy('name')
                 ->get();
 
-            $rooms = Room::where('status', '!=', \App\Enums\RoomStatus::MANTENIMIENTO)->get();
+            $rooms = Room::active()->get();
 
             $roomsData = $this->prepareRoomsData($rooms);
 
@@ -889,7 +968,7 @@ class ReservationController extends Controller
             RoomReleaseHistory::create([
                 'room_id' => $room->id,
                 'reservation_id' => $reservation->id,
-                'customer_id' => $reservation->customer_id,
+                'client_id' => $reservation->client_id,
                 'released_by' => Auth::id(),
                 'room_number' => $room->room_number,
                 'total_amount' => $totalAmount,
@@ -1148,7 +1227,6 @@ class ReservationController extends Controller
             }
 
             // Calculate additional person price
-            // If price_additional_person is set, use it; otherwise calculate from price_2_persons - price_1_person
             $defaultPrice = (float) ($room->price_per_night ?? 0);
             $price1Person = (float) ($room->price_1_person ?? $defaultPrice);
             $price2Persons = (float) ($room->price_2_persons ?? $defaultPrice);
@@ -1159,26 +1237,19 @@ class ReservationController extends Controller
                 $priceAdditionalPerson = $price2Persons - $price1Person;
             }
 
-            // Ensure status is always a string value
-            $statusValue = $room->status instanceof \App\Enums\RoomStatus
-                ? $room->status->value
-                : (string) ($room->status ?? 'libre');
-
             return [
                 'id' => (int) $room->id,
                 'number' => (string) ($room->room_number ?? ''),
                 'beds' => (int) ($room->beds_count ?? 0),
+                'max_capacity' => (int) ($room->max_capacity ?? 2),
                 'price' => $defaultPrice, // Keep for backward compatibility
                 'occupancyPrices' => $occupancyPrices, // Prices by number of guests
                 'price1Person' => $price1Person, // Base price for 1 person
                 'price2Persons' => $price2Persons, // Price for 2 persons (for calculation fallback)
                 'priceAdditionalPerson' => $priceAdditionalPerson, // Additional price per person
-                'capacity' => (int) ($room->max_capacity ?? 2),
-                'status' => $statusValue,
             ];
         })->toArray();
     }
-
     /**
      * Get DIAN catalogs for customer creation modal.
      * Similar to CustomerController::getTaxCatalogs() pattern.
@@ -1275,14 +1346,39 @@ class ReservationController extends Controller
             return false; // ❌ Habitación ocupada por stay activa
         }
 
-        // Check in main reservations table (single room reservations)
-        $existsInReservations = Reservation::where('room_id', $roomId)
+        // Check in main reservations table (single room reservations) - CORREGIDO
+        // 🔥 CORRECCIÓN CRÍTICA: Para hoy, evaluar si hay stay activa ANTES de verificar hora
+        $checkInDate = \Carbon\Carbon::parse($checkIn);
+        if ($checkInDate->isToday()) {
+            // 🎯 PRIMERO: Verificar si hay stay activa
+            $hasActiveStay = \App\Models\Stay::where('room_id', $roomId)
+                ->where('status', 'active')
+                ->where(function($query) use ($checkInDate) {
+                    $query->whereNull('check_out_at')
+                          ->orWhere('check_out_at', '>=', $checkInDate->copy()->startOfDay());
+                })
+                ->exists();
+            
+            if ($hasActiveStay) {
+                // 🏠 Si hay stay activa, esperar hasta hora de check-out
+                if (!\App\Support\HotelTime::isAfterCheckOutTime()) {
+                    return false;
+                }
+                // Si es después de check-out, continuar con verificaciones normales
+            }
+            // 🏠 Si NO hay stay activa, permitir reserva inmediata (continuar normal)
+        }
+        
+        $existsInReservations = \App\Models\ReservationRoom::where('room_id', $roomId)
             ->where(function ($query) use ($checkIn, $checkOut) {
                 $query->where('check_in_date', '<', $checkOut)
                       ->where('check_out_date', '>', $checkIn);
             })
-            ->when($excludeReservationId, function ($q) use ($excludeReservationId) {
-                $q->where('id', '!=', $excludeReservationId);
+            ->whereHas('reservation', function ($q) use ($excludeReservationId) {
+                $q->whereNull('deleted_at')
+                  ->when($excludeReservationId, function ($subQ) use ($excludeReservationId) {
+                      $subQ->where('id', '!=', $excludeReservationId);
+                  });
             })
             ->exists();
 
@@ -1290,21 +1386,28 @@ class ReservationController extends Controller
             return false;
         }
 
-        // Check in reservation_rooms table (multi-room reservations)
-        $existsInPivot = DB::table('reservation_rooms')
-            ->join('reservations', 'reservation_rooms.reservation_id', '=', 'reservations.id')
-            ->where('reservation_rooms.room_id', $roomId)
-            ->whereNull('reservations.deleted_at')
-            ->where(function ($query) use ($checkIn, $checkOut) {
-                $query->where('reservations.check_in_date', '<', $checkOut)
-                      ->where('reservations.check_out_date', '>', $checkIn);
-            })
-            ->when($excludeReservationId, function ($q) use ($excludeReservationId) {
-                $q->where('reservations.id', '!=', $excludeReservationId);
-            })
-            ->exists();
+        // Check in reservation_rooms table (multi-room reservations) - CORREGIDO
+        // Para hoy, ya fue manejado arriba, solo verificar fechas futuras
+        if (!$checkInDate->isToday()) {
+            $existsInPivot = DB::table('reservation_rooms')
+                ->join('reservations', 'reservation_rooms.reservation_id', '=', 'reservations.id')
+                ->where('reservation_rooms.room_id', $roomId)
+                ->whereNull('reservations.deleted_at')
+                ->where(function ($query) use ($checkIn, $checkOut) {
+                    $query->where('reservation_rooms.check_in_date', '<', $checkOut)
+                          ->where('reservation_rooms.check_out_date', '>', $checkIn);
+                })
+                ->when($excludeReservationId, function ($q) use ($excludeReservationId) {
+                    $q->where('reservations.id', '!=', $excludeReservationId);
+                })
+                ->exists();
 
-        return !$existsInPivot;
+            if ($existsInPivot) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -1628,6 +1731,7 @@ class ReservationController extends Controller
 
     /**
      * Assign guests to reservation (legacy format for single-room reservations).
+     * NOTE: This method works with the actual database structure where guests are assigned to reservation_rooms.
      */
     private function assignGuestsToReservationLegacy(Reservation $reservation, array $guestIds): void
     {
@@ -1651,12 +1755,79 @@ class ReservationController extends Controller
         }
 
         try {
-            $reservation->guests()->attach($validGuestIds);
+            // Get the first reservation room (for single-room reservations)
+            $reservationRoom = $reservation->reservationRooms()->first();
+            
+            if (!$reservationRoom) {
+                \Log::warning('No reservation room found for guest assignment', [
+                    'reservation_id' => $reservation->id,
+                    'guest_ids' => $validGuestIds,
+                ]);
+                return;
+            }
+
+            // Use transaction to ensure data integrity
+            DB::transaction(function () use ($validGuestIds, $reservationRoom, $reservation) {
+                foreach ($validGuestIds as $index => $guestId) {
+                    // Check if guest is already assigned to this reservation room
+                    $existingReservationGuestId = DB::table('reservation_guests')
+                        ->where('guest_id', $guestId)
+                        ->whereExists(function ($query) use ($reservationRoom) {
+                            $query->select(DB::raw(1))
+                                ->from('reservation_room_guests')
+                                ->whereColumn('reservation_room_guests.reservation_guest_id', 'reservation_guests.id')
+                                ->where('reservation_room_guests.reservation_room_id', $reservationRoom->id);
+                        })
+                        ->value('id');
+
+                    if ($existingReservationGuestId) {
+                        // Guest already assigned, skip to next
+                        \Log::info('Guest already assigned to reservation room, skipping', [
+                            'guest_id' => $guestId,
+                            'reservation_room_id' => $reservationRoom->id,
+                            'existing_reservation_guest_id' => $existingReservationGuestId,
+                        ]);
+                        continue;
+                    }
+
+                    // Create reservation_guest entry
+                    $reservationGuestId = DB::table('reservation_guests')->insertGetId([
+                        'guest_id' => $guestId,
+                        'is_primary' => $index === 0, // First guest is primary
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+
+                    // Link to reservation room
+                    $reservationRoomGuestId = DB::table('reservation_room_guests')->insertGetId([
+                        'reservation_room_id' => $reservationRoom->id,
+                        'reservation_guest_id' => $reservationGuestId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+
+                    \Log::info('Guest assigned to reservation room', [
+                        'reservation_id' => $reservation->id,
+                        'reservation_room_id' => $reservationRoom->id,
+                        'reservation_guest_id' => $reservationGuestId,
+                        'reservation_room_guest_id' => $reservationRoomGuestId,
+                        'guest_id' => $guestId,
+                        'is_primary' => $index === 0,
+                    ]);
+                }
+            });
+
+            \Log::info('Guests assigned to reservation successfully', [
+                'reservation_id' => $reservation->id,
+                'reservation_room_id' => $reservationRoom->id,
+                'guest_ids' => $validGuestIds,
+            ]);
         } catch (\Exception $e) {
-            \Log::error('Error attaching guests to reservation: ' . $e->getMessage(), [
+            \Log::error('Error assigning guests to reservation: ' . $e->getMessage(), [
                 'reservation_id' => $reservation->id,
                 'guest_ids' => $validGuestIds,
-                'exception' => $e,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }

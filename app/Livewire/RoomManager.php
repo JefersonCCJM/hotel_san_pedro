@@ -15,6 +15,7 @@ use App\Models\Payment;
 use App\Models\RoomReleaseHistory;
 use App\Models\Stay;
 use App\Enums\RoomDisplayStatus;
+use App\Support\HotelTime;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -43,12 +44,16 @@ class RoomManager extends Component
     public bool $assignGuestsModal = false;
     public bool $roomDailyHistoryModal = false;
     public bool $isReleasingRoom = false;
+    public bool $editPricesModal = false;
+    public bool $allGuestsModal = false;
 
     // Datos de modales
     public ?array $detailData = null;
     public ?array $rentForm = null;
     public ?array $assignGuestsForm = null;
     public ?array $roomDailyHistoryData = null;
+    public ?array $editPricesForm = null;
+    public ?array $allGuestsForm = null;
     
     // Computed properties para UX (no persistidos)
     public function getBalanceDueProperty()
@@ -731,7 +736,9 @@ class RoomManager extends Component
             }
 
             // Verificar que la fecha de checkout sea hoy (estado pending_checkout)
-            $checkoutDate = Carbon::parse($reservationRoom->check_out_date)->startOfDay();
+            $checkoutDate = Carbon::parse($reservationRoom->check_out_date);
+            $today = HotelTime::endOfOperatingDay($today);
+            
             if (!$checkoutDate->equalTo($today)) {
                 $this->dispatch('notify', [
                     'type' => 'warning',
@@ -764,8 +771,9 @@ class RoomManager extends Component
 
             // 🔐 REGLA HOTELERA: Continuar estadía = habitación queda pendiente por aseo
             // Toda extensión de estadía ensucia la habitación aunque el huésped continúe
+            // Esto permite que el personal de limpieza inspeccione y prepare la habitación
             $room->update([
-                'last_cleaned_at' => null
+                'last_cleaned_at' => null // Marcar como pendiente de limpieza
             ]);
 
             // Refrescar vista
@@ -889,10 +897,13 @@ class RoomManager extends Component
             // Solo generar noche si la fecha nueva es HOY
             if ($this->date->equalTo($today)) {
                 // Obtener todas las habitaciones con stay activa para hoy
-                $activeStays = \App\Models\Stay::whereDate('check_in_at', '<=', $today->endOfDay())
-                    ->where(function($q) use ($today) {
+                $endOfToday = HotelTime::endOfOperatingDay($today);
+                $startOfToday = $today->copy()->startOfDay();
+                
+                $activeStays = \App\Models\Stay::where('check_in_at', '<=', $endOfToday)
+                    ->where(function($q) use ($startOfToday) {
                         $q->whereNull('check_out_at')
-                          ->orWhereDate('check_out_at', '>=', $today->startOfDay());
+                          ->where('check_out_at', '>=', $startOfToday);
                     })
                     ->where('status', 'active')
                     ->with(['reservation.reservationRooms', 'room'])
@@ -902,7 +913,7 @@ class RoomManager extends Component
                     // 🔐 PROTECCIÓN CRÍTICA: NO generar noche si HOY es checkout o después
                     $reservationRoom = $stay->reservation->reservationRooms->first();
                     if ($reservationRoom && $reservationRoom->check_out_date) {
-                        $checkout = Carbon::parse($reservationRoom->check_out_date)->startOfDay();
+                        $checkout = Carbon::parse($reservationRoom->check_out_date);
                         
                         // Si HOY es >= checkout, NO generar noche (la noche del checkout NO se cobra)
                         if ($today->gte($checkout)) {
@@ -991,6 +1002,52 @@ class RoomManager extends Component
 
         if ($accessInfo['isHistoric']) {
             $this->dispatch('notify', type: 'warning', message: 'Información histórica: datos en solo lectura. No se permite modificar.');
+        }
+
+        // 🔥 CRITICAL FIX: Check if room is actually occupied on this date
+        // Don't show details if the room has been released (stay is finished)
+        // We need to check for ACTIVE stays, not just any stay
+        $stay = $availabilityService->getStayForDate($this->date);
+        
+        // Debug logging
+        \Log::info('openRoomDetail - Debug', [
+            'room_id' => $roomId,
+            'date' => $this->date->toDateString(),
+            'stay_found' => $stay ? true : false,
+            'stay_status' => $stay ? $stay->status : 'null',
+            'stay_id' => $stay ? $stay->id : null,
+        ]);
+        
+        $isActuallyOccupied = $stay && in_array($stay->status, ['active', 'pending_checkout']);
+        
+        if (!$isActuallyOccupied) {
+            // Room is not occupied (stay is finished or doesn't exist), show empty state
+            \Log::info('openRoomDetail - Room not occupied, showing empty state', [
+                'room_id' => $roomId,
+                'reason' => $stay ? "Stay status: {$stay->status}" : "No stay found"
+            ]);
+            
+            $this->detailData = [
+                'room' => [
+                    'id' => $room->id,
+                    'room_number' => $room->room_number,
+                ],
+                'reservation' => null,
+                'sales' => [],
+                'total_hospedaje' => 0,
+                'abono_realizado' => 0,
+                'sales_total' => 0,
+                'total_debt' => 0,
+                'stay_history' => [],
+                'deposit_history' => [],
+                'refunds_history' => [],
+                'total_refunds' => 0,
+                'is_past_date' => $this->date->lt(now()->startOfDay()),
+                'isHistoric' => $accessInfo['isHistoric'],
+                'canModify' => $accessInfo['canModify'],
+            ];
+            $this->roomDetailModal = true;
+            return;
         }
 
         $activeReservation = $room->getActiveReservation($this->date);
@@ -1172,7 +1229,7 @@ class RoomManager extends Component
                 ];
             })->values()->toArray(),
             'total_refunds' => $refundsTotal ?? 0, // Total de devoluciones para mostrar en el header del historial
-            'is_past_date' => $this->date->lt(now()->startOfDay()),
+            'is_past_date' => $this->date->lt(now()->startOfDay()), // Usar HotelTime sería mejor pero mantenemos consistencia con now() para validación de fecha actual
             'isHistoric' => $accessInfo['isHistoric'],
             'canModify' => $accessInfo['canModify'],
         ];
@@ -1312,6 +1369,295 @@ class RoomManager extends Component
     public function handleRegisterPayment($reservationId, $amount, $paymentMethod, $bankName = null, $reference = null, $nightDate = null)
     {
         $this->registerPayment($reservationId, $amount, $paymentMethod, $bankName, $reference, null, $nightDate);
+    }
+
+    #[On('openAssignGuests')]
+    public function handleOpenAssignGuests(...$params)
+    {
+        $roomId = $params[0] ?? null;
+        if ($roomId) {
+            $this->openAssignGuests($roomId);
+        }
+    }
+
+    #[On('openEditPrices')]
+    public function handleOpenEditPrices(...$params)
+    {
+        $reservationId = $params[0] ?? null;
+        if ($reservationId) {
+            $this->openEditPrices($reservationId);
+        }
+    }
+
+    #[On('showAllGuests')]
+    public function handleShowAllGuests(...$params)
+    {
+        $reservationId = $params[0] ?? null;
+        $roomId = $params[1] ?? null;
+        if ($reservationId && $roomId) {
+            $this->showAllGuests($reservationId, $roomId);
+        }
+    }
+
+    /**
+     * Cerrar modal de edición de precios
+     */
+    public function cancelEditPrices()
+    {
+        $this->editPricesModal = false;
+        $this->editPricesForm = null;
+    }
+
+    /**
+     * Mostrar todos los huéspedes de una habitación
+     */
+    public function showAllGuests($reservationId, $roomId)
+    {
+        try {
+            \Log::error('🔥 showAllGuests llamado con reservationId: ' . $reservationId . ', roomId: ' . $roomId);
+            
+            $reservation = \App\Models\Reservation::with(['customer', 'reservationRooms'])->findOrFail($reservationId);
+            $room = \App\Models\Room::findOrFail($roomId);
+            
+            \Log::error('🏠 Habitación encontrada:', [
+                'room_id' => $room->id,
+                'room_number' => $room->room_number,
+                'max_capacity' => $room->max_capacity,
+                'beds_count' => $room->beds_count
+            ]);
+            
+            // Obtener el reservation room específico para esta habitación
+            $reservationRoom = $reservation->reservationRooms->firstWhere('room_id', $roomId);
+            
+            // Preparar datos de todos los huéspedes
+            $allGuests = [];
+            
+            // Agregar huésped principal si existe
+            if ($reservation->customer) {
+                $allGuests[] = [
+                    'id' => $reservation->customer->id,
+                    'name' => $reservation->customer->name,
+                    'identification' => $reservation->customer->taxProfile->identification ?? 'Sin identificación',
+                    'phone' => $reservation->customer->phone ?? 'Sin teléfono',
+                    'type' => 'Principal',
+                    'is_primary' => true
+                ];
+            }
+            
+            // Agregar huéspedes adicionales usando el método getGuests()
+            if ($reservationRoom) {
+                try {
+                    $additionalGuests = $reservationRoom->getGuests();
+                    \Log::error('👥 Huéspedes adicionales encontrados: ' . $additionalGuests->count());
+                    
+                    foreach ($additionalGuests as $guest) {
+                        $allGuests[] = [
+                            'id' => $guest->id,
+                            'name' => $guest->name,
+                            'identification' => $guest->taxProfile->identification ?? 'Sin identificación',
+                            'phone' => $guest->phone ?? 'Sin teléfono',
+                            'type' => 'Adicional',
+                            'is_primary' => false
+                        ];
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning('Error cargando huéspedes adicionales:', [
+                        'reservation_room_id' => $reservationRoom->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+            
+            \Log::error('👥 Huéspedes encontrados:', $allGuests);
+            
+            // Preparar datos para el modal
+            $this->allGuestsForm = [
+                'reservation_id' => $reservationId,
+                'room_id' => $roomId,
+                'max_capacity' => $room->max_capacity,
+                'guests' => $allGuests
+            ];
+            
+            \Log::error('💾 allGuestsForm con capacidad:', [
+                'max_capacity' => $this->allGuestsForm['max_capacity'],
+                'guests_count' => count($this->allGuestsForm['guests'])
+            ]);
+            
+            $this->allGuestsModal = true;
+            
+        } catch (\Exception $e) {
+            \Log::error('❌ Error en showAllGuests: ' . $e->getMessage(), [
+                'reservation_id' => $reservationId,
+                'room_id' => $roomId,
+                'trace' => $e->getTraceAsString()
+            ]);
+            $this->dispatch('notify', type: 'error', message: 'Error al cargar los huéspedes: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Agregar un nuevo huésped a la habitación
+     */
+    public function addGuestToRoom($data)
+    {
+        try {
+            \Log::error('🔥 addGuestToRoom llamado con datos:', $data);
+            
+            $reservationId = $data['reservation_id'];
+            $roomId = $data['room_id'];
+            $guestName = $data['name'];
+            $guestIdentification = $data['identification'] ?? null;
+            $guestPhone = $data['phone'] ?? null;
+            
+            // Validar que no se exceda la capacidad
+            $room = \App\Models\Room::findOrFail($roomId);
+            $reservation = \App\Models\Reservation::with(['customer', 'reservationRooms'])->findOrFail($reservationId);
+            $reservationRoom = $reservation->reservationRooms->firstWhere('room_id', $roomId);
+            
+            // Contar huéspedes actuales
+            $currentGuestCount = 1; // Huésped principal
+            if ($reservationRoom) {
+                try {
+                    $additionalGuests = $reservationRoom->getGuests();
+                    $currentGuestCount += $additionalGuests->count();
+                } catch (\Exception $e) {
+                    \Log::warning('Error contando huéspedes actuales:', [
+                        'reservation_room_id' => $reservationRoom->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+            
+            if ($currentGuestCount >= $room->max_capacity) {
+                $this->dispatch('notify', type: 'error', message: 'Capacidad máxima de la habitación alcanzada');
+                return;
+            }
+            
+            // Crear nuevo cliente (huésped)
+            $customer = new \App\Models\Customer();
+            $customer->name = $guestName;
+            $customer->phone = $guestPhone;
+            $customer->created_at = now();
+            $customer->updated_at = now();
+            $customer->save();
+            
+            // Crear tax profile si hay identificación
+            if ($guestIdentification) {
+                $taxProfile = new \App\Models\CustomerTaxProfile();
+                $taxProfile->customer_id = $customer->id;
+                $taxProfile->identification = $guestIdentification;
+                $taxProfile->identification_type_id = 1; // ID por defecto
+                $taxProfile->created_at = now();
+                $taxProfile->updated_at = now();
+                $taxProfile->save();
+                
+                $customer->taxProfile()->associate($taxProfile);
+                $customer->save();
+            }
+            
+            // Crear reservation guest
+            $reservationGuest = new \App\Models\ReservationGuest();
+            $reservationGuest->reservation_id = $reservationId;
+            $reservationGuest->guest_id = $customer->id;
+            $reservationGuest->created_at = now();
+            $reservationGuest->updated_at = now();
+            $reservationGuest->save();
+            
+            // Asignar a la habitación
+            if ($reservationRoom) {
+                $reservationRoomGuest = new \App\Models\ReservationRoomGuest();
+                $reservationRoomGuest->reservation_room_id = $reservationRoom->id;
+                $reservationRoomGuest->reservation_guest_id = $reservationGuest->id;
+                $reservationRoomGuest->created_at = now();
+                $reservationRoomGuest->updated_at = now();
+                $reservationRoomGuest->save();
+            }
+            
+            \Log::error('✅ Huésped agregado correctamente:', [
+                'customer_id' => $customer->id,
+                'name' => $customer->name,
+                'reservation_id' => $reservationId,
+                'room_id' => $roomId
+            ]);
+            
+            // Actualizar el modal con los nuevos datos
+            $this->showAllGuests($reservationId, $roomId);
+            
+            $this->dispatch('notify', type: 'success', message: 'Huésped agregado correctamente');
+            
+        } catch (\Exception $e) {
+            \Log::error('❌ Error en addGuestToRoom: ' . $e->getMessage(), [
+                'data' => $data,
+                'trace' => $e->getTraceAsString()
+            ]);
+            $this->dispatch('notify', type: 'error', message: 'Error al agregar huésped: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Guardar cambios en los precios de las noches
+     */
+    public function updatePrices()
+    {
+        try {
+            \Log::error('🔥 updatePrices llamado con datos:', $this->editPricesForm);
+            
+            if (!$this->editPricesForm || !isset($this->editPricesForm['nights'])) {
+                throw new \Exception('No hay datos de precios para actualizar');
+            }
+
+            DB::beginTransaction();
+            
+            $totalAmount = 0;
+            
+            // Actualizar cada noche
+            foreach ($this->editPricesForm['nights'] as $nightData) {
+                $stayNight = \App\Models\StayNight::find($nightData['id']);
+                if ($stayNight) {
+                    $stayNight->price = $nightData['price'];
+                    $stayNight->is_paid = $nightData['is_paid'] ?? false;
+                    $stayNight->updated_at = now();
+                    $stayNight->save();
+                    
+                    $totalAmount += $nightData['price'];
+                    
+                    \Log::error('🌙 Noche actualizada:', [
+                        'id' => $stayNight->id,
+                        'price' => $stayNight->price,
+                        'is_paid' => $stayNight->is_paid
+                    ]);
+                }
+            }
+            
+            // Actualizar el total_amount de la reservation
+            $reservation = \App\Models\Reservation::find($this->editPricesForm['id']);
+            if ($reservation) {
+                $reservation->total_amount = $totalAmount;
+                $reservation->balance_due = $totalAmount - $reservation->payments()->sum('amount');
+                $reservation->save();
+                
+                \Log::error('💰 Reservation actualizada:', [
+                    'id' => $reservation->id,
+                    'total_amount' => $reservation->total_amount,
+                    'balance_due' => $reservation->balance_due
+                ]);
+            }
+            
+            DB::commit();
+            
+            $this->editPricesModal = false;
+            $this->editPricesForm = null;
+            
+            $this->dispatch('notify', type: 'success', message: 'Precios actualizados correctamente');
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('❌ Error en updatePrices: ' . $e->getMessage(), [
+                'editPricesForm' => $this->editPricesForm,
+                'trace' => $e->getTraceAsString()
+            ]);
+            $this->dispatch('notify', type: 'error', message: 'Error al actualizar precios: ' . $e->getMessage());
+        }
     }
 
     public function registerPayment($reservationId, $amount, $paymentMethod, $bankName = null, $reference = null, $notes = null, $nightDate = null)
@@ -1904,6 +2250,8 @@ class RoomManager extends Component
                 'room_number' => $room->room_number,
                 'check_in_date' => $this->date->toDateString(),
                 'check_out_date' => $this->date->copy()->addDay()->toDateString(),
+                'check_in_time' => HotelTime::checkInTime(), // Usar hora global del hotel
+                'check_out_time' => HotelTime::checkOutTime(), // Usar hora global del hotel
                 'client_id' => null,
                 'guests_count' => 1,
                 'max_capacity' => $room->max_capacity,
@@ -2057,8 +2405,8 @@ class RoomManager extends Component
             $this->rentForm['guests_count'] = $guests;
             $validated['guests_count'] = $guests;
 
-            $checkIn = Carbon::parse($validated['check_in_date']);
-            $checkOut = Carbon::parse($validated['check_out_date']);
+            $checkIn = HotelTime::defaultCheckIn(Carbon::parse($validated['check_in_date']));
+            $checkOut = HotelTime::defaultCheckOut(Carbon::parse($validated['check_out_date']));
             $nights = max(1, $checkIn->diffInDays($checkOut));
 
             // ===== CALCULAR TOTAL DEL HOSPEDAJE (SSOT FINANCIERO) =====
@@ -3110,13 +3458,24 @@ class RoomManager extends Component
                 return;
             }
 
-            // Validar que no sea fecha histórica
+            // Validar que no sea fecha histórica - usando lógica de HotelTime
             $today = Carbon::today();
             $selectedDate = $this->date ?? $today;
+            
+            // 🔥 PERMITIR cambios en fecha actual (hoy)
             if ($selectedDate->copy()->startOfDay()->lt($today)) {
                 $this->dispatch('notify', type: 'error', message: 'No se pueden hacer cambios en fechas históricas.');
                 return;
             }
+            
+            // 🔥 DEBUG: Log para verificar qué fecha se está usando
+            \Log::info('updateCleaningStatus', [
+                'room_id' => $roomId,
+                'status' => $status,
+                'selectedDate' => $selectedDate->format('Y-m-d'),
+                'today' => $today->format('Y-m-d'),
+                'isPast' => $selectedDate->copy()->startOfDay()->lt($today)
+            ]);
 
             // Validar que el estado sea válido
             if (!in_array($status, ['limpia', 'pendiente'])) {
@@ -3652,6 +4011,99 @@ class RoomManager extends Component
         }
     }
 
+    /**
+     * Abrir modal para editar precios de una reservation
+     */
+    public function openEditPrices($reservationId)
+    {
+        try {
+            \Log::error('🔥 openEditPrices llamado con reservationId: ' . $reservationId);
+            
+            $reservation = \App\Models\Reservation::with(['stayNights'])->findOrFail($reservationId);
+            
+            \Log::error('📋 Reservation encontrada:', [
+                'id' => $reservation->id,
+                'total_amount' => $reservation->total_amount,
+                'stay_nights_count' => $reservation->stayNights->count()
+            ]);
+            
+            // Preparar datos del formulario
+            $this->editPricesForm = [
+                'id' => $reservation->id,
+                'total_amount' => (float)$reservation->total_amount,
+                'nights' => []
+            ];
+            
+            // Cargar noches existentes
+            $stayNights = $reservation->stayNights;
+            \Log::error('🌙 StayNights cargados: ' . $stayNights->count());
+            
+            // Si no hay stay_nights, intentar crearlos automáticamente
+            if ($stayNights->isEmpty() && $reservation->check_in_date && $reservation->check_out_date) {
+                \Log::error('🔥 Creando stay_nights automáticamente para reservation ' . $reservation->id);
+                
+                $checkIn = \Carbon\Carbon::parse($reservation->check_in_date);
+                $checkOut = \Carbon\Carbon::parse($reservation->check_out_date);
+                $nights = $checkIn->diffInDays($checkOut);
+                
+                for ($i = 0; $i < $nights; $i++) {
+                    $nightDate = $checkIn->copy()->addDays($i);
+                    $nightPrice = $reservation->total_amount / $nights; // Distribuir total_amount entre las noches
+                    
+                    $stayNight = new \App\Models\StayNight();
+                    $stayNight->reservation_id = $reservation->id;
+                    $stayNight->date = $nightDate;
+                    $stayNight->price = $nightPrice;
+                    $stayNight->is_paid = false;
+                    $stayNight->created_at = now();
+                    $stayNight->updated_at = now();
+                    $stayNight->save();
+                    
+                    $this->editPricesForm['nights'][] = [
+                        'id' => $stayNight->id,
+                        'date' => $nightDate->format('Y-m-d'),
+                        'price' => (float)$nightPrice,
+                        'is_paid' => false
+                    ];
+                    
+                    \Log::error('🌙 Noche creada:', [
+                        'id' => $stayNight->id,
+                        'date' => $nightDate->format('Y-m-d'),
+                        'price' => $nightPrice,
+                        'is_paid' => false
+                    ]);
+                }
+            } else {
+                foreach ($stayNights as $night) {
+                    \Log::error('🌙 Noche procesada:', [
+                        'id' => $night->id,
+                        'date' => $night->date,
+                        'price' => $night->price,
+                        'is_paid' => $night->is_paid
+                    ]);
+                    
+                    $this->editPricesForm['nights'][] = [
+                        'id' => $night->id,
+                        'date' => $night->date instanceof \Carbon\Carbon ? $night->date->format('Y-m-d') : $night->date,
+                        'price' => (float)$night->price,
+                        'is_paid' => $night->is_paid
+                    ];
+                }
+            }
+            
+            \Log::error('💾 editPricesForm final:', $this->editPricesForm);
+            
+            $this->editPricesModal = true;
+            
+        } catch (\Exception $e) {
+            \Log::error('❌ Error en openEditPrices: ' . $e->getMessage(), [
+                'reservation_id' => $reservationId,
+                'trace' => $e->getTraceAsString()
+            ]);
+            $this->dispatch('notify', type: 'error', message: 'Error al cargar los datos de la reserva: ' . $e->getMessage());
+        }
+    }
+
     public function render()
     {
         $rooms = $this->getRoomsQuery()->paginate(30);
@@ -3711,14 +4163,14 @@ class RoomManager extends Component
                 // Fechas para calcular noches consumidas
                 // Priorizar stay->check_in_at (timestamp real) sobre reservationRoom->check_in_date (fecha planificada)
                 if ($stay && $stay->check_in_at) {
-                    $checkIn = Carbon::parse($stay->check_in_at)->startOfDay();
+                    $checkIn = Carbon::parse($stay->check_in_at)->startOfDay(); // Mantener startOfDay para cálculo de noches
                 } elseif ($reservationRoom && $reservationRoom->check_in_date) {
-                    $checkIn = Carbon::parse($reservationRoom->check_in_date)->startOfDay();
+                    $checkIn = Carbon::parse($reservationRoom->check_in_date)->startOfDay(); // Mantener startOfDay para cálculo de noches
                 } else {
                     $checkIn = null;
                 }
                 
-                $today = $this->date->copy()->startOfDay();
+                $today = $this->date->copy()->startOfDay(); // Mantener startOfDay para cálculo de noches consumidas
                 
                 // Noches consumidas hasta la fecha vista (inclusive)
                 // REGLA: Si hoy >= check_in, al menos 1 noche está consumida

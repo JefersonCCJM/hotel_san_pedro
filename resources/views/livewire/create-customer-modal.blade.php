@@ -41,24 +41,17 @@
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-2">
-                                Identificación <span class="text-red-500">*</span>
+                                Tipo de Documento <span class="text-red-500">*</span>
                             </label>
-                            <input type="text" 
-                                   wire:model.blur="formData.identification"
-                                   oninput="this.value = this.value.replace(/\D/g, '');"
-                                   maxlength="10"
-                                   class="w-full bg-gray-50 border rounded-lg px-4 py-2.5 text-sm font-bold mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 {{ isset($errors['identification']) ? 'border-red-300 focus:ring-red-500' : 'border-gray-200' }}">
-                            @if(isset($errors['identification']))
-                                <p class="text-[10px] text-red-600 mt-1 flex items-center">
-                                    <i class="fas fa-exclamation-circle mr-1 text-[8px]"></i>
-                                    {{ $errors['identification'] }}
-                                </p>
-                            @endif
-                            @if($identificationMessage)
-                                <p class="text-[10px] mt-1 flex items-center {{ $identificationExists ? 'text-red-600' : 'text-emerald-600' }}">
-                                    <i class="fas {{ $identificationExists ? 'fa-exclamation-circle' : 'fa-check-circle' }} mr-1 text-[8px]"></i>
-                                    {{ $identificationMessage }}
-                                </p>
+                            <select wire:model.live="formData.identification_document_id"
+                                    class="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
+                                <option value="">Seleccione...</option>
+                                @foreach($identificationDocuments as $doc)
+                                    <option value="{{ $doc->id }}">{{ $doc->name }}@if($doc->code) ({{ $doc->code }})@endif</option>
+                                @endforeach
+                            </select>
+                            @if(isset($errors['identification_document_id']))
+                                <p class="text-[10px] text-red-600 mt-1">{{ $errors['identification_document_id'] }}</p>
                             @endif
                         </div>
                         <div>
@@ -79,19 +72,44 @@
                         </div>
                     </div>
 
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-2">
-                            Correo Electrónico
-                        </label>
-                        <input type="email" 
-                               wire:model.blur="formData.email"
-                               class="w-full bg-gray-50 border rounded-lg px-4 py-2.5 text-sm font-bold mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 {{ isset($errors['email']) ? 'border-red-300 focus:ring-red-500' : 'border-gray-200' }}">
-                        @if(isset($errors['email']))
-                            <p class="text-[10px] text-red-600 mt-1 flex items-center">
-                                <i class="fas fa-exclamation-circle mr-1 text-[8px]"></i>
-                                {{ $errors['email'] }}
-                            </p>
-                        @endif
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-2">
+                                Número de Identificación <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" 
+                                   wire:model.blur="formData.identification"
+                                   oninput="this.value = this.value.replace(/\D/g, '');"
+                                   maxlength="15"
+                                   placeholder="Ej: 123456789"
+                                   class="w-full bg-gray-50 border rounded-lg px-4 py-2.5 text-sm font-bold mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 {{ isset($errors['identification']) ? 'border-red-300 focus:ring-red-500' : 'border-gray-200' }}">
+                            @if(isset($errors['identification']))
+                                <p class="text-[10px] text-red-600 mt-1 flex items-center">
+                                    <i class="fas fa-exclamation-circle mr-1 text-[8px]"></i>
+                                    {{ $errors['identification'] }}
+                                </p>
+                            @endif
+                            @if($identificationMessage)
+                                <p class="text-[10px] mt-1 flex items-center {{ $identificationExists ? 'text-red-600' : 'text-emerald-600' }}">
+                                    <i class="fas {{ $identificationExists ? 'fa-exclamation-circle' : 'fa-check-circle' }} mr-1 text-[8px]"></i>
+                                    {{ $identificationMessage }}
+                                </p>
+                            @endif
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-2">
+                                Correo Electrónico
+                            </label>
+                            <input type="email" 
+                                   wire:model.blur="formData.email"
+                                   class="w-full bg-gray-50 border rounded-lg px-4 py-2.5 text-sm font-bold mt-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 {{ isset($errors['email']) ? 'border-red-300 focus:ring-red-500' : 'border-gray-200' }}">
+                            @if(isset($errors['email']))
+                                <p class="text-[10px] text-red-600 mt-1 flex items-center">
+                                    <i class="fas fa-exclamation-circle mr-1 text-[8px]"></i>
+                                    {{ $errors['email'] }}
+                                </p>
+                            @endif
+                        </div>
                     </div>
                 </div>
 

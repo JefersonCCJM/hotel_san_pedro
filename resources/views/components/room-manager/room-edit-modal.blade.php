@@ -214,6 +214,8 @@
                                         <h4 class="text-sm font-bold text-gray-900">{{ $rate->event_name ?? 'Evento Especial' }}</h4>
                                         <p class="text-xs text-gray-500">
                                             @php
+                                                // NOTA: Estos son fechas de eventos especiales, no horas de hotel
+                                                // Mantenemos Carbon::parse para fechas de eventos (no relacionado con horarios hoteleros)
                                                 $startDate = $rate->start_date ? \Carbon\Carbon::parse($rate->start_date)->format('d/m/Y') : 'Sin fecha';
                                                 $endDate = $rate->end_date ? \Carbon\Carbon::parse($rate->end_date)->format('d/m/Y') : 'Sin fecha';
                                             @endphp
