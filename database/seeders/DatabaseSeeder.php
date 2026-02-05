@@ -26,6 +26,8 @@ class DatabaseSeeder extends Seeder
             DianPaymentMethodSeeder::class,
             DianPaymentFormSeeder::class,
             DianProductStandardSeeder::class,
+            DianMunicipalitySeeder::class,
+            CompanyTaxSettingsSeeder::class,
             ReservationStatusSeeder::class,
             ReservationSourceSeeder::class,
             StayStatusSeeder::class,
@@ -39,7 +41,8 @@ class DatabaseSeeder extends Seeder
             RoomMaintenanceBlockStatusSeeder::class,
             RoomMaintenanceBlockSourceSeeder::class,
             VentilationTypeSeeder::class,
-            RoomTypeSeeder::class
+            RoomTypeSeeder::class,
+            FactusNumberingRangesSeeder::class,
         ]);
     }
 }

@@ -143,8 +143,14 @@ class Customer extends Model
             return false;
         }
         
-        if ($profile->isJuridicalPerson() && empty($profile->company)) {
-            return false;
+        if ($profile->isJuridicalPerson()) {
+            // Para personas jurídicas, usar el nombre del cliente como razón social si no está definida
+            if (empty($profile->company) && !empty($this->name)) {
+                return true; // Usará el nombre del cliente
+            }
+            if (empty($profile->company)) {
+                return false;
+            }
         }
         
         return true;

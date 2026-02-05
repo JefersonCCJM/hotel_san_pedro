@@ -4,496 +4,118 @@
 @section('header', 'Gestión de Clientes')
 
 @section('content')
-<div class="space-y-4 sm:space-y-6">
-    <!-- Header -->
-    <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div class="flex items-center space-x-3 sm:space-x-4">
-                <div class="p-2.5 sm:p-3 rounded-xl bg-emerald-50 text-emerald-600">
-                    <i class="fas fa-users text-lg sm:text-xl"></i>
-                </div>
-                <div>
-                    <h1 class="text-xl sm:text-2xl font-bold text-gray-900">Gestión de Clientes</h1>
-                    <div class="flex items-center space-x-2 mt-1">
-                        <span class="text-xs sm:text-sm text-gray-500">
-                            <span class="font-semibold text-gray-900">{{ $customers->total() }}</span> clientes registrados
-                        </span>
-                        <span class="text-gray-300 hidden sm:inline">•</span>
-                        <span class="text-xs sm:text-sm text-gray-500 hidden sm:inline">
-                            <i class="fas fa-database mr-1"></i> Base de datos de clientes
-                        </span>
+    <div class="space-y-4 sm:space-y-6">
+        <!-- Header -->
+        <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div class="flex items-center space-x-3 sm:space-x-4">
+                    <div class="p-2.5 sm:p-3 rounded-xl bg-emerald-50 text-emerald-600">
+                        <i class="fas fa-users text-lg sm:text-xl"></i>
                     </div>
-                </div>
-            </div>
-            
-            <a href="{{ route('customers.create') }}"
-               class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md">
-                <i class="fas fa-plus mr-2"></i>
-                <span>Nuevo Cliente</span>
-            </a>
-        </div>
-    </div>
-    
-    <!-- Filtros -->
-    <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
-        <form method="GET" action="{{ route('customers.index') }}" class="space-y-4" id="filter-form">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-sm font-semibold text-gray-700">Filtros de Búsqueda</h3>
-                @if(request('search') || request('status'))
-                    <a href="{{ route('customers.index') }}" 
-                       class="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center">
-                        <i class="fas fa-times mr-1"></i>
-                        Limpiar filtros
-                    </a>
-                @endif
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
-                <div>
-                    <label for="search" class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
-                        Buscar Cliente
-                    </label>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <i class="fas fa-search text-gray-400 text-sm"></i>
-                        </div>
-                        <input type="text" 
-                               id="search" 
-                               name="search" 
-                               value="{{ request('search') }}" 
-                               class="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                               placeholder="Nombre, email o teléfono...">
-                    </div>
-                    @if(request('search'))
-                        <p class="mt-1.5 text-xs text-gray-500 flex items-center">
-                            <i class="fas fa-info-circle mr-1.5"></i>
-                            Buscando: "{{ request('search') }}"
-                        </p>
-                    @endif
-                </div>
-                
-                <div>
-                    <label for="status" class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
-                        Estado del Cliente
-                    </label>
-                    <div class="relative">
-                        <select id="status" 
-                                name="status"
-                                class="block w-full pl-3 sm:pl-4 pr-10 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent appearance-none bg-white">
-                            <option value="">Todos los estados</option>
-                            <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Activo</option>
-                            <option value="inactive" {{ request('status') == 'inactive' ? 'selected' : '' }}>Inactivo</option>
-                        </select>
-                        <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                            <i class="fas fa-chevron-down text-gray-400 text-xs"></i>
+                    <div>
+                        <h1 class="text-xl sm:text-2xl font-bold text-gray-900">Gestión de Clientes</h1>
+                        <div class="flex items-center space-x-2 mt-1">
+                            <span class="text-xs sm:text-sm text-gray-500">
+                                <i class="fas fa-database mr-1"></i> Base de datos de clientes
+                            </span>
                         </div>
                     </div>
                 </div>
-                
-                <div class="flex items-end">
-                    <button type="submit"
-                            class="w-full inline-flex items-center justify-center px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
-                        <i class="fas fa-filter mr-2"></i>
-                        Filtrar
-                    </button>
-                </div>
-            </div>
-            
-            @if(request('search') || request('status'))
-                <div class="pt-3 border-t border-gray-100">
-                    <div class="flex items-center text-xs text-gray-600">
-                        <i class="fas fa-info-circle mr-2 text-emerald-600"></i>
-                        <span>
-                            Mostrando 
-                            <span class="font-semibold text-gray-900">{{ $customers->total() }}</span> 
-                            {{ $customers->total() === 1 ? 'cliente' : 'clientes' }}
-                            @if(request('search'))
-                                que coinciden con "{{ request('search') }}"
-                            @endif
-                            @if(request('status'))
-                                con estado {{ request('status') == 'active' ? 'activo' : 'inactivo' }}
-                            @endif
-                        </span>
-                    </div>
-                </div>
-            @endif
-        </form>
-    </div>
-    
-    <!-- Tabla de clientes - Desktop -->
-    <div class="hidden lg:block bg-white rounded-xl border border-gray-100 overflow-hidden">
-        <div class="overflow-x-auto -mx-6 lg:mx-0">
-            <table class="min-w-full divide-y divide-gray-100">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Cliente
-                        </th>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Contacto
-                        </th>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Ubicación
-                        </th>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Registro y Actividad
-                        </th>
-                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Estado
-                        </th>
-                        <th class="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Acciones
-                        </th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-100">
-                    @forelse($customers as $customer)
-                    <tr class="hover:bg-gray-50 transition-colors duration-150">
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex items-center">
-                                <div class="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white text-sm font-semibold shadow-sm flex-shrink-0">
-                                    {{ strtoupper(substr($customer->name, 0, 1)) }}
-                                </div>
-                                <div class="ml-3">
-                                    <div class="text-sm font-semibold text-gray-900">{{ $customer->name }}</div>
-                                    <div class="text-xs text-gray-500 mt-0.5">ID: {{ $customer->id }}</div>
-                                </div>
-                            </div>
-                        </td>
-                        
-                        <td class="px-6 py-4">
-                            <div class="text-sm space-y-1">
-                                @if($customer->email)
-                                    <div class="flex items-center text-gray-700">
-                                        <i class="fas fa-envelope text-gray-400 mr-2 text-xs"></i>
-                                        <span class="truncate max-w-xs">{{ $customer->email }}</span>
-                                    </div>
-                                @endif
-                                @if($customer->phone)
-                                    <div class="flex items-center text-gray-700">
-                                        <i class="fas fa-phone text-gray-400 mr-2 text-xs"></i>
-                                        <span>{{ $customer->phone }}</span>
-                                    </div>
-                                @endif
-                                @if(!$customer->email && !$customer->phone)
-                                    <span class="text-xs text-gray-400">Sin contacto</span>
-                                @endif
-                            </div>
-                        </td>
-                        
-                        <td class="px-6 py-4">
-                            <div class="text-sm text-gray-700">
-                                @if($customer->address)
-                                    <div class="flex items-center mb-1">
-                                        <i class="fas fa-map-marker-alt text-gray-400 mr-1.5 text-xs"></i>
-                                        <span class="truncate max-w-xs">{{ $customer->address }}</span>
-                                    </div>
-                                @endif
-                                @if($customer->city || $customer->state)
-                                    <div class="text-xs text-gray-500">
-                                        {{ $customer->city }}{{ $customer->city && $customer->state ? ', ' : '' }}{{ $customer->state }}
-                                    </div>
-                                @endif
-                                @if(!$customer->address && !$customer->city && !$customer->state)
-                                    <span class="text-xs text-gray-400">Sin ubicación</span>
-                                @endif
-                            </div>
-                        </td>
-                        
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex flex-col space-y-1.5">
-                                <div class="flex items-center space-x-2">
-                                    @if($customer->requires_electronic_invoice && $customer->taxProfile)
-                                        <div class="p-1.5 rounded-lg bg-blue-50 text-blue-600" title="Facturación Electrónica">
-                                            <i class="fas fa-file-invoice text-xs"></i>
-                                        </div>
-                                    @endif
-                                    <div class="text-xs text-gray-500">
-                                        {{ $customer->created_at->format('d/m/Y') }}
-                                    </div>
-                                </div>
-                                <div class="flex items-center">
-                                    <div class="p-1 rounded-lg bg-emerald-50 text-emerald-600 mr-2">
-                                        <i class="fas fa-history text-[10px]"></i>
-                                    </div>
-                                    <span class="text-[10px] text-gray-500 italic">Próximamente: Reservas</span>
-                                </div>
-                            </div>
-                        </td>
-                        
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            @if($customer->is_active)
-                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">
-                                    <i class="fas fa-check-circle mr-1.5"></i>
-                                    Activo
-                                </span>
-                            @else
-                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
-                                    <i class="fas fa-times-circle mr-1.5"></i>
-                                    Inactivo
-                                </span>
-                            @endif
-                        </td>
-                        
-                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div class="flex items-center justify-end space-x-2 sm:space-x-3">
-                                <a href="{{ route('customers.show', $customer) }}"
-                                   class="p-2 sm:p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
-                                   title="Ver detalles">
-                                    <i class="fas fa-eye text-sm sm:text-base"></i>
-                                </a>
-                                
-                                <a href="{{ route('customers.edit', $customer) }}"
-                                   class="p-2 sm:p-1.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
-                                   title="Editar">
-                                    <i class="fas fa-edit text-sm sm:text-base"></i>
-                                </a>
-                                
-                                <form action="{{ route('customers.toggle-status', $customer) }}" method="POST" class="inline">
-                                    @csrf
-                                    @method('PATCH')
-                                    <button type="submit"
-                                            class="p-2 sm:p-1.5 {{ $customer->is_active ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50' : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50' }} rounded-lg transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
-                                            title="{{ $customer->is_active ? 'Desactivar Cliente' : 'Activar Cliente' }}">
-                                        <i class="fas {{ $customer->is_active ? 'fa-user-slash' : 'fa-user-check' }} text-sm sm:text-base"></i>
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                    @empty
-                    <tr>
-                        <td colspan="6" class="px-6 py-16 text-center">
-                            <div class="flex flex-col items-center">
-                                @if(request('search') || request('status'))
-                                    <div class="p-4 rounded-full bg-amber-50 text-amber-600 mb-4">
-                                        <i class="fas fa-search text-3xl"></i>
-                                    </div>
-                                    <p class="text-lg font-semibold text-gray-900 mb-2">No se encontraron resultados</p>
-                                    <p class="text-sm text-gray-500 mb-4">
-                                        No hay clientes que coincidan con los filtros aplicados.
-                                    </p>
-                                    <a href="{{ route('customers.index') }}"
-                                       class="inline-flex items-center justify-center px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm sm:text-base font-semibold hover:bg-emerald-700 transition-all min-h-[44px]">
-                                        <i class="fas fa-times mr-2"></i>
-                                        Limpiar filtros
-                                    </a>
-                                @else
-                                    <div class="p-4 rounded-full bg-gray-50 text-gray-400 mb-4">
-                                        <i class="fas fa-users text-3xl"></i>
-                                    </div>
-                                    <p class="text-lg font-semibold text-gray-900 mb-2">No hay clientes registrados</p>
-                                    <p class="text-sm text-gray-500 mb-4">
-                                        Comienza agregando tu primer cliente al sistema.
-                                    </p>
-                                    <a href="{{ route('customers.create') }}"
-                                       class="inline-flex items-center justify-center px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm sm:text-base font-semibold hover:bg-emerald-700 transition-all min-h-[44px]">
-                                        <i class="fas fa-plus mr-2"></i>
-                                        <span class="hidden sm:inline">Crear Primer Cliente</span>
-                                        <span class="sm:hidden">Crear Cliente</span>
-                                    </a>
-                                @endif
-                            </div>
-                        </td>
-                    </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-        
-        <!-- Paginación Desktop -->
-        @if($customers->hasPages())
-        <div class="bg-white px-6 py-4 border-t border-gray-100">
-            <div class="flex items-center justify-between">
-                <div class="text-sm text-gray-600">
-                    Mostrando 
-                    <span class="font-semibold text-gray-900">{{ $customers->firstItem() }}</span>
-                    a 
-                    <span class="font-semibold text-gray-900">{{ $customers->lastItem() }}</span>
-                    de 
-                    <span class="font-semibold text-gray-900">{{ $customers->total() }}</span>
-                    {{ $customers->total() === 1 ? 'cliente' : 'clientes' }}
-                </div>
-                <div class="flex-1">
-                    {{ $customers->appends(request()->query())->links() }}
-                </div>
-            </div>
-        </div>
-        @endif
-    </div>
-    
-    <!-- Cards de clientes - Mobile/Tablet -->
-    <div class="lg:hidden space-y-4">
-        @forelse($customers as $customer)
-        <div class="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-shadow duration-200">
-            <div class="flex items-start justify-between mb-4">
-                <div class="flex items-center space-x-3 flex-1 min-w-0">
-                    <div class="h-12 w-12 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white text-base font-semibold shadow-sm flex-shrink-0">
-                        {{ strtoupper(substr($customer->name, 0, 1)) }}
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <h3 class="text-sm font-semibold text-gray-900 truncate">{{ $customer->name }}</h3>
-                        <p class="text-xs text-gray-500 mt-0.5">ID: {{ $customer->id }}</p>
-                    </div>
-                </div>
-                
-                <div class="flex items-center space-x-2 ml-2">
-                    @if($customer->is_active)
-                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">
-                            <i class="fas fa-check-circle mr-1"></i>
-                            Activo
-                        </span>
-                    @else
-                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
-                            <i class="fas fa-times-circle mr-1"></i>
-                            Inactivo
-                        </span>
-                    @endif
-                </div>
-            </div>
-            
-            <div class="space-y-3 mb-4">
-                <!-- Contacto -->
-                <div>
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Contacto</p>
-                    <div class="space-y-1.5">
-                        @if($customer->email)
-                            <div class="flex items-center text-sm text-gray-700">
-                                <i class="fas fa-envelope text-gray-400 mr-2 text-xs w-4"></i>
-                                <span class="truncate">{{ $customer->email }}</span>
-                            </div>
-                        @endif
-                        @if($customer->phone)
-                            <div class="flex items-center text-sm text-gray-700">
-                                <i class="fas fa-phone text-gray-400 mr-2 text-xs w-4"></i>
-                                <span>{{ $customer->phone }}</span>
-                            </div>
-                        @endif
-                        @if(!$customer->email && !$customer->phone)
-                            <span class="text-xs text-gray-400">Sin contacto</span>
-                        @endif
-                    </div>
-                </div>
-                
-                <!-- Ubicación -->
-                @if($customer->address || $customer->city || $customer->state)
-                <div>
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Ubicación</p>
-                    <div class="text-sm text-gray-700">
-                        @if($customer->address)
-                            <div class="flex items-start mb-1">
-                                <i class="fas fa-map-marker-alt text-gray-400 mr-2 text-xs mt-0.5 w-4"></i>
-                                <span class="flex-1">{{ $customer->address }}</span>
-                            </div>
-                        @endif
-                        @if($customer->city || $customer->state)
-                            <div class="text-xs text-gray-500 ml-6">
-                                {{ $customer->city }}{{ $customer->city && $customer->state ? ', ' : '' }}{{ $customer->state }}
-                            </div>
-                        @endif
-                    </div>
-                </div>
-                @endif
-                
-                <!-- Información y Actividad -->
-                <div>
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Información y Actividad</p>
-                    <div class="space-y-2">
-                        <div class="flex items-center space-x-2">
-                            <div class="flex items-center text-xs text-gray-600">
-                                <i class="fas fa-calendar text-gray-400 mr-2 text-xs w-4"></i>
-                                <span>Registrado: {{ $customer->created_at->format('d/m/Y') }}</span>
-                            </div>
-                            @if($customer->requires_electronic_invoice && $customer->taxProfile)
-                                <div class="flex items-center text-xs text-blue-600">
-                                    <i class="fas fa-file-invoice text-blue-400 mr-2 text-xs w-4"></i>
-                                    <span>Facturación Electrónica</span>
-                                </div>
-                            @endif
-                        </div>
-                        <div class="flex items-center p-2 bg-gray-50 rounded-lg">
-                            <div class="p-1.5 rounded-lg bg-white border border-gray-200 text-gray-400 mr-2">
-                                <i class="fas fa-history text-xs"></i>
-                            </div>
-                            <span class="text-xs text-gray-500 italic">Próximamente: Reservas</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Acciones -->
-            <div class="flex items-center justify-end space-x-2 sm:space-x-3 pt-3 border-t border-gray-100">
-                <a href="{{ route('customers.show', $customer) }}"
-                   class="p-3 sm:p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
-                   title="Ver">
-                    <i class="fas fa-eye text-base sm:text-sm"></i>
-                </a>
-                
-                <a href="{{ route('customers.edit', $customer) }}"
-                   class="p-3 sm:p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
-                   title="Editar">
-                    <i class="fas fa-edit text-base sm:text-sm"></i>
-                </a>
-                
-                <form action="{{ route('customers.toggle-status', $customer) }}" method="POST" class="inline">
-                    @csrf
-                    @method('PATCH')
-                    <button type="submit"
-                            class="p-3 sm:p-2 {{ $customer->is_active ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50' }} rounded-lg transition-colors min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
-                            title="{{ $customer->is_active ? 'Desactivar' : 'Activar' }}">
-                        <i class="fas {{ $customer->is_active ? 'fa-user-slash' : 'fa-user-check' }} text-base sm:text-sm"></i>
-                    </button>
-                </form>
-            </div>
-        </div>
-        @empty
-        <div class="bg-white rounded-xl border border-gray-100 p-12 text-center">
-            @if(request('search') || request('status'))
-                <div class="p-4 rounded-full bg-amber-50 text-amber-600 mb-4 inline-block">
-                    <i class="fas fa-search text-3xl"></i>
-                </div>
-                <p class="text-lg font-semibold text-gray-900 mb-2">No se encontraron resultados</p>
-                <p class="text-sm text-gray-500 mb-4">
-                    No hay clientes que coincidan con los filtros aplicados.
-                </p>
-                <a href="{{ route('customers.index') }}" 
-                   class="inline-flex items-center px-4 py-2 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-all">
-                    <i class="fas fa-times mr-2"></i>
-                    Limpiar filtros
-                </a>
-            @else
-                <div class="p-4 rounded-full bg-gray-50 text-gray-400 mb-4 inline-block">
-                    <i class="fas fa-users text-3xl"></i>
-                </div>
-                <p class="text-lg font-semibold text-gray-900 mb-2">No hay clientes registrados</p>
-                <p class="text-sm text-gray-500 mb-4">
-                    Comienza agregando tu primer cliente al sistema.
-                </p>
-                <a href="{{ route('customers.create') }}" 
-                   class="inline-flex items-center px-4 py-2 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-all">
-                    <i class="fas fa-plus mr-2"></i>
-                    Crear Primer Cliente
-                </a>
-            @endif
-        </div>
-        @endforelse
-        
-        <!-- Paginación Mobile -->
-        @if($customers->hasPages())
-        <div class="bg-white rounded-xl border border-gray-100 p-4">
-            <div class="text-center text-sm text-gray-600 mb-3">
-                Mostrando 
-                <span class="font-semibold text-gray-900">{{ $customers->firstItem() }}</span>
-                a 
-                <span class="font-semibold text-gray-900">{{ $customers->lastItem() }}</span>
-                de 
-                <span class="font-semibold text-gray-900">{{ $customers->total() }}</span>
-                {{ $customers->total() === 1 ? 'cliente' : 'clientes' }}
-            </div>
-            {{ $customers->appends(request()->query())->links() }}
-        </div>
-        @endif
-    </div>
-</div>
 
+                <button onclick="Livewire.dispatch('open-create-customer-modal')"
+                    class="inline-flex items-center justify-center px-4 sm:px-5 py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 hover:border-emerald-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-sm hover:shadow-md">
+                    <i class="fas fa-plus mr-2"></i>
+                    <span>Nuevo Cliente</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Componentes Livewire -->
+        <livewire:customers.customers-table />
+        <livewire:customers.create-customer-modal />
+        <livewire:customers.view-customer-modal />
+        <livewire:customers.edit-customer-modal />
+        <livewire:customers.delete-customer-modal />
+    </div>
 @endsection
+
+@push('scripts')
+    <script>
+        // Sistema de notificaciones
+        window.addEventListener('notify', function(event) {
+            const notification = event.detail;
+
+            // Crear elemento de notificación
+            const notificationEl = document.createElement('div');
+            notificationEl.className =
+                `fixed top-4 right-4 z-50 max-w-sm w-full p-4 rounded-lg shadow-lg transform transition-all duration-300 translate-x-full`;
+
+            // Definir colores según el tipo
+            const colors = {
+                success: 'bg-green-500 text-white',
+                error: 'bg-red-500 text-white',
+                warning: 'bg-yellow-500 text-white',
+                info: 'bg-blue-500 text-white'
+            };
+
+            notificationEl.classList.add(...colors[notification.type].split(' '));
+
+            // Estructura de la notificación
+            notificationEl.innerHTML = `
+        <div class="flex items-center">
+            <div class="flex-shrink-0">
+                ${notification.type === 'success' ? '<i class="fas fa-check-circle"></i>' : ''}
+                ${notification.type === 'error' ? '<i class="fas fa-exclamation-circle"></i>' : ''}
+                ${notification.type === 'warning' ? '<i class="fas fa-exclamation-triangle"></i>' : ''}
+                ${notification.type === 'info' ? '<i class="fas fa-info-circle"></i>' : ''}
+            </div>
+            <div class="ml-3">
+                <p class="text-sm font-medium">${notification.message}</p>
+            </div>
+            <div class="ml-auto pl-3">
+                <button onclick="this.parentElement.parentElement.parentElement.remove()" class="inline-flex text-white hover:opacity-75">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    `;
+
+            // Agregar al DOM
+            document.body.appendChild(notificationEl);
+
+            // Animar entrada
+            setTimeout(() => {
+                notificationEl.classList.remove('translate-x-full');
+                notificationEl.classList.add('translate-x-0');
+            }, 100);
+
+            // Auto eliminar después de 5 segundos
+            setTimeout(() => {
+                notificationEl.classList.add('translate-x-full');
+                setTimeout(() => {
+                    if (notificationEl.parentElement) {
+                        notificationEl.remove();
+                    }
+                }, 300);
+            }, 5000);
+        });
+
+        // Manejar tecla ESC para cerrar modales
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                // Cerrar modales usando Livewire
+                if (typeof Livewire !== 'undefined') {
+                    Livewire.dispatch('close-create-customer-modal');
+                    Livewire.dispatch('close-view-customer-modal');
+                    Livewire.dispatch('close-edit-customer-modal');
+                    Livewire.dispatch('close-delete-customer-modal');
+                }
+            }
+        });
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Customers index loaded with Livewire components');
+        });
+    </script>
+@endpush

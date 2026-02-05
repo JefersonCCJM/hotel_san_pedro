@@ -255,8 +255,10 @@ Route::middleware('auth')->group(function () {
 
     // Facturas electrónicas
     Route::middleware('permission:generate_invoices')->group(function () {
-        Route::get('/electronic-invoices', [\App\Http\Controllers\ElectronicInvoiceController::class, 'index'])
-            ->name('electronic-invoices.index');
+        Route::get('/electronic-invoices', function () {
+            return view('electronic-invoices.index-livewire');
+        })->name('electronic-invoices.index');
+        
         Route::get('/electronic-invoices/create', [\App\Http\Controllers\ElectronicInvoiceController::class, 'create'])
             ->name('electronic-invoices.create');
         Route::post('/electronic-invoices', [\App\Http\Controllers\ElectronicInvoiceController::class, 'store'])

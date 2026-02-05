@@ -348,9 +348,27 @@
                     <h2 class="text-lg sm:text-xl font-bold text-gray-900">Código QR</h2>
                 </div>
                 <div class="flex justify-center">
-                    <img src="data:image/png;base64,{{ $electronicInvoice->qr }}"
-                         alt="QR Code"
-                         class="max-w-xs w-full h-auto border border-gray-200 rounded-lg p-4">
+                    @if(str_starts_with($electronicInvoice->qr, 'data:image/png;base64,'))
+                        <!-- Si es una imagen base64, mostrar directamente -->
+                        <img src="{{ $electronicInvoice->qr }}"
+                             alt="QR Code"
+                             class="max-w-xs w-full h-auto border border-gray-200 rounded-lg p-4">
+                    @else
+                        <!-- Si es una URL, generar imagen QR o mostrar enlace -->
+                        <div class="text-center space-y-4">
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={{ urlencode($electronicInvoice->qr) }}"
+                                 alt="QR Code"
+                                 class="max-w-xs w-full h-auto border border-gray-200 rounded-lg p-4">
+                            <div class="mt-4">
+                                <a href="{{ $electronicInvoice->qr }}" 
+                                   target="_blank" 
+                                   class="inline-flex items-center px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 transition-colors">
+                                    <i class="fas fa-external-link-alt mr-2"></i>
+                                    Ver QR en DIAN
+                                </a>
+                            </div>
+                        </div>
+                    @endif
                 </div>
             </div>
             @endif

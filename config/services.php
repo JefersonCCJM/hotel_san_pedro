@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'factus' => [
+        'sandbox' => env('FACTUS_SANDBOX', true),
+        'client_id' => env('FACTUS_CLIENT_ID'),
+        'client_secret' => env('FACTUS_CLIENT_SECRET'),
+    ],
+
 ];

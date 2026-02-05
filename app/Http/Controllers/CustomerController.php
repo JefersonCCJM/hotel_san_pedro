@@ -27,22 +27,8 @@ class CustomerController extends Controller
      */
     public function index(Request $request): ViewContract
     {
-        $query = Customer::query();
-
-        // Filtros
-        if ($request->filled('search')) {
-            $query->where('name', 'like', '%' . $request->search . '%')
-                  ->orWhere('email', 'like', '%' . $request->search . '%')
-                  ->orWhere('phone', 'like', '%' . $request->search . '%');
-        }
-
-        if ($request->filled('status')) {
-            $query->where('is_active', $request->status === 'active');
-        }
-
-        $customers = $query->orderBy('name')->paginate(15);
-
-        return View::make('customers.index', compact('customers'));
+        // Usar la versión con Livewire
+        return View::make('customers.index');
     }
 
     /**

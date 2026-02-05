@@ -88,7 +88,7 @@ window.invoiceForm = function() {
         
         addService() {
             this.items.push({
-                service_id: '',
+                name: '',
                 quantity: 1,
                 price: 0,
                 tax_rate: 0,
@@ -104,22 +104,14 @@ window.invoiceForm = function() {
         
         updateItem(index) {
             const item = this.items[index];
-            const select = document.querySelector(`select[name="items[${index}][service_id]"]`);
             
-            if (select && item.service_id) {
-                const option = select.options[select.selectedIndex];
-                if (option && option.dataset.price) {
-                    item.price = parseFloat(option.dataset.price) || 0;
-                    item.tax_rate = parseFloat(option.dataset.taxRate) || 0;
-                }
-            }
+            // Calcular subtotal
+            item.subtotal = item.quantity * item.price;
             
-            const quantity = parseFloat(item.quantity) || 0;
-            const price = parseFloat(item.price) || 0;
-            const taxRate = parseFloat(item.tax_rate) || 0;
+            // Calcular impuesto
+            item.tax = item.subtotal * (item.tax_rate / 100);
             
-            item.subtotal = quantity * price;
-            item.tax = item.subtotal * (taxRate / 100);
+            // Calcular total
             item.total = item.subtotal + item.tax;
         },
         
@@ -542,21 +534,12 @@ window.invoiceForm = function() {
                         <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
                             <div class="md:col-span-2">
                                 <label class="block text-xs font-semibold text-gray-700 mb-2">Servicio</label>
-                                <select x-model="item.service_id" @change="updateItem(index)"
-                                        :name="`items[${index}][service_id]`"
-                                        class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                                        required>
-                                    <option value="">Seleccione...</option>
-                                    @foreach($services as $service)
-                                        <option value="{{ $service->id }}" 
-                                                data-price="{{ $service->price }}"
-                                                data-tax-rate="{{ $service->tax_rate }}"
-                                                data-code="{{ $service->code_reference }}"
-                                                data-name="{{ $service->name }}">
-                                            {{ $service->name }} - ${{ number_format($service->price, 2) }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                                <input type="text" 
+                                       x-model="item.name"
+                                       :name="`items[${index}][name]`"
+                                       class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                       placeholder="Ej: Alojamiento, Alimentación, etc."
+                                       required>
                             </div>
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 mb-2">Cantidad</label>

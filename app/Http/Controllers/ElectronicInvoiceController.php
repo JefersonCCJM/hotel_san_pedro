@@ -29,7 +29,18 @@ class ElectronicInvoiceController extends Controller
 
     public function create(): View
     {
-        $customers = Customer::with('taxProfile')->active()->orderBy('name')->get();
+        $customers = Customer::with('taxProfile')
+            ->active()
+            ->where('requires_electronic_invoice', true)
+            ->whereHas('taxProfile', function ($query) {
+                $query->whereNotNull('identification_document_id')
+                      ->whereNotNull('identification')
+                      ->whereNotNull('legal_organization_id')
+                      ->whereNotNull('tribute_id')
+                      ->whereNotNull('municipality_id');
+            })
+            ->orderBy('name')
+            ->get();
         $services = Service::active()->with(['unitMeasure', 'standardCode', 'tribute'])->orderBy('name')->get();
         $documentTypes = DianDocumentType::orderBy('name')->get();
         $operationTypes = DianOperationType::orderBy('name')->get();

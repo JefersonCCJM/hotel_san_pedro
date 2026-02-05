@@ -27,7 +27,7 @@
     @livewireStyles
 </head>
 <body class="bg-gray-100" x-data="{ sidebarOpen: false }" x-cloak>
-    <div class="min-h-screen flex">
+    <div class="flex min-h-screen w-full">
         <!-- Impersonation Banner -->
         @if(session()->has('impersonated_by'))
             <div class="fixed top-0 left-0 right-0 z-[100] bg-amber-600 text-white px-4 py-2 flex items-center justify-between shadow-lg animate-pulse">
@@ -58,8 +58,7 @@
              style="display: none;"></div>
         
         <!-- Sidebar -->
-        <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-               class="fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 text-white transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex-shrink-0 flex flex-col">
+        <aside class="w-[260px] shrink-0 fixed inset-y-0 left-0 z-50 bg-gray-800 text-white transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex flex-col" :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
             <div class="flex items-center justify-between p-4 lg:justify-center">
                 <div class="flex flex-col items-center">
                     <img src="{{ asset('assets/img/backgrounds/logo-Photoroom.png') }}" alt="Hotel San Pedro" class="h-12 w-auto object-contain mb-2">
@@ -214,7 +213,7 @@
         </aside>
         
         <!-- Main Content -->
-        <div class="flex-1 flex flex-col min-w-0">
+        <main class="flex-1 overflow-x-hidden min-h-[calc(100vh-64px)]">
             <!-- Header -->
             <header class="bg-white border-b border-gray-100 sticky top-0 z-30">
                 <div class="flex items-center justify-between px-4 sm:px-6 py-3 lg:py-4">
@@ -278,7 +277,7 @@
             </header>
             
             <!-- Page Content -->
-            <main class="flex-1 p-4 sm:p-6">
+            <div class="p-4 sm:p-6">
                 <!-- Session Messages -->
                 <div class="max-w-7xl mx-auto">
                     @if(session('success'))
@@ -345,8 +344,8 @@
                 </div>
                 
                 @yield('content')
-            </main>
-        </div>
+            </div>
+        </main>
     </div>
     
     @stack('scripts')
