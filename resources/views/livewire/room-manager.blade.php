@@ -1,7 +1,7 @@
-{{-- 
-    SINCRONIZACIÓN EN TIEMPO REAL:
-    - Mecanismo principal: Eventos Livewire (inmediatos cuando ambos componentes están montados)
-    - Mecanismo fallback: Polling cada 5s (garantiza sincronización ≤5s si el evento se pierde)
+﻿{{-- 
+    SINCRONIZACION EN TIEMPO REAL:
+    - Mecanismo principal: Eventos Livewire (inmediatos cuando ambos componentes estan montados)
+    - Mecanismo fallback: Polling cada 5s (garantiza sincronizacion 5s si el evento se pierde)
     - NO se usan WebSockets para mantener simplicidad y evitar infraestructura adicional
     - El polling es eficiente porque usa eager loading y no hace N+1 queries
 --}}
@@ -15,6 +15,7 @@
         assignGuestsModal: @entangle('assignGuestsModal'),
         roomDailyHistoryModal: @entangle('roomDailyHistoryModal'),
         actionsMenuOpen: null,
+        reservationsAccordionOpen: true,
         init() {
             const handleScroll = () => {
                 if (this.actionsMenuOpen !== null) {
@@ -41,8 +42,12 @@
     
     <!-- HEADER -->
     <x-room-manager.header :roomsCount="isset($rooms) ? $rooms->total() : (isset($releaseHistory) ? (method_exists($releaseHistory, 'total') ? $releaseHistory->total() : $releaseHistory->count()) : 0)" />
+    <!-- RESUMEN DIARIO -->
+    <x-room-manager.daily-stats :stats="$dailyStats ?? []" :currentDate="$currentDate" />
 
-    <!-- PESTAÑAS -->
+    
+
+    <!-- PESTANAS -->
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm mb-6">
         <div class="border-b border-gray-200">
             <nav class="flex space-x-8 px-6" aria-label="Tabs">
@@ -61,6 +66,133 @@
                     Historial de Liberaciones
                             </button>
             </nav>
+        </div>
+        <div class="px-6 py-3 bg-gray-50/70 border-t border-gray-100">
+            <button type="button"
+                @click="reservationsAccordionOpen = !reservationsAccordionOpen"
+                class="w-full flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-left hover:bg-gray-50 transition-colors">
+                <div class="flex items-center gap-3">
+                    <span class="text-xs font-bold uppercase tracking-wider text-gray-700">Reservas proximas (Hoy y manana)</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[11px] font-bold">
+                        Hoy: {{ (int) ($receptionReservationsSummary['today_count'] ?? 0) }}
+                    </span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-bold">
+                        Manana: {{ (int) ($receptionReservationsSummary['tomorrow_count'] ?? 0) }}
+                    </span>
+                </div>
+                <i class="fas fa-chevron-down text-gray-500 transition-transform duration-200"
+                    :class="reservationsAccordionOpen ? 'rotate-180' : ''"></i>
+            </button>
+
+            <div x-show="reservationsAccordionOpen" x-transition class="pt-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="rounded-xl border border-blue-100 bg-white p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-xs font-bold uppercase tracking-wider text-blue-700">Reservas de hoy</p>
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
+                            {{ (int) ($receptionReservationsSummary['today_count'] ?? 0) }}
+                        </span>
+                    </div>
+                    <p class="text-[11px] text-gray-500 mb-2">{{ $receptionReservationsSummary['today_date'] ?? '' }}</p>
+                    <div class="mb-3 flex flex-wrap gap-2">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                            Check-in: {{ (int) data_get($receptionReservationsSummary, 'today_status_counts.checked_in', 0) }}
+                        </span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                            Pendiente: {{ (int) data_get($receptionReservationsSummary, 'today_status_counts.pending_checkin', 0) }}
+                        </span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-700 border border-red-200">
+                            Cancelada: {{ (int) data_get($receptionReservationsSummary, 'today_status_counts.cancelled', 0) }}
+                        </span>
+                    </div>
+                    @if(!empty($receptionReservationsSummary['today_items']))
+                        <div class="space-y-2">
+                            @foreach($receptionReservationsSummary['today_items'] as $item)
+                                <div class="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <p class="text-xs font-semibold text-gray-800">{{ $item['code'] ?? 'RES' }} - {{ $item['customer'] ?? 'Sin cliente' }}</p>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold {{ $item['status_badge_class'] ?? 'bg-gray-100 text-gray-700 border border-gray-200' }}">
+                                            {{ $item['status_label'] ?? 'Sin estado' }}
+                                        </span>
+                                    </div>
+                                    <p class="text-[11px] text-gray-500">Hab: {{ $item['rooms'] ?? '-' }}</p>
+                                    @can('edit_reservations')
+                                        @if(!empty($item['modal_payload']))
+                                            @php
+                                                $encodedModalPayload = base64_encode(json_encode($item['modal_payload'], JSON_UNESCAPED_UNICODE));
+                                            @endphp
+                                            <div class="mt-2">
+                                                <button type="button"
+                                                    data-reservation-payload="{{ $encodedModalPayload }}"
+                                                    onclick="openReservationDetailFromEncoded(this)"
+                                                    class="inline-flex items-center text-[11px] font-semibold text-blue-700 hover:text-blue-900 hover:underline">
+                                                    <i class="fas fa-eye mr-1"></i>
+                                                    Ver detalle
+                                                </button>
+                                            </div>
+                                        @endif
+                                    @endcan
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <p class="text-xs text-gray-500 italic">No hay llegadas programadas para hoy.</p>
+                    @endif
+                </div>
+
+                <div class="rounded-xl border border-emerald-100 bg-white p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-xs font-bold uppercase tracking-wider text-emerald-700">Reservas de manana</p>
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">
+                            {{ (int) ($receptionReservationsSummary['tomorrow_count'] ?? 0) }}
+                        </span>
+                    </div>
+                    <p class="text-[11px] text-gray-500 mb-2">{{ $receptionReservationsSummary['tomorrow_date'] ?? '' }}</p>
+                    <div class="mb-3 flex flex-wrap gap-2">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                            Check-in: {{ (int) data_get($receptionReservationsSummary, 'tomorrow_status_counts.checked_in', 0) }}
+                        </span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                            Pendiente: {{ (int) data_get($receptionReservationsSummary, 'tomorrow_status_counts.pending_checkin', 0) }}
+                        </span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-700 border border-red-200">
+                            Cancelada: {{ (int) data_get($receptionReservationsSummary, 'tomorrow_status_counts.cancelled', 0) }}
+                        </span>
+                    </div>
+                    @if(!empty($receptionReservationsSummary['tomorrow_items']))
+                        <div class="space-y-2">
+                            @foreach($receptionReservationsSummary['tomorrow_items'] as $item)
+                                <div class="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <p class="text-xs font-semibold text-gray-800">{{ $item['code'] ?? 'RES' }} - {{ $item['customer'] ?? 'Sin cliente' }}</p>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold {{ $item['status_badge_class'] ?? 'bg-gray-100 text-gray-700 border border-gray-200' }}">
+                                            {{ $item['status_label'] ?? 'Sin estado' }}
+                                        </span>
+                                    </div>
+                                    <p class="text-[11px] text-gray-500">Hab: {{ $item['rooms'] ?? '-' }}</p>
+                                    @can('edit_reservations')
+                                        @if(!empty($item['modal_payload']))
+                                            @php
+                                                $encodedModalPayload = base64_encode(json_encode($item['modal_payload'], JSON_UNESCAPED_UNICODE));
+                                            @endphp
+                                            <div class="mt-2">
+                                                <button type="button"
+                                                    data-reservation-payload="{{ $encodedModalPayload }}"
+                                                    onclick="openReservationDetailFromEncoded(this)"
+                                                    class="inline-flex items-center text-[11px] font-semibold text-blue-700 hover:text-blue-900 hover:underline">
+                                                    <i class="fas fa-eye mr-1"></i>
+                                                    Ver detalle
+                                                </button>
+                                            </div>
+                                        @endif
+                                    @endcan
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <p class="text-xs text-gray-500 italic">No hay llegadas programadas para manana.</p>
+                    @endif
+                </div>
+            </div>
         </div>
     </div>
 
@@ -95,7 +227,7 @@
     <!-- MODAL: REGISTRAR PAGO (dentro del contexto del componente para usar @this) -->
     <x-notifications.payment-modal />
 
-    <!-- MODAL: ARRENDAMIENTO RÁPIDO -->
+    <!-- MODAL: ARRENDAMIENTO RAPIDO -->
     <x-room-manager.quick-rent-modal 
         :rentForm="$rentForm" 
         :additionalGuests="$additionalGuests" 
@@ -105,19 +237,19 @@
     <!-- MODAL: CREAR CLIENTE -->
     <livewire:create-customer-modal />
 
-    <!-- MODAL: DETALLE HISTORIAL DE LIBERACIÓN -->
+    <!-- MODAL: DETALLE HISTORIAL DE LIBERACION -->
     <x-room-manager.release-history-detail-modal 
         :releaseHistoryDetail="$releaseHistoryDetail" 
         :releaseHistoryDetailModal="$releaseHistoryDetailModal"
     />
 
-    <!-- MODAL: CONFIRMACIÓN DE LIBERACIÓN -->
+    <!-- MODAL: CONFIRMACION DE LIBERACION -->
     <x-room-manager.room-release-confirmation-modal />
 
-    <!-- MODAL: HUÉSPEDES -->
+    <!-- MODAL: HUESPEDES -->
     <x-room-manager.guests-modal />
 
-    <!-- MODAL: ASIGNAR HUÉSPEDES (Completar Reserva Activa) -->
+    <!-- MODAL: ASIGNAR HUESPEDES (Completar Reserva Activa) -->
     <x-room-manager.assign-guests-modal 
         :assignGuestsForm="$assignGuestsForm" 
     />
@@ -127,10 +259,10 @@
         :roomDailyHistoryData="$roomDailyHistoryData" 
     />
 
-    <!-- MODAL: CREAR HABITACIÓN -->
+    <!-- MODAL: CREAR HABITACION -->
     <x-room-manager.create-room-modal />
 
-    <!-- MODAL: EDITAR HABITACIÓN -->
+    <!-- MODAL: EDITAR HABITACION -->
     @if($roomEditData)
         <x-room-manager.room-edit-modal 
             :room="$roomEditData['room']" 
@@ -145,11 +277,19 @@
         :editPricesForm="$editPricesForm"
     />
 
-    <!-- MODAL: TODOS LOS HUÉSPEDES -->
+    <!-- MODAL: TODOS LOS HUESPEDES -->
     <x-room-manager.all-guests-modal 
         :allGuestsForm="$allGuestsForm"
     />
 
+    <!-- MODAL: DETALLE DE RESERVA -->
+    <div wire:ignore>
+        <x-reservations.detail-modal />
+    </div>
+
     <!-- SCRIPTS -->
+    <x-room-manager.reservation-detail-modal-scripts />
+    <x-reservations.calendar-scripts />
     <x-room-manager.scripts />
 </div>
+

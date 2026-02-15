@@ -1,12 +1,12 @@
-@props(['room', 'stay'])
+﻿@props(['room', 'stay'])
 
 @php
     use App\Support\HotelTime;
     
-    // SINGLE SOURCE OF TRUTH: Este componente recibe $stay explícitamente
-    // GUARD CLAUSE OBLIGATORIO: Si no hay stay, no hay información de huésped para mostrar
+    // SINGLE SOURCE OF TRUTH: Este componente recibe $stay explicitamente
+    // GUARD CLAUSE OBLIGATORIO: Si no hay stay, no hay informacion de huesped para mostrar
     if (!$stay) {
-        echo '<span class="text-xs text-gray-400 italic">Sin huésped</span>';
+        echo '<span class="text-xs text-gray-400 italic">Sin huesped</span>';
         return;
     }
 
@@ -20,10 +20,10 @@
     }
     
     // SINGLE SOURCE OF TRUTH: Cliente principal SIEMPRE viene de reservation->customer
-    // 🔐 CRÍTICO: Verificar client_id directamente primero (puede ser NULL para walk-in sin asignar)
+    //  CRITICO: Verificar client_id directamente primero (puede ser NULL para walk-in sin asignar)
     // NO acceder a $reservation->customer directamente si client_id es NULL para evitar errores
-    // 🔄 CRÍTICO: Si reservation tiene client_id pero customer no está cargado, forzar recarga
-    // Esto evita problemas de caché cuando se actualiza el cliente después de cargar la vista
+    //  CRITICO: Si reservation tiene client_id pero customer no esta cargado, forzar recarga
+    // Esto evita problemas de cache cuando se actualiza el cliente despues de cargar la vista
     if ($reservation->client_id !== null && !$reservation->relationLoaded('customer')) {
         $reservation->load('customer');
     }
@@ -32,18 +32,18 @@
     $hasCustomerId = !empty($reservation->client_id) && $reservation->client_id !== null;
     $customer = $hasCustomerId ? ($reservation->customer ?? null) : null;
     
-    // Obtener ReservationRoom asociado para acceder a huéspedes adicionales
+    // Obtener ReservationRoom asociado para acceder a huespedes adicionales
     $reservationRoom = $reservation->reservationRooms
         ->firstWhere('room_id', $room->id);
     
-    // SINGLE SOURCE OF TRUTH: Huéspedes adicionales SIEMPRE vienen de reservationRoom->getGuests()
-    // Ruta: reservation_room_guests → reservation_guest_id → reservation_guests.guest_id → customers.id
+    // SINGLE SOURCE OF TRUTH: Huespedes adicionales SIEMPRE vienen de reservationRoom->getGuests()
+    // Ruta: reservation_room_guests  reservation_guest_id  reservation_guests.guest_id  customers.id
     $additionalGuests = collect();
     if ($reservationRoom) {
         try {
             $additionalGuests = $reservationRoom->getGuests();
         } catch (\Exception $e) {
-            // Silently handle error - no mostrar huéspedes adicionales si hay error
+            // Silently handle error - no mostrar huespedes adicionales si hay error
             \Log::warning('Error loading additional guests in room-guest-info', [
                 'reservation_room_id' => $reservationRoom->id ?? null,
                 'error' => $e->getMessage()
@@ -54,7 +54,7 @@
 
 @if($stay && $reservation)
     <div class="space-y-3">
-        {{-- Información del huésped principal --}}
+        {{-- Informacion del huesped principal --}}
         <div class="flex items-start space-x-3">
             <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
                 <i class="fas fa-user text-sm"></i>
@@ -68,28 +68,28 @@
                             {{ $reservation->customer->name }}
                         </button>
                     @else
-                        Huésped no asignado
+                        Huesped no asignado
                     @endif
                 </p>
                 @if($reservation->customer?->taxProfile)
                     <p class="text-xs text-gray-500">
-                        {{ $reservation->customer->taxProfile->identification ?? 'Sin identificación' }}
+                        {{ $reservation->customer->taxProfile->identification ?? 'Sin identificacion' }}
                     </p>
                 @endif
                 
-                {{-- 🔥 BOTÓN ASIGNAR HUÉSPED si no hay cliente asignado --}}
+                {{--  BOTON ASIGNAR HUESPED si no hay cliente asignado --}}
                 @if(!$reservation->customer || !$reservation->client_id)
                     <button type="button"
                             wire:click="dispatch('openAssignGuests', {{ $room->id }})"
                             class="mt-2 text-xs text-blue-600 hover:text-blue-800 underline font-medium flex items-center space-x-1">
                         <i class="fas fa-user-plus"></i>
-                        <span>Asignar huésped</span>
+                        <span>Asignar huesped</span>
                     </button>
                 @endif
             </div>
         </div>
         
-        {{-- Información de estancia --}}
+        {{-- Informacion de estancia --}}
         @if($reservationRoom && $reservationRoom->check_in_date)
             <div class="flex items-center space-x-2 text-xs text-gray-600">
                 <i class="fas fa-calendar-check"></i>
@@ -97,7 +97,7 @@
             </div>
         @endif
         
-        {{-- Información de salida --}}
+        {{-- Informacion de salida --}}
         @if($reservationRoom && $reservationRoom->check_out_date)
             <span class="text-xs text-blue-600 font-medium mt-1">
                 Salida: {{ \Carbon\Carbon::parse($reservationRoom->check_out_date)->format('d/m/Y') }}
@@ -128,7 +128,7 @@
             <span class="text-sm text-orange-700 font-semibold">Sin cuenta asociada</span>
         </div>
         <div class="text-xs text-gray-500">
-            No hay reserva ligada a esta estadía.
+            No hay reserva ligada a esta estadia.
         </div>
         <button type="button"
                 wire:click="openRoomDetail({{ $room->id }})"
@@ -137,4 +137,5 @@
         </button>
     </div>
 @endif
+
 

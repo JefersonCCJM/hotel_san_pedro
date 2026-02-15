@@ -18,6 +18,7 @@ const cancelPaymentConfirmState = {
 const reservationPaymentRouteTemplate = '{{ route("reservations.register-payment", ":id") }}';
 let reservationPaymentRequestInFlight = false;
 let reservationCancelPaymentRequestInFlight = false;
+const noShowAutoCancellationInProgress = new Set();
 
 document.addEventListener('DOMContentLoaded', function () {
     let tooltip = null;
@@ -321,6 +322,14 @@ function openReservationDetail(data) {
         deleteBtn.style.display = 'none';
     }
 
+    const shouldAutoCancelNoShow = data.auto_cancel_no_show === true
+        && !!data.delete_url
+        && !hasOperationalStay;
+    if (shouldAutoCancelNoShow) {
+        autoCancelNoShowReservation(data, reservationLabel, customerName);
+        return;
+    }
+
     modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 
@@ -378,6 +387,72 @@ function closeDeleteModal() {
 
 function confirmDeleteWithPin(form) {
     form.submit();
+}
+
+async function autoCancelNoShowReservation(data, reservationLabel = 'Reserva', customerName = 'Cliente') {
+    const reservationId = Number(data?.id ?? 0);
+    const deleteUrl = data?.delete_url || null;
+    if (!reservationId || !deleteUrl) {
+        return;
+    }
+
+    if (noShowAutoCancellationInProgress.has(reservationId)) {
+        return;
+    }
+
+    noShowAutoCancellationInProgress.add(reservationId);
+
+    window.dispatchEvent(new CustomEvent('notify', {
+        detail: {
+            type: 'warning',
+            message: `${reservationLabel} (${customerName}) vencio sin check-in. Se cancela automaticamente.`,
+        },
+    }));
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+    try {
+        const response = await fetch(deleteUrl, {
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken,
+            },
+        });
+
+        let payload = null;
+        try {
+            payload = await response.json();
+        } catch (error) {
+            payload = null;
+        }
+
+        if (!response.ok || (payload && payload.ok === false)) {
+            throw new Error(payload?.message || 'No fue posible cancelar automaticamente la reserva vencida.');
+        }
+
+        window.dispatchEvent(new CustomEvent('notify', {
+            detail: {
+                type: 'success',
+                message: payload?.message || 'Reserva cancelada automaticamente por no presentarse en la fecha de check-in.',
+            },
+        }));
+
+        closeReservationDetail();
+        setTimeout(() => {
+            window.location.reload();
+        }, 250);
+    } catch (error) {
+        window.dispatchEvent(new CustomEvent('notify', {
+            detail: {
+                type: 'error',
+                message: error?.message || 'No fue posible cancelar automaticamente la reserva vencida.',
+            },
+        }));
+    } finally {
+        noShowAutoCancellationInProgress.delete(reservationId);
+    }
 }
 
 function openReservationPaymentModal(data) {

@@ -1,4 +1,4 @@
-@props(['statuses', 'ventilationTypes', 'currentDate', 'daysInMonth'])
+﻿@props(['statuses', 'ventilationTypes', 'currentDate', 'daysInMonth'])
 
 <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
     <div class="space-y-6">
@@ -11,7 +11,7 @@
                     </div>
                     <input type="text" wire:model.live.debounce.300ms="search"
                            class="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                           placeholder="Número o Camas...">
+                           placeholder="Numero o Camas...">
                 </div>
             </div>
             
@@ -32,7 +32,7 @@
             </div>
 
             <div>
-                <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Ventilación</label>
+                <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Ventilacion</label>
                 <div class="relative">
                     <select wire:model.live="ventilationTypeFilter"
                             class="block w-full pl-3 pr-10 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white">
@@ -48,9 +48,9 @@
             </div>
         </div>
 
-        <!-- BLOQUE CALENDARIO ACORDEÓN -->
+        <!-- BLOQUE CALENDARIO ACORDEON -->
         <div class="pt-4 border-t border-gray-100" x-data="{ calendarOpen: false }">
-            <!-- Header del acordeón -->
+            <!-- Header del acordeon -->
             <button @click="calendarOpen = !calendarOpen" 
                     type="button"
                     class="w-full flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors group">
@@ -67,7 +67,7 @@
                    :class="{ 'rotate-180': calendarOpen }"></i>
             </button>
 
-            <!-- Contenido del acordeón -->
+            <!-- Contenido del acordeon -->
             <div x-show="calendarOpen" 
                  x-collapse
                  class="mt-4">
@@ -86,9 +86,9 @@
                     </div>
 
                     <div class="lg:col-span-9 space-y-2">
-                        <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">DÍAS DEL MES</label>
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">DIAS DEL MES</label>
 
-                        <!-- Vista móvil: scroll horizontal -->
+                        <!-- Vista movil: scroll horizontal -->
                         <div class="lg:hidden overflow-x-auto pb-2 custom-scrollbar">
                             <div class="flex space-x-2 min-w-max">
                                 @foreach($daysInMonth as $day)
@@ -135,4 +135,5 @@
         </div>
     </div>
 </div>
+
 

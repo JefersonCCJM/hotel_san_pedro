@@ -1,4 +1,4 @@
-@props(['room', 'currentDate'])
+﻿@props(['room', 'currentDate'])
 
 @php
     use App\Support\HotelTime;
@@ -13,7 +13,7 @@
     // Nunca para fechas pasadas o futuras
     $isPendingCheckout = $room->isPendingCheckout($selectedDate);
     
-    // Solo permitir acciones en fecha actual (no históricas ni futuras)
+    // Solo permitir acciones en fecha actual (no historicas ni futuras)
     $canPerformActions = !$isFutureDate && !$isPastDate;
 @endphp
 
@@ -31,14 +31,14 @@
                 <span class="sr-only">Reservar</span>
             </button>
         @elseif($canPerformActions)
-            {{-- Ocupar habitación (HOY) --}}
+            {{-- Ocupar habitacion (HOY) --}}
             <button type="button"
                 wire:click="openQuickRent({{ $room->id }})"
                 wire:loading.attr="disabled"
-                title="Ocupar habitación"
+                title="Ocupar habitacion"
                 class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:border-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50">
                 <i class="fas fa-key text-sm"></i>
-                <span class="sr-only">Ocupar habitación</span>
+                <span class="sr-only">Ocupar habitacion</span>
             </button>
 
             {{-- Reservar (HOY) --}}
@@ -55,7 +55,7 @@
 
     {{-- ESTADO: occupied (Ocupada) - NO pendiente de checkout --}}
     @if($operationalStatus === 'occupied' && !$isPendingCheckout && $canPerformActions && $selectedDate->isToday())
-        {{-- Liberar: Solo si NO está pendiente de checkout Y es HOY --}}
+        {{-- Liberar: Solo si NO esta pendiente de checkout Y es HOY --}}
         <button type="button"
             @click="confirmRelease({{ $room->id }}, '{{ $room->room_number }}', 0, null, false);"
             title="Liberar"
@@ -67,21 +67,21 @@
 
     {{-- ESTADO: pending_checkout (Pendiente por checkout) - SOLO PARA HOY --}}
     @if($operationalStatus === 'pending_checkout' && $canPerformActions && $selectedDate->isToday())
-        {{-- Continuar Estadía --}}
+        {{-- Continuar Estadia --}}
         <button type="button"
             wire:click="continueStay({{ $room->id }})"
             wire:loading.attr="disabled"
-            title="Continuar estadía"
+            title="Continuar estadia"
             class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50">
             <i class="fas fa-redo-alt text-sm"></i>
             <span class="sr-only">Continuar</span>
         </button>
         
-        {{-- Cancelar Estadía --}}
+        {{-- Cancelar Estadia --}}
         <button type="button"
             wire:click="releaseRoom({{ $room->id }})"
             wire:loading.attr="disabled"
-            title="Cancelar estadía"
+            title="Cancelar estadia"
             class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-300 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50">
             <i class="fas fa-times text-sm"></i>
             <span class="sr-only">Cancelar</span>
@@ -103,25 +103,26 @@
 
     {{-- SIEMPRE VISIBLES (excepto fecha pasada para editar) --}}
     
-    {{-- Editar habitación (no disponible en fechas pasadas ni con stays activos) --}}
+    {{-- Editar habitacion (no disponible en fechas pasadas ni con stays activos) --}}
     @if(!$isPastDate && !in_array($operationalStatus, ['occupied', 'pending_checkout']))
         <button type="button"
             wire:click="openRoomEdit({{ $room->id }})"
             wire:loading.attr="disabled"
-            title="Editar habitación"
+            title="Editar habitacion"
             class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:border-indigo-300 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
             <i class="fas fa-edit text-sm"></i>
-            <span class="sr-only">Editar habitación</span>
+            <span class="sr-only">Editar habitacion</span>
         </button>
     @endif
 
-    {{-- Historial del día (siempre disponible) --}}
+    {{-- Historial del dia (siempre disponible) --}}
     <button type="button"
         wire:click="openRoomDailyHistory({{ $room->id }})"
         wire:loading.attr="disabled"
-        title="Historial del día"
+        title="Historial del dia"
         class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50">
         <i class="fas fa-history text-sm"></i>
-        <span class="sr-only">Historial del día</span>
+        <span class="sr-only">Historial del dia</span>
     </button>
 </div>
+

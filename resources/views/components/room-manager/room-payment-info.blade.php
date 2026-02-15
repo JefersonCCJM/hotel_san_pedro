@@ -1,8 +1,8 @@
-@props(['room', 'stay'])
+﻿@props(['room', 'stay'])
 
 @php
-    // SINGLE SOURCE OF TRUTH: Este componente recibe $stay explícitamente
-    // GUARD CLAUSE OBLIGATORIO: Si no hay stay, no hay información de cuenta para mostrar
+    // SINGLE SOURCE OF TRUTH: Este componente recibe $stay explicitamente
+    // GUARD CLAUSE OBLIGATORIO: Si no hay stay, no hay informacion de cuenta para mostrar
     if (!$stay) {
         echo '<span class="text-xs text-gray-400 italic">Cuenta cerrada</span>';
         return;
@@ -23,10 +23,10 @@
     $balanceDue = 0;
     
     if ($reservation) {
-        // Eager load payments y sales si no están cargados
+        // Eager load payments y sales si no estan cargados
         $reservation->loadMissing(['payments', 'sales']);
         
-        // ✅ NUEVO SSOT: Total del hospedaje desde stay_nights si existe
+        //  NUEVO SSOT: Total del hospedaje desde stay_nights si existe
         try {
             $totalAmount = (float)\App\Models\StayNight::where('reservation_id', $reservation->id)
                 ->sum('price');
@@ -41,7 +41,7 @@
         }
         
         // Pagos reales (SOLO positivos) - SSOT financiero
-        // REGLA CRÍTICA: Separar pagos y devoluciones para coherencia financiera
+        // REGLA CRITICA: Separar pagos y devoluciones para coherencia financiera
         $abonoRealizado = (float)($reservation->payments
             ?->where('amount', '>', 0)
             ->sum('amount') ?? 0);
@@ -56,8 +56,8 @@
             ?->where('is_paid', false)
             ->sum('total') ?? 0);
         
-        // Balance final (MISMA fórmula que Room Detail Modal)
-        // Fórmula: deuda = (hospedaje - abonos_reales) + devoluciones + consumos_pendientes
+        // Balance final (MISMA formula que Room Detail Modal)
+        // Formula: deuda = (hospedaje - abonos_reales) + devoluciones + consumos_pendientes
         $balanceDue = ($totalAmount - $abonoRealizado) + $refundsTotal + $salesDebt;
     }
     
@@ -102,13 +102,13 @@
                 <i class="fas fa-exclamation-triangle mr-1"></i> Pendiente
             </span>
         @else
-            {{-- Al día --}}
+            {{-- Al dia --}}
             <span class="inline-flex items-center w-fit px-2 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <i class="fas fa-check-circle mr-1"></i> Al día
+                <i class="fas fa-check-circle mr-1"></i> Al dia
             </span>
         @endif
 
-        {{-- Botón Editar Precios --}}
+        {{-- Boton Editar Precios --}}
         <button type="button"
                 wire:click="dispatch('openEditPrices', [{{ $reservation->id }}])"
                 class="mt-2 text-xs text-blue-600 hover:text-blue-800 underline font-medium flex items-center space-x-1">
@@ -123,7 +123,7 @@
             <i class="fas fa-exclamation-triangle mr-1"></i> Sin cuenta asociada
         </span>
         <div class="text-xs text-gray-500">
-            No hay reserva ligada a esta estadía.
+            No hay reserva ligada a esta estadia.
         </div>
         <button type="button"
                 wire:click="openRoomDetail({{ $room->id }})"
@@ -132,4 +132,5 @@
         </button>
     </div>
 @endif
+
 

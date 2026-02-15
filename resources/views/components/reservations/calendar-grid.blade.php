@@ -13,6 +13,7 @@
         : null;
     $canDoCheckIn = auth()->check() && auth()->user()->can('edit_reservations');
     $canDoPayments = auth()->check() && auth()->user()->can('edit_reservations');
+    $canDoCancel = auth()->check() && auth()->user()->can('delete_reservations');
 
     $formatRoomsInfo = static function ($reservation): string {
         if (!$reservation || !isset($reservation->reservationRooms) || $reservation->reservationRooms->isEmpty()) {
@@ -30,7 +31,14 @@
 
     $payloadsByReservationId = [];
     $checkedInReservationIds = [];
-    $buildReservationPayload = static function ($reservation) use (&$payloadsByReservationId, $formatRoomsInfo, $canDoCheckIn, $canDoPayments) {
+    $buildReservationPayload = static function ($reservation) use (
+        &$payloadsByReservationId,
+        $formatRoomsInfo,
+        $canDoCheckIn,
+        $canDoPayments,
+        $canDoCancel,
+        $today
+    ) {
         if (!$reservation || empty($reservation->id)) {
             return null;
         }
@@ -43,6 +51,9 @@
         $firstReservationRoom = $reservation->reservationRooms?->first();
         $checkInDate = $firstReservationRoom?->check_in_date;
         $checkOutDate = $firstReservationRoom?->check_out_date;
+        $checkInDateRaw = $checkInDate
+            ? \Carbon\Carbon::parse($checkInDate)->toDateString()
+            : null;
         $isCancelled = method_exists($reservation, 'trashed') && $reservation->trashed();
         $hasOperationalStay = false;
         $operationalStayStatuses = ['active', 'pending_checkout', 'finished'];
@@ -99,6 +110,7 @@
             'customer_phone' => $reservation->customer ? (string) ($reservation->customer->phone ?? '-') : '-',
             'rooms' => $formatRoomsInfo($reservation),
             'check_in' => $checkInDate ? \Carbon\Carbon::parse($checkInDate)->format('d/m/Y') : 'N/A',
+            'check_in_raw' => $checkInDateRaw,
             'check_out' => $checkOutDate ? \Carbon\Carbon::parse($checkOutDate)->format('d/m/Y') : 'N/A',
             'check_in_time' => $reservation->check_in_time ? substr((string) $reservation->check_in_time, 0, 5) : 'N/A',
             'guests_count' => (int) ($reservation->total_guests ?? 0),
@@ -110,6 +122,7 @@
             'payments_total_raw' => $paymentsTotalRaw,
             'balance_raw' => $balanceRaw,
             'edit_url' => $isCancelled ? null : route('reservations.edit', $reservation),
+            'delete_url' => !$isCancelled && $canDoCancel ? route('reservations.destroy', $reservation) : null,
             'check_in_url' => !$isCancelled && $canDoCheckIn ? route('reservations.check-in', $reservation) : null,
             'payment_url' => !$isCancelled && $canDoPayments ? route('reservations.register-payment', $reservation) : null,
             'cancel_payment_url' => !$isCancelled && $canDoPayments && $latestPositivePayment
@@ -125,7 +138,12 @@
             'notes' => $reservation->notes ?? 'Sin notas adicionales',
             'status' => $isCancelled ? 'Cancelada' : ($reservation->status ?? 'Activa'),
             'has_operational_stay' => $hasOperationalStay,
-            'can_cancel' => !$isCancelled && !$hasOperationalStay,
+            'can_cancel' => !$isCancelled && !$hasOperationalStay && $canDoCancel,
+            'auto_cancel_no_show' => !$isCancelled
+                && !$hasOperationalStay
+                && !empty($checkInDateRaw)
+                && \Carbon\Carbon::parse($checkInDateRaw)->startOfDay()->lt($today)
+                && $canDoCancel,
             'can_checkin' => !$isCancelled && $canDoCheckIn,
             'can_pay' => false,
             'can_cancel_payment' => !$isCancelled && $canDoPayments && !empty($latestPositivePayment),

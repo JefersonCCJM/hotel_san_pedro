@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Payment;
 use App\Models\Reservation;
 use App\Models\ReservationRoom;
 use Carbon\Carbon;
@@ -121,6 +122,20 @@ class ReservationService
 
             $checkInDate = Carbon::parse($data['check_in_date']);
             $checkOutDate = Carbon::parse($data['check_out_date']);
+            $totalAmount = (float) ($data['total_amount'] ?? 0);
+            $initialDeposit = max(0, (float) ($data['deposit'] ?? 0));
+            $balanceDue = max(0, $totalAmount - $initialDeposit);
+            $paymentStatusCode = $balanceDue <= 0
+                ? 'paid'
+                : ($initialDeposit > 0 ? 'partial' : 'pending');
+            $paymentStatusId = DB::table('payment_statuses')
+                ->where('code', $paymentStatusCode)
+                ->value('id');
+            if (empty($paymentStatusId)) {
+                $paymentStatusId = DB::table('payment_statuses')
+                    ->where('code', 'pending')
+                    ->value('id') ?: 1;
+            }
 
             $year = date('Y');
             $prefix = "RES-{$year}-";
@@ -147,10 +162,10 @@ class ReservationService
                 'total_guests' => $guestComposition['total'],
                 'adults' => $guestComposition['adults'],
                 'children' => $guestComposition['children'],
-                'total_amount' => $data['total_amount'],
-                'deposit_amount' => $data['deposit'],
-                'balance_due' => $data['total_amount'] - $data['deposit'],
-                'payment_status_id' => 1,
+                'total_amount' => $totalAmount,
+                'deposit_amount' => $initialDeposit,
+                'balance_due' => $balanceDue,
+                'payment_status_id' => $paymentStatusId,
                 'source_id' => 1,
                 'created_by' => auth()->id() ?? 1,
                 'notes' => $data['notes'] ?? null,
@@ -165,7 +180,18 @@ class ReservationService
 
             $reservation = Reservation::create($reservationData);
 
-            foreach ($roomIds as $roomId) {
+            $roomsCount = max(1, count($roomIds));
+            $baseSubtotal = round($totalAmount / $roomsCount, 2);
+            $allocatedSubtotal = 0.0;
+            $lastIndex = $roomsCount - 1;
+            $nights = max(1, $checkInDate->diffInDays($checkOutDate));
+
+            foreach ($roomIds as $index => $roomId) {
+                $roomSubtotal = $index === $lastIndex
+                    ? round($totalAmount - $allocatedSubtotal, 2)
+                    : $baseSubtotal;
+                $allocatedSubtotal = round($allocatedSubtotal + $roomSubtotal, 2);
+
                 ReservationRoom::create([
                     'reservation_id' => $reservation->id,
                     'room_id' => $roomId,
@@ -173,9 +199,47 @@ class ReservationService
                     'check_out_date' => $checkOutDate->format('Y-m-d'),
                     'check_in_time' => $data['check_in_time'] ?? config('hotel.check_in_time', '15:00'),
                     'check_out_time' => null,
-                    'nights' => max(1, $checkInDate->diffInDays($checkOutDate)),
-                    'price_per_night' => $data['total_amount'] / max(1, $checkInDate->diffInDays($checkOutDate)),
-                    'subtotal' => $data['total_amount'],
+                    'nights' => $nights,
+                    'price_per_night' => $nights > 0 ? round($roomSubtotal / $nights, 2) : $roomSubtotal,
+                    'subtotal' => $roomSubtotal,
+                ]);
+            }
+
+            if ($initialDeposit > 0) {
+                $paymentMethodCode = strtolower(trim((string) ($data['payment_method'] ?? 'efectivo')));
+                if (!in_array($paymentMethodCode, ['efectivo', 'transferencia'], true)) {
+                    $paymentMethodCode = 'efectivo';
+                }
+
+                $paymentMethodName = $paymentMethodCode === 'transferencia'
+                    ? 'Transferencia'
+                    : 'Efectivo';
+
+                DB::table('payments_methods')->updateOrInsert(
+                    ['code' => $paymentMethodCode],
+                    [
+                        'name' => $paymentMethodName,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]
+                );
+
+                $paymentMethodId = DB::table('payments_methods')
+                    ->where('code', $paymentMethodCode)
+                    ->value('id');
+
+                Payment::create([
+                    'reservation_id' => $reservation->id,
+                    'amount' => $initialDeposit,
+                    'payment_method_id' => $paymentMethodId ?: null,
+                    'bank_name' => $paymentMethodCode === 'transferencia'
+                        ? ($data['bank_name'] ?? null)
+                        : null,
+                    'reference' => $paymentMethodCode === 'transferencia'
+                        ? ($data['reference'] ?? 'Abono inicial de reserva')
+                        : 'Abono inicial de reserva',
+                    'paid_at' => now(),
+                    'created_by' => auth()->id(),
                 ]);
             }
 

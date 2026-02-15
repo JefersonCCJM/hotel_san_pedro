@@ -4,7 +4,10 @@
       "Bash(find:*)",
       "Bash(php artisan livewire:check:*)",
       "Bash(php artisan route:list:*)",
-      "Bash(php artisan view:clear:*)"
+      "Bash(php artisan view:clear:*)",
+      "Bash(php artisan tinker:*)",
+      "Bash(php artisan config:clear:*)",
+      "Bash(php artisan:*)"
     ]
   }
 }

@@ -416,6 +416,46 @@ class ReservationController extends Controller
             \Log::error('Datos finales para crear reserva:', $data);
 
             $reservation = Reservation::create($data);
+            $initialDeposit = round((float) ($data['deposit'] ?? 0), 2);
+
+            if ($initialDeposit > 0) {
+                $paymentMethodCode = strtolower(trim((string) ($data['payment_method'] ?? 'efectivo')));
+                if (!in_array($paymentMethodCode, ['efectivo', 'transferencia'], true)) {
+                    $paymentMethodCode = 'efectivo';
+                }
+
+                $paymentMethodId = $this->resolvePaymentMethodId($paymentMethodCode);
+
+                Payment::create([
+                    'reservation_id' => $reservation->id,
+                    'amount' => $initialDeposit,
+                    'payment_method_id' => $paymentMethodId,
+                    'bank_name' => $paymentMethodCode === 'transferencia' ? ($request->bank_name ?? null) : null,
+                    'reference' => $paymentMethodCode === 'transferencia'
+                        ? ($request->reference ?? 'Abono inicial de reserva')
+                        : 'Abono inicial de reserva',
+                    'paid_at' => now(),
+                    'created_by' => auth()->id(),
+                ]);
+            }
+
+            $totalAmount = round((float) ($reservation->total_amount ?? $data['total_amount'] ?? 0), 2);
+            $paymentsTotal = round((float) ($reservation->payments()->sum('amount') ?? 0), 2);
+            $balanceDue = max(0, $totalAmount - $paymentsTotal);
+            $paymentStatusCode = $balanceDue <= 0
+                ? 'paid'
+                : ($paymentsTotal > 0 ? 'partial' : 'pending');
+            $paymentStatusId = DB::table('payment_statuses')
+                ->where('code', $paymentStatusCode)
+                ->value('id');
+
+            $reservation->update([
+                'deposit_amount' => $paymentsTotal,
+                'balance_due' => $balanceDue,
+                'payment_status_id' => !empty($paymentStatusId)
+                    ? (int) $paymentStatusId
+                    : $reservation->payment_status_id,
+            ]);
             
             \Log::error('✅ RESERVA CREADA - ID: ' . $reservation->id);
             \Log::error('Datos de reserva creada:', [
@@ -909,7 +949,7 @@ class ReservationController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Reservation $reservation)
+    public function destroy(Request $request, Reservation $reservation)
     {
         $reservation->delete();
 
@@ -918,6 +958,13 @@ class ReservationController extends Controller
 
         // Dispatch Livewire event for stats update
         $this->safeLivewireDispatch('reservation-cancelled');
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'Reserva cancelada correctamente.',
+            ]);
+        }
 
         return redirect()->route('reservations.index')->with('success', 'Reserva cancelada correctamente.');
     }
@@ -1016,6 +1063,9 @@ class ReservationController extends Controller
 
                 // Generar cobertura completa de noches de todas las habitaciones de la reserva.
                 $this->ensureStayNightsCoverageForReservation($reservation);
+                // Sincronizar estado pagado de noches usando pagos ya existentes (abonos previos al check-in).
+                $this->rebuildStayNightPaidStateFromPayments($reservation);
+                $this->syncReservationFinancials($reservation);
 
                 $checkedInStatusId = DB::table('reservation_statuses')
                     ->where('code', 'checked_in')
@@ -2462,9 +2512,6 @@ class ReservationController extends Controller
                 return null;
             }
 
-            // Cargar tarifas de la habitación si no están cargadas
-            $room->loadMissing('rates');
-
             // Cargar asignación de habitación en la reserva (fuente contractual de noches/precio)
             $reservationRoom = $reservation->reservationRooms()
                 ->where('room_id', $room->id)
@@ -2480,27 +2527,37 @@ class ReservationController extends Controller
                 : 0.0;
 
             if ($price <= 0) {
-                // Calcular cantidad de huéspedes de la reserva
-                $totalGuests = (int)($reservation->total_guests ?? 1);
-                if ($totalGuests <= 0) {
-                    $totalGuests = 1; // Mínimo 1 huésped
-                }
+                // REGLA: para reservas, el precio por noche se deriva del contrato de reserva,
+                // nunca de la tarifa base de habitación.
+                if ($reservationRoom) {
+                    $reservationRoomPrice = (float)($reservationRoom->price_per_night ?? 0);
+                    if ($reservationRoomPrice > 0) {
+                        $price = $reservationRoomPrice;
+                    } else {
+                        $reservationRoomSubtotal = (float)($reservationRoom->subtotal ?? 0);
+                        $reservationRoomNights = (int)($reservationRoom->nights ?? 0);
 
-                // Evitar precios inconsistentes cuando total_guests > capacidad de la habitación.
-                $roomMaxCapacity = (int)($room->max_capacity ?? 0);
-                if ($roomMaxCapacity > 0 && $totalGuests > $roomMaxCapacity) {
-                    \Log::warning('ensureNightForDate: Guests exceed room capacity, clamping for pricing', [
-                        'stay_id' => $stay->id,
-                        'reservation_id' => $reservation->id,
-                        'room_id' => $room->id,
-                        'total_guests' => $totalGuests,
-                        'room_max_capacity' => $roomMaxCapacity,
-                    ]);
-                    $totalGuests = $roomMaxCapacity;
-                }
+                        if ($reservationRoomNights <= 0 && !empty($reservationRoom->check_in_date) && !empty($reservationRoom->check_out_date)) {
+                            $checkInDate = Carbon::parse($reservationRoom->check_in_date);
+                            $checkOutDate = Carbon::parse($reservationRoom->check_out_date);
+                            $reservationRoomNights = max(1, $checkInDate->diffInDays($checkOutDate));
+                        }
 
-                // Calcular precio usando findRateForGuests
-                $price = $this->findRateForGuests($room, $totalGuests);
+                        if ($reservationRoomSubtotal > 0 && $reservationRoomNights > 0) {
+                            $price = round($reservationRoomSubtotal / $reservationRoomNights, 2);
+                        }
+                    }
+                }
+            }
+
+            if ($price <= 0) {
+                // Fallback contractual: total de reserva dividido por noches totales configuradas.
+                $totalAmount = (float)($reservation->total_amount ?? 0);
+                $totalNights = (int)max(0, $reservation->reservationRooms()->sum('nights'));
+
+                if ($totalAmount > 0 && $totalNights > 0) {
+                    $price = round($totalAmount / $totalNights, 2);
+                }
             }
 
             if ($price <= 0 && $reservationRoom) {
@@ -2523,21 +2580,6 @@ class ReservationController extends Controller
                 }
             }
 
-            // Fallback final: distribuir total de reserva entre noches configuradas.
-            if ($price <= 0) {
-                $totalAmount = (float)($reservation->total_amount ?? 0);
-                $totalNights = (int)max(0, $reservation->reservationRooms()->sum('nights'));
-
-                if ($totalAmount > 0 && $totalNights > 0) {
-                    $price = round($totalAmount / $totalNights, 2);
-                }
-            }
-
-            // Si aún es 0, usar base_price_per_night como último recurso
-            if ($price <= 0) {
-                $price = (float)($room->base_price_per_night ?? 0);
-            }
-
             // Crear la noche
             $stayNight = \App\Models\StayNight::create([
                 'stay_id' => $stay->id,
@@ -2554,7 +2596,7 @@ class ReservationController extends Controller
                 'room_id' => $room->id,
                 'date' => $date->toDateString(),
                 'price' => $price,
-                'guests' => $totalGuests
+                'contract_total' => (float)($reservation->total_amount ?? 0)
             ]);
 
             return $stayNight;

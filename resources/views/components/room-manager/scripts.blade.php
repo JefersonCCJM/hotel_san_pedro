@@ -1,26 +1,26 @@
-@push('scripts')
+﻿@push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script>
-    // Definir función global ANTES del listener de Livewire para que esté disponible inmediatamente
+    // Definir funcion global ANTES del listener de Livewire para que este disponible inmediatamente
     /**
      * Abre el modal especializado para registrar un pago (abono).
      * Usa payments como Single Source of Truth.
      * 
      * @param {number} reservationId ID de la reserva
-     * @param {number} nightPrice Precio de la noche (opcional, para botón rápido)
+     * @param {number} nightPrice Precio de la noche (opcional, para boton rapido)
      * @param {object} financialContext Contexto financiero opcional (totalAmount, paymentsTotal, balanceDue)
-     * @param {string} nightDate Fecha de la noche específica a pagar (opcional, formato YYYY-MM-DD)
+     * @param {string} nightDate Fecha de la noche especifica a pagar (opcional, formato YYYY-MM-DD)
      */
     window.openRegisterPayment = function(reservationId, nightPrice = null, financialContext = null, nightDate = null) {
         console.log('openRegisterPayment called', { reservationId, nightPrice, financialContext, nightDate });
         if (!reservationId || reservationId === 0) {
-            console.error('reservationId inválido:', reservationId);
-            alert('Error: ID de reserva inválido');
+            console.error('reservationId invalido:', reservationId);
+            alert('Error: ID de reserva invalido');
             return;
         }
         
         // Si no se proporciona el contexto financiero, usar valores por defecto
-        // El contexto debería venir siempre desde room-detail-modal
+        // El contexto deberia venir siempre desde room-detail-modal
         if (!financialContext) {
             financialContext = {
                 totalAmount: 0,
@@ -29,9 +29,9 @@
             };
         }
         
-        // Esperar a que Livewire esté inicializado si no lo está
+        // Esperar a que Livewire este inicializado si no lo esta
         if (typeof Livewire === 'undefined' || !Livewire.all) {
-            console.warn('Livewire no está inicializado, esperando...');
+            console.warn('Livewire no esta inicializado, esperando...');
             document.addEventListener('livewire:init', () => {
                 openPaymentModal(reservationId, nightPrice, financialContext, nightDate);
             });
@@ -63,42 +63,44 @@
         let customerSelect = null;
         let additionalGuestSelect = null;
         let productSelect = null;
-        
-        // Escuchar evento personalizado para registrar pagos
-        // Usar Livewire.on para escuchar el evento directamente
-        Livewire.on('register-payment-event', (data) => {
-            const paymentData = Array.isArray(data) ? data[0] : data;
-            if (!paymentData) {
-                console.error('[Payment Handler] No se recibieron datos de pago');
-                window.dispatchEvent(new CustomEvent('reset-payment-modal-loading'));
-                return;
-            }
-            
-            console.log('[Payment Handler] Livewire event received:', paymentData);
-            // El método handleRegisterPayment se llamará automáticamente
-        });
-        
-        // También escuchar el evento DOM para compatibilidad
-        window.addEventListener('register-payment-event', (event) => {
-            const paymentData = event.detail;
-            if (!paymentData) {
-                console.error('[Payment Handler] No se recibieron datos de pago (DOM event)');
-                window.dispatchEvent(new CustomEvent('reset-payment-modal-loading'));
-                return;
-            }
-            
-            console.log('[Payment Handler] DOM event received, dispatching Livewire event:', paymentData);
-            
-            // Disparar evento de Livewire que será capturado por el listener #[On('register-payment')]
-            Livewire.dispatch('register-payment', [
-                paymentData.reservationId,
-                paymentData.amount,
-                paymentData.paymentMethod,
-                paymentData.bankName || null,
-                paymentData.reference || null,
-                paymentData.nightDate || null // Incluir fecha de noche si existe
-            ]);
-        });
+
+        if (window.__useReservationCalendarScripts !== true) {
+            // Escuchar evento personalizado para registrar pagos
+            // Usar Livewire.on para escuchar el evento directamente
+            Livewire.on('register-payment-event', (data) => {
+                const paymentData = Array.isArray(data) ? data[0] : data;
+                if (!paymentData) {
+                    console.error('[Payment Handler] No se recibieron datos de pago');
+                    window.dispatchEvent(new CustomEvent('reset-payment-modal-loading'));
+                    return;
+                }
+
+                console.log('[Payment Handler] Livewire event received:', paymentData);
+                // El metodo handleRegisterPayment se llamara automaticamente
+            });
+
+            // Tambien escuchar el evento DOM para compatibilidad
+            window.addEventListener('register-payment-event', (event) => {
+                const paymentData = event.detail;
+                if (!paymentData) {
+                    console.error('[Payment Handler] No se recibieron datos de pago (DOM event)');
+                    window.dispatchEvent(new CustomEvent('reset-payment-modal-loading'));
+                    return;
+                }
+
+                console.log('[Payment Handler] DOM event received, dispatching Livewire event:', paymentData);
+
+                // Disparar evento de Livewire que sera capturado por el listener #[On('register-payment')]
+                Livewire.dispatch('register-payment', [
+                    paymentData.reservationId,
+                    paymentData.amount,
+                    paymentData.paymentMethod,
+                    paymentData.bankName || null,
+                    paymentData.reference || null,
+                    paymentData.nightDate || null // Incluir fecha de noche si existe
+                ]);
+            });
+        }
 
 
         // Toast notifications are handled by x-notifications.toast component
@@ -109,7 +111,7 @@
     window.dispatchEvent(new CustomEvent('notify', { detail: payload }));
 });
 
-// ===== ASIGNAR HUÉSPEDES (Completar Reserva Activa) =====
+// ===== ASIGNAR HUESPEDES (Completar Reserva Activa) =====
 let assignCustomerSelect = null;
 let assignAdditionalGuestSelect = null;
 
@@ -137,16 +139,16 @@ Livewire.on('assignGuestsModalOpened', () => {
                     .catch(() => callback());
             },
             onChange: function(value) {
-                // 🔐 NORMALIZAR: convertir cadena vacía a null (requisito de BD INTEGER)
+                //  NORMALIZAR: convertir cadena vacia a null (requisito de BD INTEGER)
                 const normalizedValue = (value === '' || value === null || value === undefined) 
                     ? null 
                     : (isNaN(value) ? null : parseInt(value));
                 
-                // Actualizar el valor en Livewire usando la notación de punto para arrays
+                // Actualizar el valor en Livewire usando la notacion de punto para arrays
                 // Forzar reactividad actualizando la referencia completa del array si es necesario
                 @this.set('assignGuestsForm.client_id', normalizedValue);
                 
-                // Debug: Log para verificar que se está actualizando
+                // Debug: Log para verificar que se esta actualizando
                 console.log('[Assign Guests] Client ID changed:', normalizedValue);
             },
             render: {
@@ -171,7 +173,7 @@ Livewire.on('assignGuestsModalOpened', () => {
     }, 150);
 });
 
-// Inicializar selector de huéspedes adicionales
+// Inicializar selector de huespedes adicionales
 document.addEventListener('init-assign-additional-guest-select', function() {
     setTimeout(() => {
         if (assignAdditionalGuestSelect) {
@@ -218,7 +220,7 @@ document.addEventListener('init-assign-additional-guest-select', function() {
     }, 100);
 });
 
-        // Debug: escuchar errores de validación
+        // Debug: escuchar errores de validacion
         Livewire.on('validation-errors', (data) => {
             const payload = Array.isArray(data) ? data[0] : data;
             console.error('Validation errors:', payload);
@@ -267,7 +269,7 @@ document.addEventListener('init-assign-additional-guest-select', function() {
                             .then(j => {
                                 const results = j.results || [];
                                 
-                                // Solo manejar el mensaje si es una búsqueda inicial (sin query)
+                                // Solo manejar el mensaje si es una busqueda inicial (sin query)
                                 if (!query || query.trim() === '') {
                                     const noCustomersMsg = document.getElementById('no-customers-message');
                                     if (noCustomersMsg) {
@@ -295,11 +297,11 @@ document.addEventListener('init-assign-additional-guest-select', function() {
                             });
                     },
                     onChange: (val) => { 
-                        // 🔐 NORMALIZAR: convertir cadena vacía a null (requisito de BD INTEGER)
-                        // Livewire ejecutará automáticamente updatedRentFormClientId() cuando usamos @this.set()
+                        //  NORMALIZAR: convertir cadena vacia a null (requisito de BD INTEGER)
+                        // Livewire ejecutara automaticamente updatedRentFormClientId() cuando usamos @this.set()
                         const normalizedValue = (val === '' || val === null || val === undefined) ? null : (isNaN(val) ? null : parseInt(val));
                         @this.set('rentForm.client_id', normalizedValue);
-                        // El hook updatedRentFormClientId() se ejecutará automáticamente y normalizará el valor + recalculará totales
+                        // El hook updatedRentFormClientId() se ejecutara automaticamente y normalizara el valor + recalculara totales
                     },
                     render: {
                         option: (item, escape) => {
@@ -318,7 +320,7 @@ document.addEventListener('init-assign-additional-guest-select', function() {
                         }
                     }
                 });
-            }, 150);  // Aumenté el timeout a 150ms
+            }, 150);  // Aumente el timeout a 150ms
         });
 
         // Listen for customer created event from the new modal
@@ -352,13 +354,13 @@ document.addEventListener('init-assign-additional-guest-select', function() {
                 if (context === 'principal') {
                     console.log('Asignando cliente como PRINCIPAL en Quick Rent');
                     customerSelect.setValue(customerId);
-                    // Actualizar también Livewire (normalizar antes de set)
-                    // El hook updatedRentFormClientId() se ejecutará automáticamente
+                    // Actualizar tambien Livewire (normalizar antes de set)
+                    // El hook updatedRentFormClientId() se ejecutara automaticamente
                     const normalizedId = customerId ? parseInt(customerId) : null;
                     @this.set('rentForm.client_id', normalizedId);
                 } else {
-                    console.log('Cliente creado en contexto ADICIONAL en Quick Rent, agregando a lista de huéspedes');
-                    // Agregar automáticamente como huésped adicional
+                    console.log('Cliente creado en contexto ADICIONAL en Quick Rent, agregando a lista de huespedes');
+                    // Agregar automaticamente como huesped adicional
                     if (customerId) {
                         @this.call('addGuestFromCustomerId', customerId);
                     }
@@ -366,7 +368,7 @@ document.addEventListener('init-assign-additional-guest-select', function() {
             }
 
             // ===== MANEJAR ASSIGN-GUESTS-MODAL (Completar Reserva) =====
-            // Si el modal de asignar huéspedes está abierto y el contexto es 'principal'
+            // Si el modal de asignar huespedes esta abierto y el contexto es 'principal'
             if (assignCustomerSelect && customerId && context === 'principal') {
                 console.log('Asignando cliente como PRINCIPAL en Assign Guests Modal');
                 
@@ -380,20 +382,20 @@ document.addEventListener('init-assign-additional-guest-select', function() {
                     });
                 }
                 
-                // Seleccionar automáticamente como cliente principal
+                // Seleccionar automaticamente como cliente principal
                 assignCustomerSelect.setValue(customerId);
                 
                 // Actualizar Livewire (normalizar antes de set)
                 const normalizedId = customerId ? parseInt(customerId) : null;
                 @this.set('assignGuestsForm.client_id', normalizedId);
                 
-                console.log('[Assign Guests] Cliente principal asignado automáticamente:', normalizedId);
+                console.log('[Assign Guests] Cliente principal asignado automaticamente:', normalizedId);
             }
 
-            // ===== MANEJAR ASSIGN-GUESTS-MODAL (Huéspedes Adicionales) =====
-            // Si el contexto es 'additional' y el selector de huéspedes adicionales está inicializado
+            // ===== MANEJAR ASSIGN-GUESTS-MODAL (Huespedes Adicionales) =====
+            // Si el contexto es 'additional' y el selector de huespedes adicionales esta inicializado
             if (assignAdditionalGuestSelect && customerId && context === 'additional') {
-                console.log('Cliente creado en contexto ADICIONAL en Assign Guests Modal, agregando automáticamente');
+                console.log('Cliente creado en contexto ADICIONAL en Assign Guests Modal, agregando automaticamente');
                 
                 // Agregar el nuevo cliente a las opciones
                 if (customerData) {
@@ -405,7 +407,7 @@ document.addEventListener('init-assign-additional-guest-select', function() {
                     });
                 }
                 
-                // Agregar automáticamente como huésped adicional
+                // Agregar automaticamente como huesped adicional
                 @this.call('addAssignGuest', parseInt(customerId)).then(() => {
                     assignAdditionalGuestSelect.clear();
                 });
@@ -459,7 +461,7 @@ document.addEventListener('init-assign-additional-guest-select', function() {
                                 window.dispatchEvent(new CustomEvent('notify', {
                                     detail: {
                                         type: 'error',
-                                        message: 'El huésped principal no puede agregarse como huésped adicional.'
+                                        message: 'El huesped principal no puede agregarse como huesped adicional.'
                                     }
                                 }));
                                 if (additionalGuestSelect) {
@@ -539,9 +541,9 @@ document.addEventListener('init-assign-additional-guest-select', function() {
         window.dispatchEvent(new CustomEvent('open-confirm-modal', {
             detail: {
                 title: 'Anular Pago de Consumo',
-                text: '¿Está seguro de que desea anular el pago de este consumo?',
+                text: 'Esta seguro de que desea anular el pago de este consumo?',
                 icon: 'warning',
-                confirmText: 'Sí, anular',
+                confirmText: 'Si, anular',
                 confirmButtonClass: 'bg-red-600 hover:bg-red-700',
                 onConfirm: () => {
                     @this.paySale(saleId, 'pendiente');
@@ -550,17 +552,17 @@ document.addEventListener('init-assign-additional-guest-select', function() {
         }));
     }
 
-    // Función confirmRevertNight eliminada - Los pagos se gestionan a través de la tabla payments;
+    // Funcion confirmRevertNight eliminada - Los pagos se gestionan a traves de la tabla payments;
 
     function confirmDeleteDeposit(depositId, amount, formattedAmount) {
         window.dispatchEvent(new CustomEvent('open-confirm-modal', {
             detail: {
                 title: 'Eliminar Abono',
-                html: `¿Está seguro de que desea eliminar este abono de <b class="text-red-600 font-bold">$${formattedAmount}</b>?`,
-                warningText: 'Esta acción no se puede deshacer y se restará el monto del abono total de la reserva.',
+                html: `Esta seguro de que desea eliminar este abono de <b class="text-red-600 font-bold">$${formattedAmount}</b>?`,
+                warningText: 'Esta accion no se puede deshacer y se restara el monto del abono total de la reserva.',
                 icon: 'error',
                 isDestructive: true,
-                confirmText: 'Sí, eliminar',
+                confirmText: 'Si, eliminar',
                 cancelText: 'Cancelar',
                 confirmButtonClass: 'bg-red-600 hover:bg-red-700 focus:ring-red-500',
                 confirmIcon: 'fa-trash',
@@ -574,12 +576,12 @@ document.addEventListener('init-assign-additional-guest-select', function() {
     function confirmRefund(reservationId, amount, formattedAmount) {
         window.dispatchEvent(new CustomEvent('open-confirm-modal', {
             detail: {
-                title: 'Registrar Devolución',
-                html: `¿Desea registrar que se devolvió <b class="text-blue-600 font-bold">$${formattedAmount}</b> al cliente?`,
-                warningText: 'Esta acción quedará registrada en el historial de auditoría.',
+                title: 'Registrar Devolucion',
+                html: `Desea registrar que se devolvio <b class="text-blue-600 font-bold">$${formattedAmount}</b> al cliente?`,
+                warningText: 'Esta accion quedara registrada en el historial de auditoria.',
                 icon: 'info',
                 isDestructive: false,
-                confirmText: 'Sí, registrar devolución',
+                confirmText: 'Si, registrar devolucion',
                 cancelText: 'Cancelar',
                 confirmButtonClass: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500',
                 confirmIcon: 'fa-check-circle',
@@ -623,4 +625,5 @@ document.addEventListener('init-assign-additional-guest-select', function() {
     }
 </script>
 @endpush
+
 

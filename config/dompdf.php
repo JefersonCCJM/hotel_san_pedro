@@ -35,7 +35,7 @@ return [
     /*
      * Dejavu Sans font is missing glyphs for converted entities, turn it off if you need to see € and £.
      */
-    'convert_entities' => true,
+    'convert_entities' => false,
 
     'options' => [
         /*
@@ -235,7 +235,7 @@ return [
          *
          * @see CPDF_Adapter::ENABLE_HTML5PARSER
          */
-        'enable_html5_parser' => false,
+        'enable_html5_parser' => true,
     ],
 
 ];

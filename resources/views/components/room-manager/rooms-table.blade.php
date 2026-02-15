@@ -1,15 +1,15 @@
-@props(['rooms', 'currentDate'])
+﻿@props(['rooms', 'currentDate'])
 
 <div class="bg-white rounded-xl border border-gray-100" style="overflow: visible;">
     <div style="overflow: visible;">
         <table class="min-w-full divide-y divide-gray-100" style="position: static;">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Habitación</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Habitacion</th>
                     <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
                     <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado de Limpieza</th>
-                    <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Ventilación</th>
-                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Huésped Actual / Info</th>
+                    <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Ventilacion</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Huesped Actual / Info</th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Cuenta</th>
                     <th class="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
                 </tr>
@@ -23,7 +23,7 @@
                             <div class="flex flex-col items-center">
                                 <i class="fas fa-door-closed text-4xl text-gray-300 mb-4"></i>
                                 <p class="text-base font-semibold text-gray-500 mb-1">No se encontraron habitaciones</p>
-                                <p class="text-sm text-gray-400">Registra tu primera habitación para comenzar</p>
+                                <p class="text-sm text-gray-400">Registra tu primera habitacion para comenzar</p>
                             </div>
                         </td>
                     </tr>
@@ -36,4 +36,5 @@
         {{ $rooms->links() }}
     </div>
 </div>
+
 

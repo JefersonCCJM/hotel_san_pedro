@@ -1,4 +1,4 @@
-<div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+﻿<div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
     <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
         <h3 class="text-lg font-bold text-gray-900">Historial de Liberaciones</h3>
         <p class="text-sm text-gray-500 mt-1">Registro completo de habitaciones liberadas y su estado financiero</p>
@@ -9,8 +9,8 @@
             <thead class="bg-gray-50">
                 <tr>
                     <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Fecha</th>
-                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Habitación</th>
-                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Huésped</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Habitacion</th>
+                    <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Huesped</th>
                     <th class="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Estancia</th>
                     <th class="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Financiero</th>
                     <th class="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Estado</th>
@@ -33,7 +33,7 @@
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap">
                             <div class="text-sm text-gray-900">{{ \Carbon\Carbon::parse($history->check_in_date)->format('d/m/Y') }}</div>
-                            <div class="text-xs text-gray-500">→ {{ \Carbon\Carbon::parse($history->check_out_date)->format('d/m/Y') }}</div>
+                            <div class="text-xs text-gray-500"> {{ \Carbon\Carbon::parse($history->check_out_date)->format('d/m/Y') }}</div>
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap text-right">
                             <div class="text-xs text-gray-500 mb-1">Total: ${{ number_format($history->total_amount, 0, ',', '.') }}</div>
@@ -76,7 +76,7 @@
                             <div class="flex flex-col items-center">
                                 <i class="fas fa-history text-4xl text-gray-300 mb-4"></i>
                                 <p class="text-base font-semibold text-gray-500 mb-1">No hay historial de liberaciones</p>
-                                <p class="text-sm text-gray-400">Las habitaciones liberadas aparecerán aquí</p>
+                                <p class="text-sm text-gray-400">Las habitaciones liberadas apareceran aqui</p>
                             </div>
                         </td>
                     </tr>
@@ -85,11 +85,12 @@
         </table>
     </div>
 
-    <!-- Paginación -->
+    <!-- Paginacion -->
     @if($releaseHistory && method_exists($releaseHistory, 'hasPages') && $releaseHistory->hasPages())
         <div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
             {{ $releaseHistory->links('pagination::tailwind', ['pageName' => 'releaseHistoryPage']) }}
         </div>
     @endif
 </div>
+
 

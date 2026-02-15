@@ -1,15 +1,15 @@
-@props(['room', 'selectedDate'])
+﻿@props(['room', 'selectedDate'])
 
 @php
     use App\Support\HotelTime;
     
     // SINGLE SOURCE OF TRUTH: El estado de limpieza SOLO depende de last_cleaned_at y stays
-    // NUNCA usar getOperationalStatus() ni estados operativos aquí
+    // NUNCA usar getOperationalStatus() ni estados operativos aqui
     $cleaningStatus = $room->cleaningStatus($selectedDate);
     
-    // El método cleaningStatus() retorna un array con 'code' que puede ser:
-    // - 'limpia' → Habitación limpia
-    // - 'pendiente' → Pendiente por aseo
+    // El metodo cleaningStatus() retorna un array con 'code' que puede ser:
+    // - 'limpia'  Habitacion limpia
+    // - 'pendiente'  Pendiente por aseo
     // NUNCA retorna estados operativos como 'occupied', 'free_clean', etc.
     
     $statusConfig = match($cleaningStatus['code']) {
@@ -24,16 +24,16 @@
             'color' => 'bg-yellow-100 text-yellow-700 border border-yellow-200',
         ],
         default => [
-            // Fallback: si por alguna razón el código no es reconocido, mostrar como limpia
+            // Fallback: si por alguna razon el codigo no es reconocido, mostrar como limpia
             'label' => 'Limpia',
             'icon' => 'fa-check-circle',
             'color' => 'bg-emerald-100 text-emerald-700 border border-emerald-200',
         ],
     };
     
-    // Determinar si es fecha pasada (no permitir cambios en fechas históricas)
+    // Determinar si es fecha pasada (no permitir cambios en fechas historicas)
     $today = \Carbon\Carbon::today();
-    $isPastDate = $selectedDate->copy()->startOfDay()->lt($today); // Mantener lógica de fecha pasada
+    $isPastDate = $selectedDate->copy()->startOfDay()->lt($today); // Mantener logica de fecha pasada
 @endphp
 
 <div 
@@ -53,7 +53,7 @@
         :disabled="isPastDate || isLoading"
         :class="isPastDate || isLoading ? 'cursor-not-allowed opacity-75' : 'cursor-pointer hover:scale-105 transition-transform'"
         class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {{ $statusConfig['color'] }}"
-        title="{{ $isPastDate ? 'Estado histórico (no editable)' : 'Clic para cambiar estado de limpieza' }}">
+        title="{{ $isPastDate ? 'Estado historico (no editable)' : 'Clic para cambiar estado de limpieza' }}">
         <i class="fas {{ $statusConfig['icon'] }} mr-1.5"></i>
         <span x-text="currentStatus === 'limpia' ? 'Limpia' : 'Pendiente por aseo'"></span>
         @if(!$isPastDate)
@@ -119,4 +119,5 @@
         </div>
     @endif
 </div>
+
 

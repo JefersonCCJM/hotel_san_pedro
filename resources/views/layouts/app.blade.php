@@ -5,14 +5,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="google" content="notranslate">
-    <title>@yield('title', 'Hotel San Pedro') - Sistema de Gestión</title>
+    <title>@yield('title', 'Hotel San Pedro') - Sistema de Gestion</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="icon" type="image/png" href="{{ asset('assets/img/backgrounds/logo-Photoroom.png') }}">
 
     @include('partials.seo', [
         'title' => View::yieldContent('title', 'Dashboard'),
         'description' =>
-            'Sistema de gestión hotelera de Hotel San Pedro. Administra reservaciones, habitaciones, inventario y facturación electrónica de manera eficiente.',
+            'Sistema de gestion hotelera de Hotel San Pedro. Administra reservaciones, habitaciones, inventario y facturacion electronica de manera eficiente.',
     ])
 
     <!-- TailwindCSS -->
@@ -40,19 +40,19 @@
                 class="fixed top-0 left-0 right-0 z-[100] bg-amber-600 text-white px-4 py-2 flex items-center justify-between shadow-lg animate-pulse">
                 <div class="flex items-center space-x-3">
                     <i class="fas fa-user-secret text-xl"></i>
-                    <span class="text-sm font-bold">ESTÁS IMPERSONANDO A: {{ strtoupper(Auth::user()->name) }}</span>
+                    <span class="text-sm font-bold">ESTAS IMPERSONANDO A: {{ strtoupper(Auth::user()->name) }}</span>
                 </div>
                 <form action="{{ route('admin.security.impersonate.stop') }}" method="POST">
                     @csrf
                     <button type="submit"
                         class="bg-white text-amber-600 px-4 py-1 rounded-lg text-xs font-bold hover:bg-amber-50 transition-all uppercase">
-                        Volver a mi sesión
+                        Volver a mi sesion
                     </button>
                 </form>
             </div>
         @endif
 
-        <!-- Overlay para móvil -->
+        <!-- Overlay para movil -->
         <div x-show="sidebarOpen" x-cloak @click="sidebarOpen = false"
             x-transition:enter="transition-opacity ease-linear duration-300" x-transition:enter-start="opacity-0"
             x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity ease-linear duration-300"
@@ -68,7 +68,7 @@
                     <img src="{{ asset('assets/img/backgrounds/logo-Photoroom.png') }}" alt="Hotel San Pedro"
                         class="h-12 w-auto object-contain mb-2">
                     <h1 class="text-xl lg:text-2xl font-bold text-center">Hotel San Pedro</h1>
-                    <p class="text-gray-400 text-xs lg:text-sm text-center">Sistema de Gestión</p>
+                    <p class="text-gray-400 text-xs lg:text-sm text-center">Sistema de Gestion</p>
                 </div>
                 <button @click="sidebarOpen = false" class="lg:hidden text-gray-400 hover:text-white">
                     <i class="fas fa-times text-xl"></i>
@@ -77,7 +77,7 @@
 
             <nav class="mt-4 lg:mt-8 flex-1 overflow-y-auto">
                 <div class="px-4 mb-4">
-                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Menú Principal</p>
+                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Menu Principal</p>
                 </div>
 
                 <a href="{{ route('dashboard') }}" @click="sidebarOpen = false"
@@ -144,13 +144,13 @@
                         <a href="{{ route('electronic-invoices.index') }}" @click="sidebarOpen = false"
                             class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('electronic-invoices.*') ? 'bg-gray-700 text-white' : '' }}">
                             <i class="fas fa-file-invoice-dollar w-5"></i>
-                            <span class="ml-3">Facturas Electrónicas</span>
+                            <span class="ml-3">Facturas Electronicas</span>
                         </a>
                     @endif
                 @endcan
 
 
-                {{-- Sección de Reportes (Para un futuro los resportes avanzados, por ahora solo el resumen de ventas en el dashboard) --}}
+                {{-- Seccion de Reportes (Para un futuro los resportes avanzados, por ahora solo el resumen de ventas en el dashboard) --}}
                 {{-- @can('view_reports')
                     @if (Auth::user()->hasRole('Administrador'))
                         <a href="{{ route('reports.index') }}" @click="sidebarOpen = false"
@@ -166,7 +166,7 @@
                         auth()->user()->can('view_shift_cash_outs') ||
                         auth()->user()->can('create_shift_cash_outs'))
                     <div class="px-4 mt-4 mb-2">
-                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Gestión de Turnos</p>
+                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Gestion de Turnos</p>
                     </div>
 
                     {{-- Historial: solo Administrador (aunque recepcionistas puedan entregar/recibir desde sus dashboards) --}}
@@ -244,7 +244,7 @@
                                         class="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors duration-200 flex items-center space-x-2 group">
                                         <i
                                             class="fas fa-sign-out-alt text-gray-400 group-hover:text-red-600 transition-colors"></i>
-                                        <span>Cerrar sesión</span>
+                                        <span>Cerrar sesion</span>
                                     </button>
                                 </form>
                             </div>
@@ -337,7 +337,7 @@
     <x-notifications.input-modal />
     <x-notifications.payment-modal />
 
-    <!-- Modal de Verificación de PIN -->
+    <!-- Modal de Verificacion de PIN -->
     <div x-data="pinVerification()" x-show="isOpen" x-cloak @open-pin-modal.window="openModal($event.detail)"
         class="fixed inset-0 z-[110] overflow-y-auto" aria-labelledby="modal-title" role="dialog"
         aria-modal="true">
@@ -364,14 +364,14 @@
                         </div>
                         <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
                             <h3 class="text-lg leading-6 font-bold text-gray-900" id="modal-title" x-text="title">
-                                Acción Protegida</h3>
+                                Accion Protegida</h3>
                             <div class="mt-2">
-                                <p class="text-sm text-gray-500" x-text="description">Esta acción requiere
-                                    verificación de PIN administrativo.</p>
+                                <p class="text-sm text-gray-500" x-text="description">Esta accion requiere
+                                    verificacion de PIN administrativo.</p>
                             </div>
                             <div class="mt-4">
                                 <input type="password" x-model="pin" maxlength="4"
-                                    placeholder="Ingrese PIN de 4 dígitos"
+                                    placeholder="Ingrese PIN de 4 digitos"
                                     class="block w-full px-4 py-3 text-center text-2xl tracking-widest border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-0 transition-all">
                                 <p x-show="error" x-text="error" class="mt-2 text-xs text-red-600 font-bold"></p>
                             </div>
@@ -381,7 +381,7 @@
                 <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                     <button type="button" @click="verify()" :disabled="loading"
                         class="w-full inline-flex justify-center rounded-xl border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50">
-                        <span x-show="!loading">Confirmar Acción</span>
+                        <span x-show="!loading">Confirmar Accion</span>
                         <span x-show="loading"><i class="fas fa-spinner fa-spin mr-2"></i>Verificando...</span>
                     </button>
                     <button type="button" @click="closeModal()"
@@ -406,8 +406,8 @@
 
                 openModal(data) {
                     this.isOpen = true;
-                    this.title = data.title || 'Acción Protegida';
-                    this.description = data.description || 'Esta acción requiere verificación de PIN administrativo.';
+                    this.title = data.title || 'Accion Protegida';
+                    this.description = data.description || 'Esta accion requiere verificacion de PIN administrativo.';
                     this.onSuccess = data.onSuccess;
                     this.pin = '';
                     this.error = '';
@@ -421,7 +421,7 @@
 
                 async verify() {
                     if (this.pin.length !== 4) {
-                        this.error = 'El PIN debe ser de 4 dígitos.';
+                        this.error = 'El PIN debe ser de 4 digitos.';
                         return;
                     }
 
@@ -453,7 +453,7 @@
                             this.error = data.message || 'PIN incorrecto.';
                         }
                     } catch (e) {
-                        this.error = 'Error de comunicación con el servidor.';
+                        this.error = 'Error de comunicacion con el servidor.';
                     } finally {
                         this.loading = false;
                     }

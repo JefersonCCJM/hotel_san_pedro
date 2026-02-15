@@ -1,4 +1,4 @@
-@props(['roomDailyHistoryData'])
+﻿@props(['roomDailyHistoryData'])
 
 <div x-show="roomDailyHistoryModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
     @if($roomDailyHistoryData)
@@ -12,7 +12,7 @@
                         <i class="fas fa-history"></i>
                     </div>
                     <div>
-                        <h3 class="text-xl font-bold text-gray-900">Historial del Día</h3>
+                        <h3 class="text-xl font-bold text-gray-900">Historial del Dia</h3>
                         <p class="text-xs text-gray-500 mt-0.5">
                             Hab. {{ $roomDailyHistoryData['room']['room_number'] }} - {{ $roomDailyHistoryData['date_formatted'] }}
                         </p>
@@ -29,7 +29,7 @@
                     <div class="mb-4 flex items-center justify-between">
                         <span class="text-sm font-semibold text-gray-700">
                             {{ $roomDailyHistoryData['total_releases'] }} 
-                            {{ $roomDailyHistoryData['total_releases'] == 1 ? 'liberación' : 'liberaciones' }}
+                            {{ $roomDailyHistoryData['total_releases'] == 1 ? 'liberacion' : 'liberaciones' }}
                         </span>
                     </div>
 
@@ -40,9 +40,9 @@
                                 {{-- Time marker --}}
                                 <div class="absolute left-0 top-1 w-3 h-3 bg-blue-600 rounded-full -translate-x-[7px] border-2 border-white shadow-sm"></div>
                                 
-                                {{-- Card de liberación --}}
+                                {{-- Card de liberacion --}}
                                 <div class="bg-gray-50 rounded-lg border border-gray-200 p-4 hover:border-gray-300 transition-colors">
-                                    {{-- Header de la liberación --}}
+                                    {{-- Header de la liberacion --}}
                                     <div class="flex items-start justify-between mb-3">
                                         <div class="flex items-center space-x-2">
                                             <i class="fas fa-clock text-xs text-gray-400"></i>
@@ -72,7 +72,7 @@
                                         @endif
                                     </div>
 
-                                    {{-- Detalles de estadía --}}
+                                    {{-- Detalles de estadia --}}
                                     @if($release['check_in_date'] && $release['check_out_date'])
                                         <div class="flex items-center space-x-4 text-xs text-gray-600 mb-3">
                                             <div class="flex items-center space-x-1">
@@ -85,12 +85,12 @@
                                             </div>
                                             <div class="flex items-center space-x-1">
                                                 <i class="fas fa-users text-[10px]"></i>
-                                                <span>{{ $release['guests_count'] }} {{ $release['guests_count'] == 1 ? 'huésped' : 'huéspedes' }}</span>
+                                                <span>{{ $release['guests_count'] }} {{ $release['guests_count'] == 1 ? 'huesped' : 'huespedes' }}</span>
                                             </div>
                                         </div>
                                     @endif
 
-                                    {{-- Información financiera --}}
+                                    {{-- Informacion financiera --}}
                                     <div class="grid grid-cols-2 gap-3 mb-3">
                                         <div class="p-2 bg-white rounded border border-gray-100">
                                             <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Total Hospedaje</div>
@@ -114,7 +114,7 @@
                                         @endif
                                     </div>
 
-                                    {{-- Footer: Operación --}}
+                                    {{-- Footer: Operacion --}}
                                     <div class="flex items-center justify-between pt-2 border-t border-gray-200">
                                         <div class="flex items-center space-x-2 text-xs text-gray-500">
                                             <i class="fas fa-user-circle text-[10px]"></i>
@@ -142,14 +142,14 @@
                         @endforeach
                     </div>
                 @else
-                    {{-- Estado vacío --}}
+                    {{-- Estado vacio --}}
                     <div class="flex flex-col items-center justify-center py-12 text-center">
                         <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
                             <i class="fas fa-history text-gray-400 text-2xl"></i>
                         </div>
                         <h4 class="text-lg font-bold text-gray-900 mb-2">Sin liberaciones registradas</h4>
                         <p class="text-sm text-gray-500 max-w-sm">
-                            No hay registros de liberaciones para esta habitación el día <strong>{{ $roomDailyHistoryData['date_formatted'] }}</strong>.
+                            No hay registros de liberaciones para esta habitacion el dia <strong>{{ $roomDailyHistoryData['date_formatted'] }}</strong>.
                         </p>
                     </div>
                 @endif
@@ -167,3 +167,4 @@
     </div>
     @endif
 </div>
+

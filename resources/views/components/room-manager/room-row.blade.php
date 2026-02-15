@@ -1,19 +1,19 @@
-@props(['room', 'currentDate'])
+﻿@props(['room', 'currentDate'])
 
 @php
     use App\Support\HotelTime;
     
     $selectedDate = $currentDate instanceof \Carbon\Carbon ? $currentDate : \Carbon\Carbon::parse($currentDate);
     $today = \Carbon\Carbon::today();
-    $isPastDate = $selectedDate->copy()->startOfDay()->lt($today); // Mantener lógica de fecha pasada
+    $isPastDate = $selectedDate->copy()->startOfDay()->lt($today); // Mantener logica de fecha pasada
     
     // SINGLE SOURCE OF TRUTH: Usar solo getOperationalStatus()
-    // Para fechas pasadas, este método retorna el estado histórico (inmutable)
+    // Para fechas pasadas, este metodo retorna el estado historico (inmutable)
     // Valores permitidos: 'occupied', 'pending_checkout', 'pending_cleaning', 'free_clean'
     $operationalStatus = $room->getOperationalStatus($selectedDate);
     
     // SINGLE SOURCE OF TRUTH: Obtener stay UNA SOLA VEZ para la fecha seleccionada
-    // CRITICAL: Solo usar stay para mostrar info de huésped/cuenta cuando operationalStatus es 'occupied' o 'pending_checkout'
+    // CRITICAL: Solo usar stay para mostrar info de huesped/cuenta cuando operationalStatus es 'occupied' o 'pending_checkout'
     // Si operationalStatus es 'pending_cleaning' o 'free_clean', NO hay stay activa para mostrar
     $stay = null;
     if (in_array($operationalStatus, ['occupied', 'pending_checkout'])) {
@@ -45,9 +45,9 @@
             if (this.recentlyReleased) return 'released';
             return this.operationalStatus;
         },
-        // Computed: Determina si mostrar info de huésped y cuenta
+        // Computed: Determina si mostrar info de huesped y cuenta
         get shouldShowGuestInfo() {
-            // Mostrar cuando NO está en proceso de liberación Y el estado operativo es 'occupied' o 'pending_checkout'
+            // Mostrar cuando NO esta en proceso de liberacion Y el estado operativo es 'occupied' o 'pending_checkout'
             return !this.isReleasing && !this.recentlyReleased && 
                    (this.operationalStatus === 'occupied' || this.operationalStatus === 'pending_checkout');
         },
@@ -56,15 +56,15 @@
         // PERFORMANCE: Listener para cambio de vista - Resetear estados Alpine inmediatamente
         // Esto evita estados congelados y lag perceptible al cambiar de fecha
         window.addEventListener('room-view-changed', () => {
-            // Resetear estados locales para evitar estados congelados del día anterior
+            // Resetear estados locales para evitar estados congelados del dia anterior
             this.isReleasing = false;
             this.recentlyReleased = false;
-            // El operationalStatus se actualizará automáticamente cuando Livewire re-renderice
+            // El operationalStatus se actualizara automaticamente cuando Livewire re-renderice
             // con el nuevo valor desde PHP (getOperationalStatus para la nueva fecha)
         });
         
         if (!this.isPastDate) {
-            // Listener: Inicio de liberación - Congela estado visual (solo para hoy/futuro)
+            // Listener: Inicio de liberacion - Congela estado visual (solo para hoy/futuro)
             window.addEventListener('room-release-start', e => {
                 if (e.detail?.roomId === {{ $room->id }}) {
                     this.isReleasing = true;
@@ -73,23 +73,23 @@
                 }
             });
             
-            // Listener: Finalización de liberación - Actualiza a pending_cleaning (solo para hoy/futuro)
+            // Listener: Finalizacion de liberacion - Actualiza a pending_cleaning (solo para hoy/futuro)
             window.addEventListener('room-release-finished', e => {
                 if (e.detail?.roomId === {{ $room->id }}) {
                     this.isReleasing = false;
                     this.recentlyReleased = true;
-                    // Actualizar estado operativo a pending_cleaning (estado real después del checkout)
+                    // Actualizar estado operativo a pending_cleaning (estado real despues del checkout)
                     this.operationalStatus = 'pending_cleaning';
-                    // Mostrar confirmación visual por 2 segundos
+                    // Mostrar confirmacion visual por 2 segundos
                     setTimeout(() => { 
                         this.recentlyReleased = false;
-                        // El estado operativo ya está sincronizado a 'pending_cleaning'
-                        // y se sincronizará desde BD en el próximo render de Livewire
+                        // El estado operativo ya esta sincronizado a 'pending_cleaning'
+                        // y se sincronizara desde BD en el proximo render de Livewire
                     }, 2000);
                 }
             });
             
-            // Listener: Habitación marcada como limpia - Actualiza a free_clean (solo para hoy/futuro)
+            // Listener: Habitacion marcada como limpia - Actualiza a free_clean (solo para hoy/futuro)
             window.addEventListener('room-marked-clean', e => {
                 if (e.detail?.roomId === {{ $room->id }}) {
                     this.operationalStatus = 'free_clean';
@@ -99,7 +99,7 @@
             });
         }
         
-        // Sincronizar estado después de wire:poll o refreshRooms
+        // Sincronizar estado despues de wire:poll o refreshRooms
         // Cuando Livewire re-renderiza, Alpine se reinicializa con el nuevo operationalStatus desde PHP
         // Para fechas pasadas, el estado siempre viene desde BD y es inmutable
     "
@@ -120,7 +120,7 @@
             <div wire:click="openRoomDetail({{ $room->id }})" class="cursor-pointer">
                 <div class="text-sm font-semibold text-gray-900">Hab. {{ $room->room_number }}</div>
                 <div class="text-xs text-gray-500">
-                    {{ $room->beds_count }} {{ $room->beds_count == 1 ? 'Cama' : 'Camas' }} • Cap. {{ $room->max_capacity }}
+                    {{ $room->beds_count }} {{ $room->beds_count == 1 ? 'Cama' : 'Camas' }} | Cap. {{ $room->max_capacity }}
                 </div>
             </div>
         </div>
@@ -142,7 +142,7 @@
                 <span><i class="fas fa-spinner fa-spin mr-1"></i>Liberando...</span>
             </template>
             <template x-if="displayState === 'released'">
-                <span x-transition.opacity><i class="fas fa-check-circle mr-1"></i>Habitación liberada</span>
+                <span x-transition.opacity><i class="fas fa-check-circle mr-1"></i>Habitacion liberada</span>
             </template>
             <template x-if="displayState === 'occupied'">
                 <span>Ocupada</span>
@@ -151,7 +151,7 @@
                 <span><i class="fas fa-door-open mr-1"></i>Pendiente por checkout</span>
             </template>
             <template x-if="displayState === 'pending_cleaning'">
-                {{-- CRITICAL: Estado operativo 'pending_cleaning' significa que la habitación está LIBRE pero necesita limpieza --}}
+                {{-- CRITICAL: Estado operativo 'pending_cleaning' significa que la habitacion esta LIBRE pero necesita limpieza --}}
                 {{-- El estado de LIMPIEZA se muestra en su propia columna separada --}}
                 <span>Libre</span>
             </template>
@@ -178,13 +178,13 @@
     </td>
 
     <td class="px-6 py-4 align-top">
-        {{-- Solo mostrar info de huésped cuando estado operativo es 'occupied' --}}
+        {{-- Solo mostrar info de huesped cuando estado operativo es 'occupied' --}}
         <div x-show="shouldShowGuestInfo">
-            {{-- SINGLE SOURCE OF TRUTH: Pasar $stay explícitamente al componente --}}
+            {{-- SINGLE SOURCE OF TRUTH: Pasar $stay explicitamente al componente --}}
             <x-room-manager.room-guest-info :room="$room" :stay="$stay" />
         </div>
         <div x-show="!shouldShowGuestInfo" x-cloak>
-            {{-- Mensaje específico según estado operativo --}}
+            {{-- Mensaje especifico segun estado operativo --}}
             <template x-if="operationalStatus === 'pending_cleaning'">
                 <span class="text-xs text-gray-500 italic">Checkout realizado</span>
             </template>
@@ -197,11 +197,11 @@
     <td class="px-6 py-4 align-top">
         {{-- Solo mostrar cuenta cuando estado operativo es 'occupied' --}}
         <div x-show="shouldShowGuestInfo">
-            {{-- SINGLE SOURCE OF TRUTH: Pasar $stay explícitamente al componente --}}
+            {{-- SINGLE SOURCE OF TRUTH: Pasar $stay explicitamente al componente --}}
             <x-room-manager.room-payment-info :room="$room" :stay="$stay" />
         </div>
         <div x-show="!shouldShowGuestInfo" x-cloak>
-            {{-- Mensaje según estado operativo --}}
+            {{-- Mensaje segun estado operativo --}}
             <template x-if="operationalStatus === 'pending_cleaning'">
                 <div class="flex flex-col">
                     <span class="text-xs text-gray-500 font-semibold">Cuenta cerrada</span>
@@ -219,10 +219,11 @@
 
     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium align-top" style="position: static;">
         @if($currentDate->isPast() && !$currentDate->isToday())
-            <span class="text-xs text-gray-400 italic">Histórico</span>
+            <span class="text-xs text-gray-400 italic">Historico</span>
         @else
             <x-room-manager.room-actions-menu :room="$room" :currentDate="$currentDate" />
         @endif
     </td>
 </tr>
+
 
