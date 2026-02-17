@@ -32,7 +32,7 @@
     @livewireStyles
 </head>
 
-<body class="bg-gray-100 notranslate" x-data="{ sidebarOpen: false }" x-cloak translate="no">
+<body class="bg-gray-100 notranslate" x-data="{ sidebarOpen: window.innerWidth >= 1024 }" x-cloak translate="no">
     <div class="flex min-h-screen w-full">
         <!-- Impersonation Banner -->
         @if (session()->has('impersonated_by'))
@@ -61,8 +61,8 @@
 
         <!-- Sidebar -->
         <aside
-            class="w-[260px] shrink-0 fixed inset-y-0 left-0 z-50 bg-gray-800 text-white transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex flex-col"
-            :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
+            class="shrink-0 fixed inset-y-0 left-0 z-50 bg-gray-800 text-white transform transition-all duration-300 ease-in-out lg:static lg:inset-0 flex flex-col overflow-hidden"
+            :class="sidebarOpen ? 'translate-x-0 w-[260px]' : '-translate-x-full w-[260px] lg:translate-x-0 lg:w-0'">
             <div class="flex items-center justify-between p-4 lg:justify-center">
                 <div class="flex flex-col items-center">
                     <img src="{{ asset('assets/img/backgrounds/logo-Photoroom.png') }}" alt="Hotel San Pedro"
@@ -210,9 +210,9 @@
             <header class="bg-white border-b border-gray-100 sticky top-0 z-30">
                 <div class="flex items-center justify-between px-4 sm:px-6 py-3 lg:py-4">
                     <div class="flex items-center space-x-3 lg:space-x-0">
-                        <button @click="sidebarOpen = true"
-                            class="lg:hidden text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 p-2 rounded-lg">
-                            <i class="fas fa-bars text-xl"></i>
+                        <button @click="sidebarOpen = !sidebarOpen"
+                            class="text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 p-2 rounded-lg">
+                            <i class="fas text-xl" :class="sidebarOpen ? 'fa-times' : 'fa-bars'"></i>
                         </button>
                         <div>
                             <h1 class="text-xl sm:text-2xl font-bold text-gray-900">@yield('header', 'Dashboard')</h1>
