@@ -3,7 +3,10 @@
     "name": "laravel/laravel",
     "type": "project",
     "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "keywords": [
+        "laravel",
+        "framework"
+    ],
     "license": "MIT",
     "require": {
         "php": "^8.3",
@@ -42,9 +45,10 @@
     },
     "scripts": {
         "post-autoload-dump": [
+            "@php artisan package:discover --ansi",
             "@php artisan config:clear",
-            "@php artisan clear-compiled",
-            "@php artisan package:discover --ansi"
+            "@php artisan route:clear",
+            "@php artisan view:clear"
         ],
         "post-update-cmd": [
             "@php artisan vendor:publish --tag=laravel-assets --ansi --force"
