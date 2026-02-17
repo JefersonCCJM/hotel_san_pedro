@@ -104,7 +104,7 @@ class CreateElectronicInvoiceModal extends Component
                     'id' => $service->id,
                     'name' => $service->name,
                     'price' => $service->price,
-                    'tax_rate' => $service->tax_rate ?? 19,
+                    'tax_rate' => $service->tax_rate ?? 0,
                     'code' => $service->code_reference ?? '',
                     'unit_measure' => $service->unitMeasure->name ?? ''
                 ];
@@ -173,7 +173,7 @@ class CreateElectronicInvoiceModal extends Component
             'name' => 'Servicio ' . (count($this->items) + 1),
             'quantity' => 1,
             'price' => 0,
-            'tax_rate' => 19,
+            'tax_rate' => 0,
             'subtotal' => 0,
             'tax' => 0,
             'total' => 0,

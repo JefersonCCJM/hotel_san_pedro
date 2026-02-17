@@ -11,15 +11,19 @@
             this.items = [];
         }
         
-        this.items = this.items.map(item => ({
-            name: item.name || '',
-            quantity: parseFloat(item.quantity) || 1,
-            price: parseFloat(item.price) || 0,
-            tax_rate: parseFloat(item.tax_rate) || 19,
-            subtotal: 0,
-            tax: 0,
-            total: 0
-        }));
+        this.items = this.items.map(item => {
+            const parsedTaxRate = parseFloat(item.tax_rate);
+
+            return {
+                name: item.name || '',
+                quantity: parseFloat(item.quantity) || 1,
+                price: parseFloat(item.price) || 0,
+                tax_rate: Number.isFinite(parsedTaxRate) ? parsedTaxRate : 0,
+                subtotal: 0,
+                tax: 0,
+                total: 0
+            };
+        });
         
         // Calcular valores iniciales
         this.calculateAllItems();
@@ -294,7 +298,7 @@
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-700 mb-2">Tasa Imp (%)</label>
                                     <input type="number" 
-                                           x-model="(items[{{ $index }}] && items[{{ $index }}].tax_rate) ? items[{{ $index }}].tax_rate : 19"
+                                           x-model="(items[{{ $index }}] && items[{{ $index }}].tax_rate != null) ? items[{{ $index }}].tax_rate : 0"
                                            @input="syncItem({{ $index }}, 'tax_rate', $event.target.value)"
                                            step="0.01" 
                                            min="0" 
