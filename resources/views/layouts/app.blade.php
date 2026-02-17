@@ -32,8 +32,8 @@
     @livewireStyles
 </head>
 
-<body class="bg-gray-100 notranslate" x-data="{ sidebarOpen: window.innerWidth >= 1024 }" x-cloak translate="no">
-    <div class="flex min-h-screen w-full">
+<body class="bg-gray-100 notranslate overflow-x-hidden" x-data="layoutState()" x-cloak translate="no">
+    <div class="flex min-h-screen w-full overflow-x-hidden">
         <!-- Impersonation Banner -->
         @if (session()->has('impersonated_by'))
             <div
@@ -53,7 +53,7 @@
         @endif
 
         <!-- Overlay para movil -->
-        <div x-show="sidebarOpen" x-cloak @click="sidebarOpen = false"
+        <div x-show="sidebarOpen" x-cloak @click="if (window.innerWidth < 1024) sidebarOpen = false"
             x-transition:enter="transition-opacity ease-linear duration-300" x-transition:enter-start="opacity-0"
             x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity ease-linear duration-300"
             x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
@@ -70,7 +70,7 @@
                     <h1 class="text-xl lg:text-2xl font-bold text-center">Hotel San Pedro</h1>
                     <p class="text-gray-400 text-xs lg:text-sm text-center">Sistema de Gestion</p>
                 </div>
-                <button @click="sidebarOpen = false" class="lg:hidden text-gray-400 hover:text-white">
+                <button @click="if (window.innerWidth < 1024) sidebarOpen = false" class="lg:hidden text-gray-400 hover:text-white">
                     <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
@@ -80,27 +80,27 @@
                     <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Menu Principal</p>
                 </div>
 
-                <a href="{{ route('dashboard') }}" @click="sidebarOpen = false"
+                <a href="{{ route('dashboard') }}" @click="if (window.innerWidth < 1024) sidebarOpen = false"
                     class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('dashboard*') ? 'bg-gray-700 text-white' : '' }}">
                     <i class="fas fa-tachometer-alt w-5"></i>
                     <span class="ml-3">Dashboard</span>
                 </a>
 
-                <a href="{{ route('rooms.index') }}" @click="sidebarOpen = false"
+                <a href="{{ route('rooms.index') }}" @click="if (window.innerWidth < 1024) sidebarOpen = false"
                     class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('rooms.*') ? 'bg-gray-700 text-white' : '' }}">
                     <i class="fas fa-door-open w-5"></i>
                     <span class="ml-3">Habitaciones</span>
                 </a>
 
                 @can('view_products')
-                    <a href="{{ route('products.index') }}" @click="sidebarOpen = false"
+                    <a href="{{ route('products.index') }}" @click="if (window.innerWidth < 1024) sidebarOpen = false"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('products.index') ? 'bg-gray-700 text-white' : '' }}">
                         <i class="fas fa-boxes w-5 text-center"></i>
                         <span class="ml-3">Inventario</span>
                     </a>
                     @if (Auth::user()->hasRole('Administrador'))
                         <div class="pl-4 space-y-1">
-                            <a href="{{ route('products.history') }}" @click="sidebarOpen = false"
+                            <a href="{{ route('products.history') }}" @click="if (window.innerWidth < 1024) sidebarOpen = false"
                                 class="flex items-center px-4 py-2 text-sm text-gray-400 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('products.history') ? 'text-white font-bold' : '' }}">
                                 <i class="fas fa-history w-5 text-center"></i>
                                 <span class="ml-3">Historial</span>
@@ -110,7 +110,7 @@
                 @endcan
 
                 @can('view_sales')
-                    <a href="{{ route('sales.index') }}" @click="sidebarOpen = false"
+                    <a href="{{ route('sales.index') }}" @click="if (window.innerWidth < 1024) sidebarOpen = false"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('sales.*') ? 'bg-gray-700 text-white' : '' }}">
                         <i class="fas fa-shopping-cart w-5"></i>
                         <span class="ml-3">Ventas</span>
@@ -118,7 +118,7 @@
                 @endcan
 
                 @can('manage_cash_outflows')
-                    <a href="{{ route('cash-outflows.index') }}" @click="sidebarOpen = false"
+                    <a href="{{ route('cash-outflows.index') }}" @click="if (window.innerWidth < 1024) sidebarOpen = false"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('cash-outflows.*') ? 'bg-gray-700 text-white' : '' }}">
                         <i class="fas fa-money-bill-wave w-5"></i>
                         <span class="ml-3">Gastos (Caja)</span>
@@ -126,21 +126,21 @@
                 @endcan
 
                 @can('view_reservations')
-                    <a href="{{ route('reservations.index') }}" @click="sidebarOpen = false"
+                    <a href="{{ route('reservations.index') }}" @click="if (window.innerWidth < 1024) sidebarOpen = false"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('reservations.*') ? 'bg-gray-700 text-white' : '' }}">
                         <i class="fas fa-calendar-check w-5"></i>
                         <span class="ml-3">Reservaciones</span>
                     </a>
                 @endcan
 
-                <a href="{{ route('customers.index') }}" @click="sidebarOpen = false"
+                <a href="{{ route('customers.index') }}" @click="if (window.innerWidth < 1024) sidebarOpen = false"
                     class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('customers.*') ? 'bg-gray-700 text-white' : '' }}">
                     <i class="fas fa-users w-5"></i>
                     <span class="ml-3">Clientes</span>
                 </a>
 
                 @can('generate_invoices')
-                    <a href="{{ route('electronic-invoices.index') }}" @click="sidebarOpen = false"
+                    <a href="{{ route('electronic-invoices.index') }}" @click="if (window.innerWidth < 1024) sidebarOpen = false"
                         class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('electronic-invoices.*') ? 'bg-gray-700 text-white' : '' }}">
                         <i class="fas fa-file-invoice-dollar w-5"></i>
                         <span class="ml-3">Facturas Electronicas</span>
@@ -151,7 +151,7 @@
                 {{-- Seccion de Reportes (Para un futuro los resportes avanzados, por ahora solo el resumen de ventas en el dashboard) --}}
                 {{-- @can('view_reports')
                     @if (Auth::user()->hasRole('Administrador'))
-                        <a href="{{ route('reports.index') }}" @click="sidebarOpen = false"
+                        <a href="{{ route('reports.index') }}" @click="if (window.innerWidth < 1024) sidebarOpen = false"
                             class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('reports.*') ? 'bg-gray-700 text-white' : '' }}">
                             <i class="fas fa-chart-bar w-5"></i>
                             <span class="ml-3">Reportes</span>
@@ -178,13 +178,13 @@
 
                     {{-- Mi Turno: visible para recepcionistas --}}
                     @if ($showMyShiftLink && $authUser->hasRole('Recepcionista Día'))
-                        <a href="{{ route('dashboard.receptionist.day') }}" @click="sidebarOpen = false"
+                        <a href="{{ route('dashboard.receptionist.day') }}" @click="if (window.innerWidth < 1024) sidebarOpen = false"
                             class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('dashboard.receptionist.day*') ? 'bg-gray-700 text-white' : '' }}">
                             <i class="fas fa-cash-register w-5"></i>
                             <span class="ml-3">Mi Turno</span>
                         </a>
                     @elseif ($showMyShiftLink && $authUser->hasRole('Recepcionista Noche'))
-                        <a href="{{ route('dashboard.receptionist.night') }}" @click="sidebarOpen = false"
+                        <a href="{{ route('dashboard.receptionist.night') }}" @click="if (window.innerWidth < 1024) sidebarOpen = false"
                             class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('dashboard.receptionist.night*') ? 'bg-gray-700 text-white' : '' }}">
                             <i class="fas fa-cash-register w-5"></i>
                             <span class="ml-3">Mi Turno</span>
@@ -193,7 +193,7 @@
 
                     {{-- Historial: solo Administrador --}}
                     @if ($showShiftHistoryLink)
-                        <a href="{{ route('shift-handovers.index') }}" @click="sidebarOpen = false"
+                        <a href="{{ route('shift-handovers.index') }}" @click="if (window.innerWidth < 1024) sidebarOpen = false"
                             class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors {{ request()->routeIs('shift-handovers.*') ? 'bg-gray-700 text-white' : '' }}">
                             <i class="fas fa-exchange-alt w-5"></i>
                             <span class="ml-3">Historial Turnos</span>
@@ -205,7 +205,7 @@
         </aside>
 
         <!-- Main Content -->
-        <main class="flex-1 overflow-x-hidden min-h-[calc(100vh-64px)]">
+        <main class="flex-1 min-w-0 overflow-x-hidden min-h-[calc(100vh-64px)]">
             <!-- Header -->
             <header class="bg-white border-b border-gray-100 sticky top-0 z-30">
                 <div class="flex items-center justify-between px-4 sm:px-6 py-3 lg:py-4">
@@ -277,9 +277,9 @@
             </header>
 
             <!-- Page Content -->
-            <div class="p-4 sm:p-6">
+            <div class="p-4 sm:p-6 min-w-0">
                 <!-- Session Messages -->
-                <div class="max-w-7xl mx-auto">
+                <div class="max-w-7xl mx-auto min-w-0">
                     @if (session('success'))
                         <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)"
                             x-transition:enter="transition ease-out duration-300"
@@ -417,6 +417,35 @@
     </div>
 
     <script>
+        function layoutState() {
+            return {
+                sidebarOpen: false,
+
+                init() {
+                    const storageKey = 'layout.sidebar.open';
+                    const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
+                    const savedState = localStorage.getItem(storageKey);
+
+                    if (isDesktop) {
+                        this.sidebarOpen = savedState === null ? true : savedState === '1';
+                    } else {
+                        this.sidebarOpen = false;
+                    }
+
+                    this.$watch('sidebarOpen', (value) => {
+                        localStorage.setItem(storageKey, value ? '1' : '0');
+                    });
+
+                    window.addEventListener('resize', () => {
+                        if (!window.matchMedia('(min-width: 1024px)').matches) {
+                            this.sidebarOpen = false;
+                        }
+                    });
+                }
+            };
+        }
+    </script>
+    <script>
         function pinVerification() {
             return {
                 isOpen: false,
@@ -511,3 +540,4 @@
 </body>
 
 </html>
+
