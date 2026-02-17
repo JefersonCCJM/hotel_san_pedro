@@ -116,6 +116,19 @@
         </button>
     @endif
 
+    {{-- Eliminar habitacion (solo admin) --}}
+    @if($canManageRooms && !$isPastDate && !in_array($operationalStatus, ['occupied', 'pending_checkout']))
+        <button type="button"
+            @click="confirmDeleteRoom({{ $room->id }}, @js($room->room_number))"
+            wire:loading.attr="disabled"
+            wire:target="deleteRoom"
+            title="Eliminar habitacion"
+            class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50">
+            <i class="fas fa-trash-alt text-sm"></i>
+            <span class="sr-only">Eliminar habitacion</span>
+        </button>
+    @endif
+
     {{-- Historial del dia (siempre disponible) --}}
     <button type="button"
         wire:click="openRoomDailyHistory({{ $room->id }})"
@@ -126,4 +139,3 @@
         <span class="sr-only">Historial del dia</span>
     </button>
 </div>
-

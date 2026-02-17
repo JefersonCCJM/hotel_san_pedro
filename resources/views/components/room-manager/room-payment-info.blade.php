@@ -1,6 +1,10 @@
-﻿@props(['room', 'stay'])
+﻿@props(['room', 'stay', 'selectedDate' => null])
 
 @php
+    $isPastDate = $selectedDate
+        ? (\Carbon\Carbon::parse($selectedDate)->startOfDay()->lt(\Carbon\Carbon::today()))
+        : false;
+
     // SINGLE SOURCE OF TRUTH: Este componente recibe $stay explicitamente
     // GUARD CLAUSE OBLIGATORIO: Si no hay stay, no hay informacion de cuenta para mostrar
     if (!$stay) {
@@ -109,12 +113,14 @@
         @endif
 
         {{-- Boton Editar Precios --}}
-        <button type="button"
-                wire:click="dispatch('openEditPrices', [{{ $reservation->id }}])"
-                class="mt-2 text-xs text-blue-600 hover:text-blue-800 underline font-medium flex items-center space-x-1">
-            <i class="fas fa-edit"></i>
-            <span>Editar precios</span>
-        </button>
+        @if(!$isPastDate)
+            <button type="button"
+                    wire:click="openEditPrices({{ $reservation->id }})"
+                    class="mt-2 text-xs text-blue-600 hover:text-blue-800 underline font-medium flex items-center space-x-1">
+                <i class="fas fa-edit"></i>
+                <span>Editar precios</span>
+            </button>
+        @endif
     </div>
 @else
     {{-- CASO EDGE: Stay activo pero sin reserva asociada (inconsistencia de datos) --}}

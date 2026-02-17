@@ -2,6 +2,9 @@
 
 @php
     $computedCapacity = old('max_capacity', $room->max_capacity ?? 2);
+    $roomStatusValue = $room->status instanceof \App\Enums\RoomStatus
+        ? $room->status->value
+        : ((is_string($room->status) && $room->status !== '') ? $room->status : \App\Enums\RoomStatus::LIBRE->value);
     $standardPrices = [];
     for ($i = 1; $i <= $computedCapacity; $i++) {
         $rate = optional($room->rates)->first(function($r) use ($i) {
@@ -116,11 +119,11 @@
                                                 @if($isOccupied && ($status === \App\Enums\RoomStatus::OCUPADA || $status === \App\Enums\RoomStatus::LIBRE))
                                                     @continue
                                                 @endif
-                                                <option value="{{ $status->value }}" {{ $room->status == $status ? 'selected' : '' }}>{{ $status->label() }}</option>
+                                                <option value="{{ $status->value }}" {{ $roomStatusValue === $status->value ? 'selected' : '' }}>{{ $status->label() }}</option>
                                             @endforeach
                                         </select>
                                         @if($isOccupied)
-                                            <input type="hidden" name="status" value="{{ $room->status->value }}">
+                                            <input type="hidden" name="status" value="{{ $roomStatusValue }}">
                                             <p class="text-xs text-amber-600 mt-1">
                                                 <i class="fas fa-info-circle"></i> La ocupación se calcula desde reservas. Solo se pueden cambiar estados manuales.
                                             </p>

@@ -29,17 +29,33 @@
         return empty($roomNumbers) ? 'Sin habitaciones asignadas' : implode(', ', $roomNumbers);
     };
 
+    // El calendario de Reservas no debe mostrar ocupaciones creadas desde Room Manager (código RSV-*).
+    $shouldDisplayReservationOnCalendar = static function ($reservation): bool {
+        if (!$reservation || empty($reservation->id)) {
+            return false;
+        }
+
+        $reservationCode = strtoupper(trim((string) ($reservation->reservation_code ?? '')));
+
+        return !str_starts_with($reservationCode, 'RSV-');
+    };
+
     $payloadsByReservationId = [];
     $checkedInReservationIds = [];
     $buildReservationPayload = static function ($reservation) use (
         &$payloadsByReservationId,
         $formatRoomsInfo,
+        $shouldDisplayReservationOnCalendar,
         $canDoCheckIn,
         $canDoPayments,
         $canDoCancel,
         $today
     ) {
-        if (!$reservation || empty($reservation->id)) {
+        if (
+            !$reservation
+            || empty($reservation->id)
+            || !$shouldDisplayReservationOnCalendar($reservation)
+        ) {
             return null;
         }
 
@@ -204,6 +220,10 @@
                 continue;
             }
 
+            if (!$shouldDisplayReservationOnCalendar($reservationRoom->reservation)) {
+                continue;
+            }
+
             $isCancelledReservation = method_exists($reservationRoom->reservation, 'trashed')
                 && $reservationRoom->reservation->trashed();
             if ($isCancelledReservation) {
@@ -250,31 +270,52 @@
                             ->firstWhere('reservation_id', $snapshotReservationId);
                         $dayReservation = $snapshotReservationRoom?->reservation;
 
+                        if ($dayReservation && !$shouldDisplayReservationOnCalendar($dayReservation)) {
+                            $dayStatus = 'free';
+                            $dayReservation = null;
+                        }
+
                         if ($dayReservation && method_exists($dayReservation, 'trashed') && $dayReservation->trashed()) {
                             $dayStatus = 'free';
                             $dayReservation = null;
                         }
 
                         $hasTrackedStay = $room->stays->contains(
-                            static fn ($stay) => (int) ($stay->reservation_id ?? 0) === $snapshotReservationId
-                                && in_array((string) ($stay->status ?? ''), ['active', 'pending_checkout', 'finished'], true),
+                            static function ($stay) use ($snapshotReservationId, $shouldDisplayReservationOnCalendar): bool {
+                                if ((int) ($stay->reservation_id ?? 0) !== $snapshotReservationId) {
+                                    return false;
+                                }
+
+                                if (!in_array((string) ($stay->status ?? ''), ['active', 'pending_checkout', 'finished'], true)) {
+                                    return false;
+                                }
+
+                                return $shouldDisplayReservationOnCalendar($stay->reservation ?? null);
+                            },
                         );
 
                         if ($hasTrackedStay) {
                             $dayStatus = 'occupied';
                             $dayReservation = null;
+                        } elseif (!$dayReservation) {
+                            // El snapshot apunta a una ocupación/registro que no debe mostrarse en este calendario.
+                            $dayStatus = 'free';
                         }
                     }
                 }
             } else {
                 $activeStay = $room->stays
-                    ->filter(static function ($stay) use ($dayNormalized, $room, $resolveStayCheckoutDate) {
+                    ->filter(static function ($stay) use ($dayNormalized, $room, $resolveStayCheckoutDate, $shouldDisplayReservationOnCalendar) {
                         $status = (string) ($stay->status ?? '');
                         if (!in_array($status, ['active', 'pending_checkout', 'finished'], true)) {
                             return false;
                         }
 
                         if (empty($stay->check_in_at)) {
+                            return false;
+                        }
+
+                        if (!$shouldDisplayReservationOnCalendar($stay->reservation ?? null)) {
                             return false;
                         }
 
@@ -315,8 +356,12 @@
                         $dayStatus = 'occupied';
                     }
                 } else {
-                    $reservationRoomMatcher = static function ($item) use ($dayNormalized) {
+                    $reservationRoomMatcher = static function ($item) use ($dayNormalized, $shouldDisplayReservationOnCalendar) {
                         if (empty($item->reservation) || empty($item->check_in_date) || empty($item->check_out_date)) {
+                            return false;
+                        }
+
+                        if (!$shouldDisplayReservationOnCalendar($item->reservation)) {
                             return false;
                         }
 

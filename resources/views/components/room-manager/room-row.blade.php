@@ -184,7 +184,7 @@
 
     <td class="px-6 py-4 align-top">
         @if($hasStayInfo)
-            <x-room-manager.room-guest-info :room="$room" :stay="$stay" />
+            <x-room-manager.room-guest-info :room="$room" :stay="$stay" :selectedDate="$selectedDate" />
         @else
             @if($operationalStatus === 'pending_cleaning')
                 <span class="text-xs text-gray-500 italic">Checkout realizado</span>
@@ -196,7 +196,7 @@
 
     <td class="px-6 py-4 align-top">
         @if($hasStayInfo)
-            <x-room-manager.room-payment-info :room="$room" :stay="$stay" />
+            <x-room-manager.room-payment-info :room="$room" :stay="$stay" :selectedDate="$selectedDate" />
         @else
             @if($operationalStatus === 'pending_cleaning')
                 <div class="flex flex-col">
@@ -220,5 +220,4 @@
         @endif
     </td>
 </tr>
-
 

@@ -220,7 +220,7 @@ class CustomerForm extends Form
 
         $taxProfileData = [
             'identification' => $this->identification,
-            'identification_type_id' => $this->identificationDocumentId ?: $this->identification_type_id,
+            'identification_document_id' => $this->identificationDocumentId ?: $this->identification_type_id,
             'dv' => $this->dv ?: null,
             'municipality_id' => $municipalityId,
             'legal_organization_id' => $this->legalOrganizationId ?: null,

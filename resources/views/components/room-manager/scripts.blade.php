@@ -114,6 +114,7 @@
 // ===== ASIGNAR HUESPEDES (Completar Reserva Activa) =====
 let assignCustomerSelect = null;
 let assignAdditionalGuestSelect = null;
+let allGuestsAdditionalGuestSelect = null;
 
 // Inicializar selector de cliente principal cuando se abre el modal
 Livewire.on('assignGuestsModalOpened', () => {
@@ -217,6 +218,83 @@ document.addEventListener('init-assign-additional-guest-select', function() {
                 }
             }
         });
+
+        window.assignAdditionalGuestSelect = assignAdditionalGuestSelect;
+    }, 100);
+});
+
+// Inicializar selector de huéspedes adicionales (modal "Todos los huéspedes")
+document.addEventListener('init-all-guests-additional-guest-select', function() {
+    setTimeout(() => {
+        const selectElement = document.getElementById('all_guests_additional_guest_customer_id');
+        if (!selectElement) {
+            return;
+        }
+
+        if (allGuestsAdditionalGuestSelect) {
+            allGuestsAdditionalGuestSelect.destroy();
+        }
+
+        allGuestsAdditionalGuestSelect = new TomSelect('#all_guests_additional_guest_customer_id', {
+            valueField: 'id',
+            labelField: 'name',
+            searchField: ['name', 'identification', 'text'],
+            loadThrottle: 400,
+            placeholder: 'Buscar cliente...',
+            preload: true,
+            load: function(query, callback) {
+                fetch(`/api/customers/search?q=${encodeURIComponent(query || '')}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const results = data.results || [];
+                        callback(results);
+                    })
+                    .catch(() => callback());
+            },
+            onChange: function(value) {
+                if (!value) {
+                    return;
+                }
+
+                const reservationId = parseInt(selectElement.dataset.reservationId || '0', 10);
+                const roomId = parseInt(selectElement.dataset.roomId || '0', 10);
+
+                if (!reservationId || !roomId) {
+                    window.dispatchEvent(new CustomEvent('notify', {
+                        detail: { type: 'error', message: 'No fue posible determinar la reserva/habitación.' }
+                    }));
+                    allGuestsAdditionalGuestSelect.clear();
+                    return;
+                }
+
+                @this.call('addGuestToRoom', {
+                    reservation_id: reservationId,
+                    room_id: roomId,
+                    existing_customer_id: parseInt(value, 10),
+                }).then(() => {
+                    allGuestsAdditionalGuestSelect.clear();
+                }).catch(() => {
+                    window.dispatchEvent(new CustomEvent('notify', {
+                        detail: { type: 'error', message: 'No fue posible agregar el huésped seleccionado.' }
+                    }));
+                });
+            },
+            render: {
+                option: function(item, escape) {
+                    const name = escape(item.name || item.text || '');
+                    const id = escape(item.identification || '');
+                    return `<div class="px-4 py-2 border-b border-gray-50 hover:bg-blue-50 transition-colors">
+                        <div class="font-bold text-gray-900">${name}</div>
+                        ${id ? `<div class="text-[10px] text-gray-500 mt-0.5">ID: ${escape(id)}</div>` : ''}
+                    </div>`;
+                },
+                item: function(item, escape) {
+                    return `<div class="font-bold text-blue-700">${escape(item.name || item.text || '')}</div>`;
+                }
+            }
+        });
+
+        window.allGuestsAdditionalGuestSelect = allGuestsAdditionalGuestSelect;
     }, 100);
 });
 
@@ -522,6 +600,26 @@ document.addEventListener('init-assign-additional-guest-select', function() {
         });
     }
 
+    function confirmDeleteRoom(roomId, roomNumber) {
+        const safeRoom = String(roomNumber || roomId);
+        window.dispatchEvent(new CustomEvent('open-confirm-modal', {
+            detail: {
+                title: `Eliminar habitación #${safeRoom}`,
+                html: 'Esta acción eliminará la habitación y sus tarifas asociadas.',
+                warningText: 'No se puede deshacer. Si la habitación tiene ocupación o reservas, el sistema bloqueará la eliminación.',
+                icon: 'error',
+                isDestructive: true,
+                confirmText: 'Sí, eliminar habitación',
+                cancelText: 'Cancelar',
+                confirmButtonClass: 'bg-red-600 hover:bg-red-700 focus:ring-red-500',
+                confirmIcon: 'fa-trash',
+                onConfirm: () => {
+                    @this.call('deleteRoom', parseInt(roomId, 10));
+                }
+            }
+        }));
+    }
+
     function confirmPaySale(saleId) {
         window.dispatchEvent(new CustomEvent('open-select-modal', {
             detail: {
@@ -625,5 +723,3 @@ document.addEventListener('init-assign-additional-guest-select', function() {
     }
 </script>
 @endpush
-
-

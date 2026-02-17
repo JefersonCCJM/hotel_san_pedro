@@ -10,12 +10,43 @@
                     <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
                         <i class="fas fa-user-plus"></i>
                     </div>
-                    <h3 class="text-xl font-bold text-gray-900">Completar Reserva</h3>
+                    <h3 class="text-xl font-bold text-gray-900">
+                        {{ !empty($assignGuestsForm['has_customer']) ? 'Editar Ocupación' : 'Completar Reserva' }}
+                    </h3>
                 </div>
                 <button @click="$wire.closeAssignGuests()" class="text-gray-400 hover:text-gray-900"><i class="fas fa-times text-xl"></i></button>
             </div>
 
             <div class="space-y-6">
+                {{-- Fechas de ocupación --}}
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">FECHAS DE OCUPACION</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Entrada</label>
+                            <input type="date"
+                                   wire:model.live="assignGuestsForm.check_in_date"
+                                   class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                            @error('assignGuestsForm.check_in_date')
+                                <p class="text-[10px] text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Salida</label>
+                            <input type="date"
+                                   wire:model.live="assignGuestsForm.check_out_date"
+                                   min="{{ $assignGuestsForm['check_in_date'] ?? now()->toDateString() }}"
+                                   class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                            @error('assignGuestsForm.check_out_date')
+                                <p class="text-[10px] text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    </div>
+                    <p class="text-[10px] text-gray-500">
+                        Puede ajustar check-in y check-out para esta ocupación activa.
+                    </p>
+                </div>
+
                 {{-- Cliente Principal (OBLIGATORIO) --}}
                 <div class="space-y-1.5">
                     <div class="flex items-center justify-between mb-1">

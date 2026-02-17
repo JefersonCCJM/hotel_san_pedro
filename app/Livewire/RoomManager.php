@@ -84,7 +84,7 @@ class RoomManager extends Component
         }
     }
     
-    // Métodos para botones rápidos de pago
+    // MÃ©todos para botones rÃ¡pidos de pago
     public function setDepositFull()
     {
         if ($this->rentForm) {
@@ -107,7 +107,7 @@ class RoomManager extends Component
     }
 
     /**
-     * Calcula el número total de huéspedes (principal + adicionales) con fallback a 1.
+     * Calcula el nÃºmero total de huÃ©spedes (principal + adicionales) con fallback a 1.
      */
     private function calculateGuestCount(): int
     {
@@ -122,15 +122,15 @@ class RoomManager extends Component
     }
 
     /**
-     * Selecciona la tarifa adecuada según cantidad de huéspedes.
-     * REGLA HOTELERA: Cada tarifa tiene un rango válido [min_guests, max_guests].
-     * - Busca la primera tarifa cuyo rango contiene el número de huéspedes.
-     * - max_guests debe ser > 0 (no existen rangos abiertos ambiguos en hotelería).
+     * Selecciona la tarifa adecuada segÃºn cantidad de huÃ©spedes.
+     * REGLA HOTELERA: Cada tarifa tiene un rango vÃ¡lido [min_guests, max_guests].
+     * - Busca la primera tarifa cuyo rango contiene el nÃºmero de huÃ©spedes.
+     * - max_guests debe ser > 0 (no existen rangos abiertos ambiguos en hotelerÃ­a).
      * - Fallback al base_price_per_night si no hay tarifas o ninguna coincide.
      * 
-     * @param Room $room Habitación con sus tarifas cargadas
-     * @param int $guests Número de huéspedes
-     * @return float Precio por noche válido (siempre > 0 si existe base_price)
+     * @param Room $room HabitaciÃ³n con sus tarifas cargadas
+     * @param int $guests NÃºmero de huÃ©spedes
+     * @return float Precio por noche vÃ¡lido (siempre > 0 si existe base_price)
      */
     private function findRateForGuests(Room $room, int $guests): float
     {
@@ -148,7 +148,7 @@ class RoomManager extends Component
                 $min = (int)($rate->min_guests ?? 0);
                 $max = (int)($rate->max_guests ?? 0);
                 
-                // Validar que min y max sean valores válidos
+                // Validar que min y max sean valores vÃ¡lidos
                 if ($min <= 0 || $max <= 0) {
                     \Log::warning('findRateForGuests: Invalid rate range', [
                         'rate_id' => $rate->id,
@@ -156,10 +156,10 @@ class RoomManager extends Component
                         'max_guests' => $rate->max_guests,
                         'room_id' => $room->id,
                     ]);
-                    continue; // Saltar tarifa inválida
+                    continue; // Saltar tarifa invÃ¡lida
                 }
                 
-                // Coincidencia: guests está dentro del rango [min, max]
+                // Coincidencia: guests estÃ¡ dentro del rango [min, max]
                 if ($guests >= $min && $guests <= $max) {
                     $price = (float)($rate->price_per_night ?? 0);
                     if ($price > 0) {
@@ -176,7 +176,7 @@ class RoomManager extends Component
                 }
             }
             
-            // No se encontró tarifa coincidente
+            // No se encontrÃ³ tarifa coincidente
             \Log::warning('findRateForGuests: No matching rate found', [
                 'room_id' => $room->id,
                 'guests' => $guests,
@@ -205,7 +205,7 @@ class RoomManager extends Component
             return $basePrice;
         }
 
-        // Último recurso: precio por defecto 0 (será detectado por validación)
+        // Ãšltimo recurso: precio por defecto 0 (serÃ¡ detectado por validaciÃ³n)
         \Log::error('findRateForGuests: No price found', [
             'room_id' => $room->id,
             'guests' => $guests,
@@ -216,16 +216,16 @@ class RoomManager extends Component
     }
 
     /**
-     * Garantiza que exista un registro de noche para una fecha específica en una estadía.
+     * Garantiza que exista un registro de noche para una fecha especÃ­fica en una estadÃ­a.
      * 
      * SINGLE SOURCE OF TRUTH para el cobro por noches:
      * - Si ya existe una noche para esa fecha, no hace nada
      * - Si no existe, crea una nueva noche con precio calculado desde tarifas
-     * - El precio se calcula basándose en la cantidad de huéspedes de la reserva
+     * - El precio se calcula basÃ¡ndose en la cantidad de huÃ©spedes de la reserva
      * 
-     * REGLA: Cada noche que una habitación está ocupada debe tener un registro en stay_nights
+     * REGLA: Cada noche que una habitaciÃ³n estÃ¡ ocupada debe tener un registro en stay_nights
      * 
-     * @param \App\Models\Stay $stay La estadía activa
+     * @param \App\Models\Stay $stay La estadÃ­a activa
      * @param \Carbon\Carbon $date Fecha de la noche a crear
      * @return \App\Models\StayNight|null La noche creada o existente, o null si falla
      */
@@ -242,7 +242,7 @@ class RoomManager extends Component
                 return $existingNight;
             }
 
-            // Obtener reserva y habitación para calcular precio
+            // Obtener reserva y habitaciÃ³n para calcular precio
             $reservation = $stay->reservation;
             $room = $stay->room;
 
@@ -254,12 +254,12 @@ class RoomManager extends Component
                 return null;
             }
 
-            // Cargar asignación de habitación en la reserva (fuente contractual de noches/precio)
+            // Cargar asignaciÃ³n de habitaciÃ³n en la reserva (fuente contractual de noches/precio)
             $reservationRoom = $reservation->reservationRooms()
                 ->where('room_id', $room->id)
                 ->first();
 
-            // Regla de consistencia: si la stay ya tiene noches, reutilizar el último precio.
+            // Regla de consistencia: si la stay ya tiene noches, reutilizar el Ãºltimo precio.
             $lastNight = \App\Models\StayNight::where('stay_id', $stay->id)
                 ->orderByDesc('date')
                 ->first();
@@ -270,7 +270,7 @@ class RoomManager extends Component
 
             if ($price <= 0) {
                 // REGLA: para reservas, el precio por noche se deriva del contrato de reserva,
-                // nunca de la tarifa base de habitación.
+                // nunca de la tarifa base de habitaciÃ³n.
                 if ($reservationRoom) {
                     $reservationRoomPrice = (float)($reservationRoom->price_per_night ?? 0);
                     if ($reservationRoomPrice > 0) {
@@ -381,7 +381,7 @@ class RoomManager extends Component
     }
 
     /**
-     * Obtiene el ID del método de pago por código en payments_methods.
+     * Obtiene el ID del mÃ©todo de pago por cÃ³digo en payments_methods.
      */
     private function getPaymentMethodId(string $code): ?int
     {
@@ -391,8 +391,8 @@ class RoomManager extends Component
     }
 
     /**
-     * Detecta si un pago negativo corresponde a una reversión técnica
-     * y no a una devolución real al cliente.
+     * Detecta si un pago negativo corresponde a una reversiÃ³n tÃ©cnica
+     * y no a una devoluciÃ³n real al cliente.
      */
     private function isPaymentReversalEntry(Payment $payment): bool
     {
@@ -404,8 +404,8 @@ class RoomManager extends Component
     }
 
     /**
-     * Extrae el ID del pago original desde una referencia de reversión.
-     * Soporta formatos históricos: "Anulacion de pago #123" y "reversal_of:123".
+     * Extrae el ID del pago original desde una referencia de reversiÃ³n.
+     * Soporta formatos histÃ³ricos: "Anulacion de pago #123" y "reversal_of:123".
      */
     private function extractReversedPaymentIdFromReference(?string $reference): ?int
     {
@@ -432,9 +432,9 @@ class RoomManager extends Component
     }
 
     /**
-     * Separa pagos válidos y devoluciones reales para el detalle de habitación.
+     * Separa pagos vÃ¡lidos y devoluciones reales para el detalle de habitaciÃ³n.
      * - Excluye pagos positivos que luego fueron revertidos.
-     * - Excluye reversión técnica del historial de devoluciones.
+     * - Excluye reversiÃ³n tÃ©cnica del historial de devoluciones.
      *
      * @return array{valid_deposits:\Illuminate\Support\Collection, refunds:\Illuminate\Support\Collection}
      */
@@ -497,6 +497,70 @@ class RoomManager extends Component
         'refreshRooms' => 'loadRooms',
     ];
 
+    private function isAdmin(): bool
+    {
+        $user = Auth::user();
+
+        return (bool) ($user && $user->hasRole('Administrador'));
+    }
+
+    private function canEditOccupancy(): bool
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->hasRole('Administrador')) {
+            return true;
+        }
+
+        if ($user->hasAnyRole(['Recepcionista DÃ­a', 'Recepcionista Noche'])) {
+            return true;
+        }
+
+        return $user->roles()
+            ->pluck('name')
+            ->contains(static fn ($name) => str_starts_with((string) $name, 'Recepcionista'));
+    }
+
+    /**
+     * Fecha seleccionada normalizada para todas las validaciones operativas.
+     */
+    private function getSelectedDate(): Carbon
+    {
+        if ($this->date instanceof Carbon) {
+            return $this->date->copy();
+        }
+
+        if (!empty($this->date)) {
+            return Carbon::parse((string) $this->date);
+        }
+
+        return Carbon::now();
+    }
+
+    /**
+     * Regla global: en Room Manager no se permite editar información histórica.
+     */
+    private function isSelectedDatePast(): bool
+    {
+        return $this->getSelectedDate()->startOfDay()->lt(Carbon::today());
+    }
+
+    /**
+     * Guarda central para bloquear mutaciones cuando la fecha seleccionada es pasada.
+     */
+    private function blockEditsForPastDate(string $message = 'No se puede editar información de fechas pasadas.'): bool
+    {
+        if (!$this->isSelectedDatePast()) {
+            return false;
+        }
+
+        $this->dispatch('notify', type: 'error', message: $message);
+        return true;
+    }
+
     public function mount($date = null, $search = null, $status = null)
     {
         $this->currentDate = $date ? Carbon::parse($date) : now();
@@ -504,14 +568,14 @@ class RoomManager extends Component
         $this->search = $search ?? '';
         $this->statusFilter = $status;
         
-        // Generar array de días del mes
+        // Generar array de dÃ­as del mes
         $startOfMonth = $this->currentDate->copy()->startOfMonth();
         $daysCount = $this->currentDate->daysInMonth;
         $this->daysInMonth = collect(range(1, $daysCount))
             ->map(fn($day) => $startOfMonth->copy()->day($day))
             ->toArray();
 
-        // Cargar catálogos
+        // Cargar catÃ¡logos
         $this->loadStatuses();
         $this->loadVentilationTypes();
 
@@ -565,14 +629,14 @@ class RoomManager extends Component
     }
 
     /**
-     * Obtiene el historial de liberación paginado.
-     * Se calcula en render() para evitar problemas de serialización en Livewire.
+     * Obtiene el historial de liberaciÃ³n paginado.
+     * Se calcula en render() para evitar problemas de serializaciÃ³n en Livewire.
      */
     protected function getReleaseHistory()
     {
         // Verificar si la tabla existe antes de intentar consultarla
         if (!Schema::hasTable('room_release_history')) {
-            // Si la tabla no existe, retornar una colección vacía paginada
+            // Si la tabla no existe, retornar una colecciÃ³n vacÃ­a paginada
             return new \Illuminate\Pagination\LengthAwarePaginator(
                 collect([]),
                 0,
@@ -583,7 +647,7 @@ class RoomManager extends Component
         }
         
         try {
-            // Cargar historial de liberación de habitaciones filtrado por fecha
+            // Cargar historial de liberaciÃ³n de habitaciones filtrado por fecha
             $query = RoomReleaseHistory::query()
                 ->with(['room', 'customer', 'releasedBy'])
                 ->orderBy('release_date', 'desc')
@@ -602,7 +666,7 @@ class RoomManager extends Component
             }
             // Si no hay fecha seleccionada, mostrar TODAS las liberaciones (sin filtro de fecha)
             
-            // Aplicar búsqueda si existe
+            // Aplicar bÃºsqueda si existe
             if ($this->search) {
                 $query->where(function($q) {
                     $q->where('room_number', 'like', '%' . $this->search . '%')
@@ -630,7 +694,7 @@ class RoomManager extends Component
                 'trace' => $e->getTraceAsString()
             ]);
             
-            // En caso de error, retornar una colección vacía paginada
+            // En caso de error, retornar una colecciÃ³n vacÃ­a paginada
             return new \Illuminate\Pagination\LengthAwarePaginator(
                 collect([]),
                 0,
@@ -646,19 +710,19 @@ class RoomManager extends Component
      */
     public function loadReleaseHistory()
     {
-        // Este método ya no es necesario, pero se mantiene para compatibilidad
+        // Este mÃ©todo ya no es necesario, pero se mantiene para compatibilidad
         // El historial se carga directamente en render()
     }
 
     /**
-     * Carga huéspedes de la reserva activa de una habitación.
+     * Carga huÃ©spedes de la reserva activa de una habitaciÃ³n.
      * 
      * SINGLE SOURCE OF TRUTH:
      * - Cliente principal: SIEMPRE viene de $reservation->customer (reservations.client_id)
-     * - Huéspedes adicionales: SIEMPRE vienen de $reservationRoom->getGuests()
-     *   que usa: reservation_room_guests → reservation_guest_id → reservation_guests.guest_id → customers.id
+     * - HuÃ©spedes adicionales: SIEMPRE vienen de $reservationRoom->getGuests()
+     *   que usa: reservation_room_guests â†’ reservation_guest_id â†’ reservation_guests.guest_id â†’ customers.id
      * 
-     * Usa STAY (ocupación real con timestamps) en lugar de ReservationRoom (fechas).
+     * Usa STAY (ocupaciÃ³n real con timestamps) en lugar de ReservationRoom (fechas).
      */
     /**
      * Resumen diario para vision general del hotel.
@@ -1065,7 +1129,7 @@ class RoomManager extends Component
             // Obtener la Stay que intersecta con la fecha consultada
             $stay = $room->getAvailabilityService()->getStayForDate($this->date ?? Carbon::today());
 
-            // GUARD CLAUSE: Si no hay stay o reserva, retornar vacío
+            // GUARD CLAUSE: Si no hay stay o reserva, retornar vacÃ­o
             if (!$stay || !$stay->reservation) {
                 return [
                     'room_number' => $room->room_number,
@@ -1076,7 +1140,7 @@ class RoomManager extends Component
 
             $reservation = $stay->reservation;
 
-            // 1. Huésped principal - SINGLE SOURCE OF TRUTH: reservations.client_id
+            // 1. HuÃ©sped principal - SINGLE SOURCE OF TRUTH: reservations.client_id
             $mainGuest = null;
             if ($reservation->customer) {
                 $mainGuest = [
@@ -1089,11 +1153,11 @@ class RoomManager extends Component
                 ];
             }
 
-            // 2. ReservationRoom DE ESTA HABITACIÓN ESPECÍFICA
+            // 2. ReservationRoom DE ESTA HABITACIÃ“N ESPECÃFICA
             $reservationRoom = $reservation->reservationRooms->firstWhere('room_id', $room->id);
 
-            // 3. Huéspedes adicionales - SINGLE SOURCE OF TRUTH: reservationRoom->getGuests()
-            // Ruta: reservation_room_guests → reservation_guest_id → reservation_guests.guest_id → customers.id
+            // 3. HuÃ©spedes adicionales - SINGLE SOURCE OF TRUTH: reservationRoom->getGuests()
+            // Ruta: reservation_room_guests â†’ reservation_guest_id â†’ reservation_guests.guest_id â†’ customers.id
             $additionalGuests = collect();
             if ($reservationRoom) {
                 try {
@@ -1101,7 +1165,7 @@ class RoomManager extends Component
                     
                     if ($guestsCollection && $guestsCollection->isNotEmpty()) {
                         $additionalGuests = $guestsCollection->map(function($guest) {
-                            // Cargar taxProfile si no está cargado
+                            // Cargar taxProfile si no estÃ¡ cargado
                             if (!$guest->relationLoaded('taxProfile')) {
                                 $guest->load('taxProfile');
                             }
@@ -1117,7 +1181,7 @@ class RoomManager extends Component
                         });
                     }
                 } catch (\Exception $e) {
-                    // Si falla la carga de guests, retornar colección vacía sin romper el flujo
+                    // Si falla la carga de guests, retornar colecciÃ³n vacÃ­a sin romper el flujo
                     \Log::warning('Error loading additional guests in loadRoomGuests', [
                         'room_id' => $room->id,
                         'reservation_room_id' => $reservationRoom->id ?? null,
@@ -1127,7 +1191,7 @@ class RoomManager extends Component
                 }
             }
 
-            // 4. Combinar huésped principal y adicionales
+            // 4. Combinar huÃ©sped principal y adicionales
             $guests = collect();
             if ($mainGuest) {
                 $guests->push($mainGuest);
@@ -1140,7 +1204,7 @@ class RoomManager extends Component
                 'main_guest' => $mainGuest,
             ];
         } catch (\Exception $e) {
-            // Protección total: nunca lanzar excepciones
+            // ProtecciÃ³n total: nunca lanzar excepciones
             \Log::error('Error in loadRoomGuests', [
                 'room_id' => $roomId,
                 'error' => $e->getMessage(),
@@ -1159,13 +1223,13 @@ class RoomManager extends Component
     public function switchTab(string $tab): void
     {
         $this->activeTab = $tab;
-        // El historial se carga automáticamente en render() cuando activeTab === 'history'
+        // El historial se carga automÃ¡ticamente en render() cuando activeTab === 'history'
     }
 
     public function refreshRoomsPolling()
     {
         if ($this->isReleasingRoom) {
-            return; // NO refrescar mientras se libera una habitación
+            return; // NO refrescar mientras se libera una habitaciÃ³n
         }
         // Livewire automatically re-renders, no need to manually load
     }
@@ -1179,34 +1243,38 @@ class RoomManager extends Component
     }
 
     /**
-     * Continúa la estadía (extiende el checkout por un día).
+     * ContinÃºa la estadÃ­a (extiende el checkout por un dÃ­a).
      * 
-     * Reactiva la estadía extendiendo la fecha de checkout de la reserva.
-     * Esto quita el estado de "pending_checkout" permitiendo que la habitación
-     * siga ocupada un día más.
+     * Reactiva la estadÃ­a extendiendo la fecha de checkout de la reserva.
+     * Esto quita el estado de "pending_checkout" permitiendo que la habitaciÃ³n
+     * siga ocupada un dÃ­a mÃ¡s.
      * 
      * REGLAS DE NEGOCIO:
-     * - Solo funciona para estadías que están en "pending_checkout" (check_out_date = hoy)
-     * - Extiende reservation_rooms.check_out_date en 1 día
-     * - NO toca pagos (el total_amount se mantiene, se pagará después)
-     * - NO crea nueva estadía (la stay actual continúa)
-     * - NO rompe auditoría (solo extiende fecha)
+     * - Solo funciona para estadÃ­as que estÃ¡n en "pending_checkout" (check_out_date = hoy)
+     * - Extiende reservation_rooms.check_out_date en 1 dÃ­a
+     * - NO toca pagos (el total_amount se mantiene, se pagarÃ¡ despuÃ©s)
+     * - NO crea nueva estadÃ­a (la stay actual continÃºa)
+     * - NO rompe auditorÃ­a (solo extiende fecha)
      * 
-     * @param int $roomId ID de la habitación
+     * @param int $roomId ID de la habitaciÃ³n
      * @return void
      */
     public function continueStay(int $roomId): void
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         try {
             $room = Room::findOrFail($roomId);
             $availabilityService = $room->getAvailabilityService();
             $today = Carbon::today();
 
-            // Validar que no sea fecha histórica
+            // Validar que no sea fecha histÃ³rica
             if ($availabilityService->isHistoricDate($today)) {
                 $this->dispatch('notify', [
                     'type' => 'error',
-                    'message' => 'No se pueden hacer cambios en fechas históricas.'
+                    'message' => 'No se pueden hacer cambios en fechas histÃ³ricas.'
                 ]);
                 return;
             }
@@ -1217,7 +1285,7 @@ class RoomManager extends Component
             if (!$stay) {
                 $this->dispatch('notify', [
                     'type' => 'error',
-                    'message' => 'No hay una estadía activa para continuar.'
+                    'message' => 'No hay una estadÃ­a activa para continuar.'
                 ]);
                 return;
             }
@@ -1227,7 +1295,7 @@ class RoomManager extends Component
             if (!$reservation) {
                 $this->dispatch('notify', [
                     'type' => 'error',
-                    'message' => 'La estadía no tiene reserva asociada.'
+                    'message' => 'La estadÃ­a no tiene reserva asociada.'
                 ]);
                 return;
             }
@@ -1239,7 +1307,7 @@ class RoomManager extends Component
             if (!$reservationRoom) {
                 $this->dispatch('notify', [
                     'type' => 'error',
-                    'message' => 'No se encontró la relación reserva-habitación.'
+                    'message' => 'No se encontrÃ³ la relaciÃ³n reserva-habitaciÃ³n.'
                 ]);
                 return;
             }
@@ -1251,12 +1319,12 @@ class RoomManager extends Component
             if (!$checkoutDate->equalTo($today)) {
                 $this->dispatch('notify', [
                     'type' => 'warning',
-                    'message' => 'La estadía no está en estado de checkout pendiente para continuar.'
+                    'message' => 'La estadÃ­a no estÃ¡ en estado de checkout pendiente para continuar.'
                 ]);
                 return;
             }
 
-            // Extender el checkout por un día
+            // Extender el checkout por un dÃ­a
             $newCheckOutDate = $checkoutDate->copy()->addDay();
 
             // Actualizar reservation_room (solo la fecha, NO tocar pagos)
@@ -1264,7 +1332,7 @@ class RoomManager extends Component
                 'check_out_date' => $newCheckOutDate->toDateString()
             ]);
 
-            // Asegurar que el stay esté activo (por si acaso tiene status incorrecto)
+            // Asegurar que el stay estÃ© activo (por si acaso tiene status incorrecto)
             if ($stay->status !== 'active') {
                 $stay->update([
                     'status' => 'active',
@@ -1272,15 +1340,15 @@ class RoomManager extends Component
                 ]);
             }
 
-            // 🔥 GENERAR NOCHE PARA LA NOCHE REAL (crítico)
-            // 🔐 REGLA HOTELERA: La noche cobrable es la ANTERIOR al nuevo checkout
-            // Ejemplo: Checkout anterior 19, nuevo checkout 20 → Noche cobrable: 19 (NO 20)
+            // ðŸ”¥ GENERAR NOCHE PARA LA NOCHE REAL (crÃ­tico)
+            // ðŸ” REGLA HOTELERA: La noche cobrable es la ANTERIOR al nuevo checkout
+            // Ejemplo: Checkout anterior 19, nuevo checkout 20 â†’ Noche cobrable: 19 (NO 20)
             $nightToCharge = $newCheckOutDate->copy()->subDay();
             $this->ensureNightForDate($stay, $nightToCharge);
 
-            // 🔐 REGLA HOTELERA: Continuar estadía = habitación queda pendiente por aseo
-            // Toda extensión de estadía ensucia la habitación aunque el huésped continúe
-            // Esto permite que el personal de limpieza inspeccione y prepare la habitación
+            // ðŸ” REGLA HOTELERA: Continuar estadÃ­a = habitaciÃ³n queda pendiente por aseo
+            // Toda extensiÃ³n de estadÃ­a ensucia la habitaciÃ³n aunque el huÃ©sped continÃºe
+            // Esto permite que el personal de limpieza inspeccione y prepare la habitaciÃ³n
             $room->update([
                 'last_cleaned_at' => null // Marcar como pendiente de limpieza
             ]);
@@ -1298,7 +1366,7 @@ class RoomManager extends Component
 
             $this->dispatch('notify', [
                 'type' => 'success',
-                'message' => "La estadía ha sido continuada hasta el {$newCheckOutDate->format('d/m/Y')}."
+                'message' => "La estadÃ­a ha sido continuada hasta el {$newCheckOutDate->format('d/m/Y')}."
             ]);
 
         } catch (\Exception $e) {
@@ -1310,41 +1378,45 @@ class RoomManager extends Component
 
             $this->dispatch('notify', [
                 'type' => 'error',
-                'message' => 'Error al continuar la estadía: ' . $e->getMessage()
+                'message' => 'Error al continuar la estadÃ­a: ' . $e->getMessage()
             ]);
         }
     }
 
     /**
-     * Marca una habitación como limpia actualizando last_cleaned_at.
+     * Marca una habitaciÃ³n como limpia actualizando last_cleaned_at.
      * Solo permitido cuando operational_status === 'pending_cleaning'.
      */
     public function markRoomAsClean($roomId)
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         try {
             $room = Room::find($roomId);
             if (!$room) {
-                $this->dispatch('notify', type: 'error', message: 'Habitación no encontrada.');
+                $this->dispatch('notify', type: 'error', message: 'HabitaciÃ³n no encontrada.');
                 return;
             }
 
-            // Validar que esté en pending_cleaning
+            // Validar que estÃ© en pending_cleaning
             $operationalStatus = $room->getOperationalStatus($this->date ?? Carbon::today());
             if ($operationalStatus !== 'pending_cleaning') {
-                $this->dispatch('notify', type: 'error', message: 'La habitación no requiere limpieza.');
+                $this->dispatch('notify', type: 'error', message: 'La habitaciÃ³n no requiere limpieza.');
                 return;
             }
 
             $room->last_cleaned_at = now();
             $room->save();
 
-            $this->dispatch('notify', type: 'success', message: 'Habitación marcada como limpia.');
+            $this->dispatch('notify', type: 'success', message: 'HabitaciÃ³n marcada como limpia.');
             $this->dispatch('refreshRooms');
             
             // Notificar al frontend sobre el cambio de estado
             $this->dispatch('room-marked-clean', roomId: $room->id);
         } catch (\Exception $e) {
-            $this->dispatch('notify', type: 'error', message: 'Error al marcar habitación: ' . $e->getMessage());
+            $this->dispatch('notify', type: 'error', message: 'Error al marcar habitaciÃ³n: ' . $e->getMessage());
             \Log::error('Error marking room as clean: ' . $e->getMessage(), ['exception' => $e]);
         }
     }
@@ -1353,7 +1425,7 @@ class RoomManager extends Component
     {
         $this->resetPage();
         
-        // Si estamos en la pestaña de historial, resetear también esa página
+        // Si estamos en la pestaÃ±a de historial, resetear tambiÃ©n esa pÃ¡gina
         if ($this->activeTab === 'history') {
             $this->resetPage('releaseHistoryPage');
         }
@@ -1370,7 +1442,7 @@ class RoomManager extends Component
     }
 
     /**
-     * CRITICAL: Todos los métodos de cambio de fecha deben:
+     * CRITICAL: Todos los mÃ©todos de cambio de fecha deben:
      * 1. Actualizar $date y $currentDate
      * 2. Llamar loadRooms() para re-renderizar inmediatamente
      * 3. Disparar 'room-view-changed' para resetear Alpine.js
@@ -1381,7 +1453,7 @@ class RoomManager extends Component
         $this->date = Carbon::parse($date);
         $this->currentDate = $this->date;
 
-        // CRITICAL: Forzar actualización inmediata
+        // CRITICAL: Forzar actualizaciÃ³n inmediata
         $this->loadRooms();
         $this->dispatch('room-view-changed', date: $this->date->toDateString());
     }
@@ -1391,15 +1463,15 @@ class RoomManager extends Component
         $this->date = $this->date->copy()->addDay();
         $this->currentDate = $this->date;
 
-        // 🔥 GENERAR NOCHE PARA FECHA ACTUAL si hay stay activa
-        // 🔐 PROTECCIÓN: Solo generar noches para HOY, nunca para fechas futuras
-        // 🔐 PROTECCIÓN EXTRA: NO generar noche si HOY es checkout o después
+        // ðŸ”¥ GENERAR NOCHE PARA FECHA ACTUAL si hay stay activa
+        // ðŸ” PROTECCIÃ“N: Solo generar noches para HOY, nunca para fechas futuras
+        // ðŸ” PROTECCIÃ“N EXTRA: NO generar noche si HOY es checkout o despuÃ©s
         try {
             $today = Carbon::today();
             
-            // Protección explícita: NO generar noches futuras
+            // ProtecciÃ³n explÃ­cita: NO generar noches futuras
             if ($this->date->isAfter($today)) {
-                // Fecha futura: NO generar noches aquí
+                // Fecha futura: NO generar noches aquÃ­
                 return;
             }
             
@@ -1419,7 +1491,7 @@ class RoomManager extends Component
                     ->get();
 
                 foreach ($activeStays as $stay) {
-                    // 🔐 PROTECCIÓN CRÍTICA: NO generar noche si HOY es checkout o después
+                    // ðŸ” PROTECCIÃ“N CRÃTICA: NO generar noche si HOY es checkout o despuÃ©s
                     $reservationRoom = $stay->reservation->reservationRooms->first();
                     if ($reservationRoom && $reservationRoom->check_out_date) {
                         $checkout = Carbon::parse($reservationRoom->check_out_date);
@@ -1435,13 +1507,13 @@ class RoomManager extends Component
                 }
             }
         } catch (\Exception $e) {
-            // No crítico, solo log
+            // No crÃ­tico, solo log
             \Log::warning('Error generating nights in nextDay', [
                 'error' => $e->getMessage()
             ]);
         }
 
-        // CRITICAL: Forzar actualización inmediata
+        // CRITICAL: Forzar actualizaciÃ³n inmediata
         $this->loadRooms();
         $this->dispatch('room-view-changed', date: $this->date->toDateString());
     }
@@ -1451,13 +1523,13 @@ class RoomManager extends Component
         $this->date = $this->date->copy()->subDay();
         $this->currentDate = $this->date;
 
-        // CRITICAL: Forzar actualización inmediata
+        // CRITICAL: Forzar actualizaciÃ³n inmediata
         $this->loadRooms();
         $this->dispatch('room-view-changed', date: $this->date->toDateString());
     }
 
     /**
-     * Cambia la fecha actual y regenera el arreglo de días del mes para los filtros.
+     * Cambia la fecha actual y regenera el arreglo de dÃ­as del mes para los filtros.
      * 
      * CRITICAL: Fuerza recarga inmediata de habitaciones para evitar estados heredados.
      */
@@ -1472,7 +1544,7 @@ class RoomManager extends Component
             ->map(fn($day) => $startOfMonth->copy()->day($day))
             ->toArray();
 
-        // CRITICAL: Forzar actualización inmediata
+        // CRITICAL: Forzar actualizaciÃ³n inmediata
         $this->loadRooms();
         $this->dispatch('room-view-changed', date: $this->date->toDateString());
     }
@@ -1482,13 +1554,18 @@ class RoomManager extends Component
         $this->date = now();
         $this->currentDate = $this->date;
         
-        // CRITICAL: Forzar actualización inmediata
+        // CRITICAL: Forzar actualizaciÃ³n inmediata
         $this->loadRooms();
         $this->dispatch('room-view-changed', date: $this->date->toDateString());
     }
 
     public function openRoomDetail($roomId)
     {
+        $this->showAddSale = false;
+        $this->showAddDeposit = false;
+        $this->newSale = null;
+        $this->newDeposit = null;
+
         $room = Room::with([
             'reservationRooms' => function($q) {
                 $q->where('check_in_date', '<=', $this->date->toDateString())
@@ -1505,15 +1582,15 @@ class RoomManager extends Component
             return;
         }
 
-        // Obtener información de acceso: si es fecha histórica, bloquear
+        // Obtener informaciÃ³n de acceso: si es fecha histÃ³rica, bloquear
         $availabilityService = $room->getAvailabilityService();
         $accessInfo = $availabilityService->getAccessInfo($this->date);
 
         if ($accessInfo['isHistoric']) {
-            $this->dispatch('notify', type: 'warning', message: 'Información histórica: datos en solo lectura. No se permite modificar.');
+            $this->dispatch('notify', type: 'warning', message: 'InformaciÃ³n histÃ³rica: datos en solo lectura. No se permite modificar.');
         }
 
-        // 🔥 CRITICAL FIX: Check if room is actually occupied on this date
+        // ðŸ”¥ CRITICAL FIX: Check if room is actually occupied on this date
         // Don't show details if the room has been released (stay is finished)
         // We need to check for ACTIVE stays, not just any stay
         $stay = $availabilityService->getStayForDate($this->date);
@@ -1576,7 +1653,7 @@ class RoomManager extends Component
         if ($activeReservation) {
             $reservationRoom = $room->reservationRooms
                 ->firstWhere('reservation_id', $activeReservation->id);
-            // 🔥 GENERAR NOCHES FALTANTES para todo el rango de la estadía
+            // ðŸ”¥ GENERAR NOCHES FALTANTES para todo el rango de la estadÃ­a
             try {
                 $stay = $availabilityService->getStayForDate($this->date);
                 if ($stay) {
@@ -1585,9 +1662,9 @@ class RoomManager extends Component
                         $checkIn = Carbon::parse($reservationRoom->check_in_date);
                         $checkOut = Carbon::parse($reservationRoom->check_out_date);
                         
-                        // 🔐 REGLA HOTELERA: La noche del check-out NO se cobra
+                        // ðŸ” REGLA HOTELERA: La noche del check-out NO se cobra
                         // Generar noches para todo el rango desde check-in hasta check-out (exclusivo)
-                        // Ejemplo: Check-in 18, Check-out 20 → Noches: 18 y 19 (NO 20)
+                        // Ejemplo: Check-in 18, Check-out 20 â†’ Noches: 18 y 19 (NO 20)
                         $currentDate = $checkIn->copy();
                         while ($currentDate->lt($checkOut)) {
                             $this->ensureNightForDate($stay, $currentDate);
@@ -1596,7 +1673,7 @@ class RoomManager extends Component
                     }
                 }
             } catch (\Exception $e) {
-                // No crítico, solo log
+                // No crÃ­tico, solo log
                 \Log::warning('Error generating nights in openRoomDetail', [
                     'room_id' => $roomId,
                     'error' => $e->getMessage()
@@ -1606,7 +1683,7 @@ class RoomManager extends Component
             $payments = $activeReservation->payments ?? collect();
 
             // ===== SSOT FINANCIERO: Separar pagos y devoluciones =====
-            // REGLA CRÍTICA: payments.amount > 0 = dinero recibido (pagos)
+            // REGLA CRÃTICA: payments.amount > 0 = dinero recibido (pagos)
             // payments.amount < 0 = dinero devuelto (devoluciones)
             // NO mezclar en sum(amount) porque se cancelan incorrectamente
             $paymentBuckets = $this->splitPaymentsForRoomDetail($payments);
@@ -1618,7 +1695,7 @@ class RoomManager extends Component
             $reservationTotalHospedaje = 0.0;
 
             // ===== SSOT ABSOLUTO DEL HOSPEDAJE: stay_nights (NUEVO) =====
-            // REGLA CRÍTICA: El total del hospedaje se calcula sumando todas las noches reales desde stay_nights
+            // REGLA CRÃTICA: El total del hospedaje se calcula sumando todas las noches reales desde stay_nights
             // Esto permite rastrear cada noche individualmente y su estado de pago
             try {
                 // Intentar usar stay_nights (si existe)
@@ -1628,10 +1705,10 @@ class RoomManager extends Component
                     ->get();
 
                 if ($stayNights->isNotEmpty()) {
-                    // ✅ NUEVO SSOT: Calcular desde stay_nights
+                    // âœ… NUEVO SSOT: Calcular desde stay_nights
                     $totalHospedaje = (float)$stayNights->sum('price');
                     
-                    // ✅ NUEVO SSOT: Leer stay_history desde stay_nights
+                    // âœ… NUEVO SSOT: Leer stay_history desde stay_nights
                     $stayHistory = $stayNights->map(function($night) {
                         return [
                             'date' => $night->date->format('Y-m-d'),
@@ -1640,7 +1717,7 @@ class RoomManager extends Component
                         ];
                     })->toArray();
                 } else {
-                    // FALLBACK: Si no hay stay_nights aún, usar total_amount (compatibilidad)
+                    // FALLBACK: Si no hay stay_nights aÃºn, usar total_amount (compatibilidad)
                     $totalHospedaje = 0;
                     
                     $reservationRoom = $reservationRoom ?? $room->reservationRooms->first();
@@ -1669,7 +1746,7 @@ class RoomManager extends Component
                     }
                 }
             } catch (\Exception $e) {
-                // Si falla (tabla no existe aún), usar fallback
+                // Si falla (tabla no existe aÃºn), usar fallback
                 \Log::warning('Error reading stay_nights, using fallback', [
                     'reservation_id' => $activeReservation->id,
                     'error' => $e->getMessage()
@@ -1693,7 +1770,7 @@ class RoomManager extends Component
                 $stayHistory = [];
             }
 
-            // ===== VALIDACIÓN: Si totalHospedaje sigue siendo 0, algo está mal =====
+            // ===== VALIDACIÃ“N: Si totalHospedaje sigue siendo 0, algo estÃ¡ mal =====
             try {
                 $reservationTotalHospedaje = (float)\App\Models\StayNight::where('reservation_id', $activeReservation->id)
                     ->sum('price');
@@ -1725,8 +1802,8 @@ class RoomManager extends Component
             $salesDebt = (float)($sales->where('is_paid', false)->sum('total') ?? 0);
 
             // ===== CALCULAR DEUDA TOTAL (CORRECTA CON PAGOS Y DEVOLUCIONES SEPARADOS) =====
-            // Fórmula: deuda = (hospedaje - abonos_reales) + devoluciones + consumos_pendientes
-            // Si hay devoluciones, se suman porque representan dinero que se devolvió
+            // FÃ³rmula: deuda = (hospedaje - abonos_reales) + devoluciones + consumos_pendientes
+            // Si hay devoluciones, se suman porque representan dinero que se devolviÃ³
             $totalDebt = ($totalHospedaje - $abonoRealizado) + $refundsTotal + $salesDebt;
 
             $identification = $activeReservation->customer->taxProfile->identification ?? null;
@@ -1772,7 +1849,7 @@ class RoomManager extends Component
                 ];
             })->filter(fn($row) => (float)($row['amount'] ?? 0) > 0)->values()->toArray(),
             'refunds_history' => $trueRefundPayments->map(function($payment) use ($roomShareRatio) {
-                // Cargar createdBy si no está cargado
+                // Cargar createdBy si no estÃ¡ cargado
                 if (!$payment->relationLoaded('createdBy')) {
                     $payment->load('createdBy');
                 }
@@ -1788,7 +1865,7 @@ class RoomManager extends Component
                 ];
             })->filter(fn($row) => (float)($row['amount'] ?? 0) > 0)->values()->toArray(),
             'total_refunds' => $refundsTotal ?? 0, // Total de devoluciones para mostrar en el header del historial
-            'is_past_date' => $this->date->lt(now()->startOfDay()), // Usar HotelTime sería mejor pero mantenemos consistencia con now() para validación de fecha actual
+            'is_past_date' => $this->date->lt(now()->startOfDay()), // Usar HotelTime serÃ­a mejor pero mantenemos consistencia con now() para validaciÃ³n de fecha actual
             'isHistoric' => $accessInfo['isHistoric'],
             'canModify' => $accessInfo['canModify'],
         ];
@@ -1800,10 +1877,18 @@ class RoomManager extends Component
     {
         $this->roomDetailModal = false;
         $this->detailData = null;
+        $this->showAddSale = false;
+        $this->showAddDeposit = false;
+        $this->newSale = null;
+        $this->newDeposit = null;
     }
 
     public function toggleAddSale(): void
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         $this->showAddSale = !$this->showAddSale;
         if ($this->showAddSale) {
             $this->newSale = [
@@ -1819,6 +1904,10 @@ class RoomManager extends Component
 
     public function toggleAddDeposit(): void
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         $this->showAddDeposit = !$this->showAddDeposit;
         if ($this->showAddDeposit) {
             $this->newDeposit = [
@@ -1833,8 +1922,12 @@ class RoomManager extends Component
 
     public function addSale(): void
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         if (!$this->detailData || !isset($this->detailData['reservation']['id'])) {
-            $this->dispatch('notify', type: 'error', message: 'No se encontró la reserva.');
+            $this->dispatch('notify', type: 'error', message: 'No se encontrÃ³ la reserva.');
             return;
         }
 
@@ -1903,6 +1996,10 @@ class RoomManager extends Component
 
     public function addDeposit(): void
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         // Validar que tenemos los datos necesarios
         if (!$this->newDeposit || !isset($this->newDeposit['amount']) || !isset($this->newDeposit['payment_method'])) {
             $this->dispatch('notify', type: 'error', message: 'Por favor complete todos los campos requeridos.');
@@ -1911,7 +2008,7 @@ class RoomManager extends Component
 
         // Validar que tenemos una reserva en el modal
         if (!$this->detailData || !isset($this->detailData['reservation']['id'])) {
-            $this->dispatch('notify', type: 'error', message: 'No se encontró la reserva.');
+            $this->dispatch('notify', type: 'error', message: 'No se encontrÃ³ la reserva.');
             return;
         }
 
@@ -1937,6 +2034,10 @@ class RoomManager extends Component
 
     public function paySale($saleId, $method): void
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         try {
             $sale = ReservationSale::find($saleId);
             if (!$sale) {
@@ -1945,7 +2046,7 @@ class RoomManager extends Component
             }
 
             if (!in_array($method, ['efectivo', 'transferencia', 'pendiente'])) {
-                $this->dispatch('notify', type: 'error', message: 'Método de pago inválido.');
+                $this->dispatch('notify', type: 'error', message: 'MÃ©todo de pago invÃ¡lido.');
                 return;
             }
 
@@ -1972,6 +2073,10 @@ class RoomManager extends Component
 
     public function deleteDeposit($depositId, $amount): void
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         try {
             $payment = Payment::find($depositId);
             if (!$payment) {
@@ -2034,6 +2139,10 @@ class RoomManager extends Component
 
     public function updateDeposit($reservationId, $amount): void
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         try {
             $reservationId = (int) $reservationId;
             $newTotal = (float) $amount;
@@ -2118,7 +2227,7 @@ class RoomManager extends Component
      * 
      * @param int $reservationId ID de la reserva
      * @param float $amount Monto del pago
-     * @param string $paymentMethod Método de pago ('efectivo' o 'transferencia')
+     * @param string $paymentMethod MÃ©todo de pago ('efectivo' o 'transferencia')
      * @param string|null $bankName Nombre del banco (solo si es transferencia)
      * @param string|null $reference Referencia de pago (solo si es transferencia)
      */
@@ -2136,7 +2245,7 @@ class RoomManager extends Component
             $paymentsTotal = (float)($reservation->payments()->sum('amount') ?? 0);
             $salesDebt = (float)($reservation->sales?->where('is_paid', false)->sum('total') ?? 0);
             
-            // ✅ NUEVO SSOT: Calcular desde stay_nights si existe
+            // âœ… NUEVO SSOT: Calcular desde stay_nights si existe
             try {
                 $totalAmount = (float)\App\Models\StayNight::where('reservation_id', $reservationId)
                     ->sum('price');
@@ -2201,7 +2310,7 @@ class RoomManager extends Component
     }
 
     /**
-     * Cerrar modal de edición de precios
+     * Cerrar modal de ediciÃ³n de precios
      */
     public function cancelEditPrices()
     {
@@ -2210,76 +2319,81 @@ class RoomManager extends Component
     }
 
     /**
-     * Mostrar todos los huéspedes de una habitación
+     * Mostrar todos los huÃ©spedes de una habitaciÃ³n
      */
     public function showAllGuests($reservationId, $roomId)
     {
         try {
-            \Log::error('🔥 showAllGuests llamado con reservationId: ' . $reservationId . ', roomId: ' . $roomId);
+            \Log::error('ðŸ”¥ showAllGuests llamado con reservationId: ' . $reservationId . ', roomId: ' . $roomId);
             
             $reservation = \App\Models\Reservation::with(['customer', 'reservationRooms'])->findOrFail($reservationId);
             $room = \App\Models\Room::findOrFail($roomId);
             
-            \Log::error('🏠 Habitación encontrada:', [
+            \Log::error('ðŸ  HabitaciÃ³n encontrada:', [
                 'room_id' => $room->id,
                 'room_number' => $room->room_number,
                 'max_capacity' => $room->max_capacity,
                 'beds_count' => $room->beds_count
             ]);
             
-            // Obtener el reservation room específico para esta habitación
+            // Obtener el reservation room especÃ­fico para esta habitaciÃ³n
             $reservationRoom = $reservation->reservationRooms->firstWhere('room_id', $roomId);
             
-            // Preparar datos de todos los huéspedes
+            // Preparar datos de todos los huÃ©spedes
             $allGuests = [];
             
-            // Agregar huésped principal si existe
+            // Agregar huÃ©sped principal si existe
             if ($reservation->customer) {
                 $allGuests[] = [
                     'id' => $reservation->customer->id,
                     'name' => $reservation->customer->name,
-                    'identification' => $reservation->customer->taxProfile->identification ?? 'Sin identificación',
-                    'phone' => $reservation->customer->phone ?? 'Sin teléfono',
+                    'identification' => $reservation->customer->taxProfile->identification ?? 'Sin identificaciÃ³n',
+                    'phone' => $reservation->customer->phone ?? 'Sin telÃ©fono',
                     'type' => 'Principal',
                     'is_primary' => true
                 ];
             }
             
-            // Agregar huéspedes adicionales usando el método getGuests()
+            // Agregar huÃ©spedes adicionales usando el mÃ©todo getGuests()
             if ($reservationRoom) {
                 try {
                     $additionalGuests = $reservationRoom->getGuests();
-                    \Log::error('👥 Huéspedes adicionales encontrados: ' . $additionalGuests->count());
+                    \Log::error('ðŸ‘¥ HuÃ©spedes adicionales encontrados: ' . $additionalGuests->count());
                     
                     foreach ($additionalGuests as $guest) {
                         $allGuests[] = [
                             'id' => $guest->id,
                             'name' => $guest->name,
-                            'identification' => $guest->taxProfile->identification ?? 'Sin identificación',
-                            'phone' => $guest->phone ?? 'Sin teléfono',
+                            'identification' => $guest->taxProfile->identification ?? 'Sin identificaciÃ³n',
+                            'phone' => $guest->phone ?? 'Sin telÃ©fono',
                             'type' => 'Adicional',
                             'is_primary' => false
                         ];
                     }
                 } catch (\Exception $e) {
-                    \Log::warning('Error cargando huéspedes adicionales:', [
+                    \Log::warning('Error cargando huÃ©spedes adicionales:', [
                         'reservation_room_id' => $reservationRoom->id,
                         'error' => $e->getMessage()
                     ]);
                 }
             }
             
-            \Log::error('👥 Huéspedes encontrados:', $allGuests);
+            \Log::error('ðŸ‘¥ HuÃ©spedes encontrados:', $allGuests);
             
             // Preparar datos para el modal
+            $isPastDate = $this->isSelectedDatePast();
+            $canEditGuests = !$isPastDate && $this->canEditOccupancy();
+
             $this->allGuestsForm = [
                 'reservation_id' => $reservationId,
                 'room_id' => $roomId,
                 'max_capacity' => $room->max_capacity,
-                'guests' => $allGuests
+                'guests' => $allGuests,
+                'is_past_date' => $isPastDate,
+                'can_edit' => $canEditGuests,
             ];
             
-            \Log::error('💾 allGuestsForm con capacidad:', [
+            \Log::error('ðŸ’¾ allGuestsForm con capacidad:', [
                 'max_capacity' => $this->allGuestsForm['max_capacity'],
                 'guests_count' => count($this->allGuestsForm['guests'])
             ]);
@@ -2287,111 +2401,175 @@ class RoomManager extends Component
             $this->allGuestsModal = true;
             
         } catch (\Exception $e) {
-            \Log::error('❌ Error en showAllGuests: ' . $e->getMessage(), [
+            \Log::error('âŒ Error en showAllGuests: ' . $e->getMessage(), [
                 'reservation_id' => $reservationId,
                 'room_id' => $roomId,
                 'trace' => $e->getTraceAsString()
             ]);
-            $this->dispatch('notify', type: 'error', message: 'Error al cargar los huéspedes: ' . $e->getMessage());
+            $this->dispatch('notify', type: 'error', message: 'Error al cargar los huÃ©spedes: ' . $e->getMessage());
         }
     }
 
     /**
-     * Agregar un nuevo huésped a la habitación
+     * Agregar un nuevo huÃ©sped a la habitaciÃ³n
      */
     public function addGuestToRoom($data)
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
+        if (!$this->canEditOccupancy()) {
+            $this->dispatch('notify', type: 'error', message: 'Solo el administrador o recepciÃ³n puede editar la ocupaciÃ³n.');
+            return;
+        }
+
         try {
-            \Log::error('🔥 addGuestToRoom llamado con datos:', $data);
-            
-            $reservationId = $data['reservation_id'];
-            $roomId = $data['room_id'];
-            $guestName = $data['name'];
-            $guestIdentification = $data['identification'] ?? null;
-            $guestPhone = $data['phone'] ?? null;
-            
-            // Validar que no se exceda la capacidad
+            $reservationId = (int)($data['reservation_id'] ?? 0);
+            $roomId = (int)($data['room_id'] ?? 0);
+            $existingCustomerId = (int)($data['existing_customer_id'] ?? 0);
+            $guestName = trim((string)($data['name'] ?? ''));
+            $guestIdentification = trim((string)($data['identification'] ?? ''));
+            $guestPhone = trim((string)($data['phone'] ?? ''));
+
+            $guestIdentification = $guestIdentification !== '' ? $guestIdentification : null;
+            $guestPhone = $guestPhone !== '' ? $guestPhone : null;
+
+            if ($reservationId <= 0 || $roomId <= 0) {
+                throw new \RuntimeException('Datos de reserva/habitaciÃ³n invÃ¡lidos.');
+            }
+
             $room = \App\Models\Room::findOrFail($roomId);
             $reservation = \App\Models\Reservation::with(['customer', 'reservationRooms'])->findOrFail($reservationId);
             $reservationRoom = $reservation->reservationRooms->firstWhere('room_id', $roomId);
-            
-            // Contar huéspedes actuales
-            $currentGuestCount = 1; // Huésped principal
-            if ($reservationRoom) {
-                try {
-                    $additionalGuests = $reservationRoom->getGuests();
-                    $currentGuestCount += $additionalGuests->count();
-                } catch (\Exception $e) {
-                    \Log::warning('Error contando huéspedes actuales:', [
-                        'reservation_room_id' => $reservationRoom->id,
-                        'error' => $e->getMessage()
-                    ]);
-                }
+
+            if (!$reservationRoom) {
+                throw new \RuntimeException('No se encontrÃ³ la relaciÃ³n reserva-habitaciÃ³n.');
             }
-            
-            if ($currentGuestCount >= $room->max_capacity) {
-                $this->dispatch('notify', type: 'error', message: 'Capacidad máxima de la habitación alcanzada');
+
+            $currentGuestCount = $reservation->customer ? 1 : 0;
+            try {
+                $additionalGuests = $reservationRoom->getGuests();
+                $currentGuestCount += $additionalGuests->count();
+            } catch (\Exception $e) {
+                \Log::warning('Error contando huÃ©spedes actuales:', [
+                    'reservation_room_id' => $reservationRoom->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+
+            if ($currentGuestCount >= (int)($room->max_capacity ?? 1)) {
+                $this->dispatch('notify', type: 'error', message: 'Capacidad mÃ¡xima de la habitaciÃ³n alcanzada.');
                 return;
             }
-            
-            // Crear nuevo cliente (huésped)
-            $customer = new \App\Models\Customer();
-            $customer->name = $guestName;
-            $customer->phone = $guestPhone;
-            $customer->created_at = now();
-            $customer->updated_at = now();
-            $customer->save();
-            
-            // Crear tax profile si hay identificación
-            if ($guestIdentification) {
-                $taxProfile = new \App\Models\CustomerTaxProfile();
-                $taxProfile->customer_id = $customer->id;
-                $taxProfile->identification = $guestIdentification;
-                $taxProfile->identification_type_id = 1; // ID por defecto
-                $taxProfile->created_at = now();
-                $taxProfile->updated_at = now();
-                $taxProfile->save();
-                
-                $customer->taxProfile()->associate($taxProfile);
-                $customer->save();
+
+            $guestId = 0;
+
+            if ($existingCustomerId > 0) {
+                $existingCustomer = \App\Models\Customer::withoutGlobalScopes()->find($existingCustomerId);
+                if (!$existingCustomer) {
+                    throw new \RuntimeException('Cliente no encontrado.');
+                }
+                $guestId = (int) $existingCustomer->id;
+            } else {
+                if ($guestName === '') {
+                    $this->dispatch('notify', type: 'error', message: 'El nombre del huÃ©sped es requerido.');
+                    return;
+                }
+
+                $defaultIdentificationDocumentId = \App\Models\DianIdentificationDocument::query()
+                    ->where('code', 'CC')
+                    ->value('id')
+                    ?? \App\Models\DianIdentificationDocument::query()->value('id');
+
+                $defaultMunicipalityId = \App\Models\CompanyTaxSetting::query()->value('municipality_id')
+                    ?? \App\Models\DianMunicipality::query()->value('factus_id')
+                    ?? 149;
+
+                $customer = null;
+
+                if ($guestIdentification && $defaultIdentificationDocumentId) {
+                    $existingProfile = \App\Models\CustomerTaxProfile::query()
+                        ->where('identification', $guestIdentification)
+                        ->where('identification_document_id', $defaultIdentificationDocumentId)
+                        ->first();
+
+                    if ($existingProfile) {
+                        $customer = \App\Models\Customer::withoutGlobalScopes()->find($existingProfile->customer_id);
+                    }
+                }
+
+                if (!$customer) {
+                    $customer = new \App\Models\Customer();
+                    $customer->name = $guestName;
+                    $customer->phone = $guestPhone;
+                    $customer->identification_number = $guestIdentification;
+                    $customer->identification_type_id = $defaultIdentificationDocumentId;
+                    $customer->created_at = now();
+                    $customer->updated_at = now();
+                    $customer->save();
+
+                    if ($guestIdentification && $defaultIdentificationDocumentId && $defaultMunicipalityId) {
+                        \App\Models\CustomerTaxProfile::query()->create([
+                            'customer_id' => $customer->id,
+                            'identification_document_id' => $defaultIdentificationDocumentId,
+                            'identification' => $guestIdentification,
+                            'municipality_id' => $defaultMunicipalityId,
+                            'legal_organization_id' => 2,
+                            'tribute_id' => 21,
+                            'phone' => $guestPhone,
+                        ]);
+                    }
+                }
+
+                $guestId = (int)$customer->id;
             }
-            
-            // Crear reservation guest
-            $reservationGuest = new \App\Models\ReservationGuest();
-            $reservationGuest->reservation_id = $reservationId;
-            $reservationGuest->guest_id = $customer->id;
-            $reservationGuest->created_at = now();
-            $reservationGuest->updated_at = now();
-            $reservationGuest->save();
-            
-            // Asignar a la habitación
-            if ($reservationRoom) {
-                $reservationRoomGuest = new \App\Models\ReservationRoomGuest();
-                $reservationRoomGuest->reservation_room_id = $reservationRoom->id;
-                $reservationRoomGuest->reservation_guest_id = $reservationGuest->id;
-                $reservationRoomGuest->created_at = now();
-                $reservationRoomGuest->updated_at = now();
-                $reservationRoomGuest->save();
+
+            if ($guestId <= 0) {
+                throw new \RuntimeException('No fue posible determinar el huÃ©sped.');
             }
-            
-            \Log::error('✅ Huésped agregado correctamente:', [
-                'customer_id' => $customer->id,
-                'name' => $customer->name,
-                'reservation_id' => $reservationId,
-                'room_id' => $roomId
-            ]);
-            
-            // Actualizar el modal con los nuevos datos
+
+            if ((int)$reservation->client_id === $guestId) {
+                $this->dispatch('notify', type: 'warning', message: 'Este cliente ya estÃ¡ asignado como huÃ©sped principal.');
+                return;
+            }
+
+            $alreadyAssigned = DB::table('reservation_guests')
+                ->where('reservation_room_id', $reservationRoom->id)
+                ->where('guest_id', $guestId)
+                ->exists();
+
+            if ($alreadyAssigned) {
+                $this->dispatch('notify', type: 'warning', message: 'Este huÃ©sped ya estÃ¡ asignado a la habitaciÃ³n.');
+                return;
+            }
+
+            DB::transaction(function () use ($reservationRoom, $guestId): void {
+                $reservationGuestId = DB::table('reservation_guests')->insertGetId([
+                    'reservation_room_id' => $reservationRoom->id,
+                    'guest_id' => $guestId,
+                    'is_primary' => false,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                DB::table('reservation_room_guests')->insert([
+                    'reservation_room_id' => $reservationRoom->id,
+                    'reservation_guest_id' => $reservationGuestId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            });
+
             $this->showAllGuests($reservationId, $roomId);
-            
-            $this->dispatch('notify', type: 'success', message: 'Huésped agregado correctamente');
-            
+            $this->dispatch('notify', type: 'success', message: 'HuÃ©sped agregado correctamente.');
+
         } catch (\Exception $e) {
-            \Log::error('❌ Error en addGuestToRoom: ' . $e->getMessage(), [
+            \Log::error('Error en addGuestToRoom: ' . $e->getMessage(), [
                 'data' => $data,
                 'trace' => $e->getTraceAsString()
             ]);
-            $this->dispatch('notify', type: 'error', message: 'Error al agregar huésped: ' . $e->getMessage());
+            $this->dispatch('notify', type: 'error', message: 'Error al agregar huÃ©sped: ' . $e->getMessage());
         }
     }
 
@@ -2400,8 +2578,12 @@ class RoomManager extends Component
      */
     public function updatePrices()
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         try {
-            \Log::error('🔥 updatePrices llamado con datos:', $this->editPricesForm);
+            \Log::error('ðŸ”¥ updatePrices llamado con datos:', $this->editPricesForm);
             
             if (!$this->editPricesForm || !isset($this->editPricesForm['nights'])) {
                 throw new \Exception('No hay datos de precios para actualizar');
@@ -2422,7 +2604,7 @@ class RoomManager extends Component
                     
                     $totalAmount += $nightData['price'];
                     
-                    \Log::error('🌙 Noche actualizada:', [
+                    \Log::error('ðŸŒ™ Noche actualizada:', [
                         'id' => $stayNight->id,
                         'price' => $stayNight->price,
                         'is_paid' => $stayNight->is_paid
@@ -2437,7 +2619,7 @@ class RoomManager extends Component
                 $reservation->balance_due = $totalAmount - $reservation->payments()->sum('amount');
                 $reservation->save();
                 
-                \Log::error('💰 Reservation actualizada:', [
+                \Log::error('ðŸ’° Reservation actualizada:', [
                     'id' => $reservation->id,
                     'total_amount' => $reservation->total_amount,
                     'balance_due' => $reservation->balance_due
@@ -2453,7 +2635,7 @@ class RoomManager extends Component
             
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error('❌ Error en updatePrices: ' . $e->getMessage(), [
+            \Log::error('âŒ Error en updatePrices: ' . $e->getMessage(), [
                 'editPricesForm' => $this->editPricesForm,
                 'trace' => $e->getTraceAsString()
             ]);
@@ -2463,6 +2645,10 @@ class RoomManager extends Component
 
     public function registerPayment($reservationId, $amount, $paymentMethod, $bankName = null, $reference = null, $notes = null, $nightDate = null)
     {
+        if ($this->blockEditsForPastDate()) {
+            return false;
+        }
+
         \Log::info('registerPayment called', [
             'reservation_id' => $reservationId,
             'amount' => $amount,
@@ -2479,7 +2665,7 @@ class RoomManager extends Component
             $reservationId = (int)$reservationId;
             if ($reservationId <= 0) {
                 \Log::error('Invalid reservation ID', ['reservation_id' => $reservationId]);
-                $this->dispatch('notify', type: 'error', message: 'ID de reserva inválido.');
+                $this->dispatch('notify', type: 'error', message: 'ID de reserva invÃ¡lido.');
                 $this->dispatch('reset-payment-modal-loading');
                 return false;
             }
@@ -2494,11 +2680,11 @@ class RoomManager extends Component
 
             $this->ensureStayNightsCoverageForReservation($reservation);
 
-            // Validar método de pago
+            // Validar mÃ©todo de pago
             $paymentMethod = (string)$paymentMethod;
             if (!in_array($paymentMethod, ['efectivo', 'transferencia'])) {
                 \Log::error('Invalid payment method', ['payment_method' => $paymentMethod]);
-                $this->dispatch('notify', type: 'error', message: 'Método de pago inválido.');
+                $this->dispatch('notify', type: 'error', message: 'MÃ©todo de pago invÃ¡lido.');
                 $this->dispatch('reset-payment-modal-loading');
                 return false;
             }
@@ -2516,7 +2702,7 @@ class RoomManager extends Component
             $paymentsTotalBefore = (float)($reservation->payments()->sum('amount') ?? 0);
             $salesDebt = (float)($reservation->sales?->where('is_paid', false)->sum('total') ?? 0);
             
-            // ✅ NUEVO SSOT: Calcular desde stay_nights si existe
+            // âœ… NUEVO SSOT: Calcular desde stay_nights si existe
             try {
                 $totalAmount = (float)\App\Models\StayNight::where('reservation_id', $reservation->id)
                     ->sum('price');
@@ -2539,10 +2725,10 @@ class RoomManager extends Component
                 return false;
             }
 
-            // Obtener o crear ID del método de pago
+            // Obtener o crear ID del mÃ©todo de pago
             $paymentMethodId = $this->getPaymentMethodId($paymentMethod);
             
-            // Si no existe, crear el método de pago automáticamente
+            // Si no existe, crear el mÃ©todo de pago automÃ¡ticamente
             if (!$paymentMethodId) {
                 $methodData = match($paymentMethod) {
                     'efectivo' => ['code' => 'efectivo', 'name' => 'Efectivo'],
@@ -2562,7 +2748,7 @@ class RoomManager extends Component
                             ]
                         );
                         
-                        // Obtener el ID del método recién creado o existente
+                        // Obtener el ID del mÃ©todo reciÃ©n creado o existente
                         $paymentMethodId = DB::table('payments_methods')
                             ->where('code', $methodData['code'])
                             ->value('id');
@@ -2575,7 +2761,7 @@ class RoomManager extends Component
                 }
             }
             
-            // Fallback: buscar por nombre o código alternativo
+            // Fallback: buscar por nombre o cÃ³digo alternativo
             if (!$paymentMethodId) {
                 if ($paymentMethod === 'efectivo') {
                     $paymentMethodId = DB::table('payments_methods')
@@ -2597,7 +2783,7 @@ class RoomManager extends Component
             }
 
             if (!$paymentMethodId) {
-                $this->dispatch('notify', type: 'error', message: 'Error: No se pudo obtener o crear el método de pago. Contacte al administrador.');
+                $this->dispatch('notify', type: 'error', message: 'Error: No se pudo obtener o crear el mÃ©todo de pago. Contacte al administrador.');
                 \Log::error('Payment method not found after all attempts', [
                     'payment_method' => $paymentMethod,
                     'available_methods' => DB::table('payments_methods')->get()->toArray()
@@ -2606,10 +2792,10 @@ class RoomManager extends Component
                 return false;
             }
 
-            // Validar que el usuario esté autenticado
+            // Validar que el usuario estÃ© autenticado
             $userId = auth()->id();
             if (!$userId) {
-                $this->dispatch('notify', type: 'error', message: 'Error: No se pudo identificar al usuario. Por favor, recargue la página e intente nuevamente.');
+                $this->dispatch('notify', type: 'error', message: 'Error: No se pudo identificar al usuario. Por favor, recargue la pÃ¡gina e intente nuevamente.');
                 \Log::error('User not authenticated when creating payment', [
                     'reservation_id' => $reservation->id,
                 ]);
@@ -2646,7 +2832,7 @@ class RoomManager extends Component
             } catch (\Illuminate\Database\QueryException $e) {
                 $errorMessage = 'Error al crear el registro de pago.';
                 if (str_contains($e->getMessage(), 'foreign key constraint')) {
-                    $errorMessage = 'Error: El método de pago o la reserva no existe en el sistema.';
+                    $errorMessage = 'Error: El mÃ©todo de pago o la reserva no existe en el sistema.';
                 } elseif (str_contains($e->getMessage(), 'column') && str_contains($e->getMessage(), 'cannot be null')) {
                     $errorMessage = 'Error: Faltan datos requeridos para registrar el pago.';
                 }
@@ -2679,7 +2865,7 @@ class RoomManager extends Component
                 return false;
             }
 
-            // Reflejar el abono/pago en stay_nights (por fecha específica o FIFO global)
+            // Reflejar el abono/pago en stay_nights (por fecha especÃ­fica o FIFO global)
             try {
                 $allocation = $this->allocatePaymentToStayNights($reservation, $amount, $nightDate);
                 \Log::info('Payment allocated to stay nights', [
@@ -2690,7 +2876,7 @@ class RoomManager extends Component
                     'remaining_amount' => $allocation['remaining_amount'] ?? 0,
                 ]);
             } catch (\Exception $e) {
-                // No crítico: el pago ya quedó registrado
+                // No crÃ­tico: el pago ya quedÃ³ registrado
                 \Log::warning('Error allocating payment to stay nights', [
                     'reservation_id' => $reservation->id,
                     'night_date' => $nightDate,
@@ -2712,25 +2898,25 @@ class RoomManager extends Component
                 'payment_status_id' => $paymentStatusId,
             ]);
 
-            // Mensaje específico según el tipo de pago
+            // Mensaje especÃ­fico segÃºn el tipo de pago
             if ($balanceDue <= 0) {
-                $this->dispatch('notify', type: 'success', message: 'Pago registrado. Cuenta al día.');
+                $this->dispatch('notify', type: 'success', message: 'Pago registrado. Cuenta al dÃ­a.');
             } else {
                 $formattedBalance = number_format($balanceDue, 0, ',', '.');
                 $this->dispatch('notify', type: 'success', message: "Abono registrado. Saldo pendiente: \${$formattedBalance}");
             }
 
-            // Refrescar la relación de pagos de la reserva para que se actualice en el modal
+            // Refrescar la relaciÃ³n de pagos de la reserva para que se actualice en el modal
             $reservation->refresh();
             $reservation->load('payments');
             
             $this->dispatch('refreshRooms');
             
-            // Cerrar el modal de pago si está abierto
+            // Cerrar el modal de pago si estÃ¡ abierto
             $this->dispatch('close-payment-modal');
             $this->dispatch('payment-registered');
             
-            // Recargar datos del modal si está abierto
+            // Recargar datos del modal si estÃ¡ abierto
             if ($this->roomDetailModal && $this->detailData && isset($this->detailData['reservation']['id']) && $this->detailData['reservation']['id'] == $reservationId) {
                 // Obtener el room_id desde reservation_rooms
                 $reservationRoom = $reservation->reservationRooms()->first();
@@ -2864,7 +3050,7 @@ class RoomManager extends Component
     }
 
     /**
-     * Registra una devolución de dinero al cliente.
+     * Registra una devoluciÃ³n de dinero al cliente.
      * 
      * SINGLE SOURCE OF TRUTH: Usa la tabla `payments` para registrar devoluciones.
      * Las devoluciones se registran como pagos con monto negativo.
@@ -2877,13 +3063,17 @@ class RoomManager extends Component
      * 
      * @param int $reservationId ID de la reserva
      * @param float|null $amount Monto a devolver (opcional, si no se proporciona se usa todo el overpaid)
-     * @param string|null $paymentMethod Método de pago ('efectivo' o 'transferencia', opcional, default: 'efectivo')
+     * @param string|null $paymentMethod MÃ©todo de pago ('efectivo' o 'transferencia', opcional, default: 'efectivo')
      * @param string|null $bankName Nombre del banco (solo para transferencia)
      * @param string|null $reference Referencia (solo para transferencia)
      * @return bool
      */
     public function registerCustomerRefund($reservationId, $amount = null, $paymentMethod = null, $bankName = null, $reference = null)
     {
+        if ($this->blockEditsForPastDate()) {
+            return false;
+        }
+
         \Log::info('registerCustomerRefund called', [
             'reservation_id' => $reservationId,
             'amount' => $amount,
@@ -2897,7 +3087,7 @@ class RoomManager extends Component
             $reservationId = (int)$reservationId;
             if ($reservationId <= 0) {
                 \Log::error('Invalid reservation ID in registerCustomerRefund', ['reservation_id' => $reservationId]);
-                $this->dispatch('notify', type: 'error', message: 'ID de reserva inválido.');
+                $this->dispatch('notify', type: 'error', message: 'ID de reserva invÃ¡lido.');
                 return false;
             }
 
@@ -2908,16 +3098,16 @@ class RoomManager extends Component
                 return false;
             }
 
-            // ===== PASO 0: REGLA HOTELERA CRÍTICA - Bloquear devoluciones mientras esté ocupada =====
-            // REGLA: Nunca existe "saldo a favor" mientras la habitación siga OCUPADA
-            // Un saldo a favor solo puede evaluarse cuando la estadía termina (stay.status = finished)
+            // ===== PASO 0: REGLA HOTELERA CRÃTICA - Bloquear devoluciones mientras estÃ© ocupada =====
+            // REGLA: Nunca existe "saldo a favor" mientras la habitaciÃ³n siga OCUPADA
+            // Un saldo a favor solo puede evaluarse cuando la estadÃ­a termina (stay.status = finished)
             $activeStay = \App\Models\Stay::where('reservation_id', $reservationId)
                 ->whereNull('check_out_at')
                 ->whereIn('status', ['active', 'pending_checkout'])
                 ->exists();
 
             if ($activeStay) {
-                $this->dispatch('notify', type: 'error', message: 'No se puede registrar devolución mientras la habitación esté ocupada. El pago se considera adelantado para noches futuras.');
+                $this->dispatch('notify', type: 'error', message: 'No se puede registrar devoluciÃ³n mientras la habitaciÃ³n estÃ© ocupada. El pago se considera adelantado para noches futuras.');
                 \Log::info('Refund blocked: Active stay exists', [
                     'reservation_id' => $reservationId,
                     'reason' => 'stay_active',
@@ -2926,10 +3116,10 @@ class RoomManager extends Component
             }
 
             // ===== PASO 1: Calcular totales reales (REGLA FINANCIERA CORRECTA) =====
-            // Solo contar pagos POSITIVOS (dinero que el cliente pagó)
+            // Solo contar pagos POSITIVOS (dinero que el cliente pagÃ³)
             $totalPaid = (float)($reservation->payments->where('amount', '>', 0)->sum('amount') ?? 0);
             
-            // ✅ NUEVO SSOT: Calcular desde stay_nights si existe
+            // âœ… NUEVO SSOT: Calcular desde stay_nights si existe
             try {
                 $totalAmount = (float)\App\Models\StayNight::where('reservation_id', $reservationId)
                     ->sum('price');
@@ -2944,14 +3134,14 @@ class RoomManager extends Component
             }
             
             // Calcular saldo a favor (pago en exceso)
-            // overpaid > 0 significa que el cliente pagó MÁS de lo que debe
+            // overpaid > 0 significa que el cliente pagÃ³ MÃS de lo que debe
             $overpaid = $totalPaid - $totalAmount;
 
             // ===== PASO 2: Validar que existe saldo a favor para devolver =====
             // REGLA: Solo se puede devolver cuando hay pago en exceso (overpaid > 0)
             // Un pago completo (overpaid = 0) NO es un saldo a favor
             if ($overpaid <= 0) {
-                $this->dispatch('notify', type: 'error', message: 'La cuenta está correctamente pagada. No hay saldo a favor para devolver.');
+                $this->dispatch('notify', type: 'error', message: 'La cuenta estÃ¡ correctamente pagada. No hay saldo a favor para devolver.');
                 \Log::info('Refund blocked: No overpaid amount', [
                     'reservation_id' => $reservationId,
                     'total_paid' => $totalPaid,
@@ -2974,25 +3164,25 @@ class RoomManager extends Component
                 return false;
             }
 
-            // ===== PASO 4: Validar que la devolución no supere el saldo a favor =====
-            // REGLA: No se puede devolver más de lo que se pagó en exceso
+            // ===== PASO 4: Validar que la devoluciÃ³n no supere el saldo a favor =====
+            // REGLA: No se puede devolver mÃ¡s de lo que se pagÃ³ en exceso
             if ($amount > $overpaid) {
                 $formattedOverpaid = number_format($overpaid, 0, ',', '.');
-                $this->dispatch('notify', type: 'error', message: "La devolución no puede superar el saldo a favor del cliente (\${$formattedOverpaid}).");
+                $this->dispatch('notify', type: 'error', message: "La devoluciÃ³n no puede superar el saldo a favor del cliente (\${$formattedOverpaid}).");
                 return false;
             }
 
-            // Método de pago por defecto: efectivo
+            // MÃ©todo de pago por defecto: efectivo
             $paymentMethod = $paymentMethod ? (string)$paymentMethod : 'efectivo';
             if (!in_array($paymentMethod, ['efectivo', 'transferencia'])) {
-                $this->dispatch('notify', type: 'error', message: 'Método de pago inválido.');
+                $this->dispatch('notify', type: 'error', message: 'MÃ©todo de pago invÃ¡lido.');
                 return false;
             }
 
-            // Obtener o crear ID del método de pago
+            // Obtener o crear ID del mÃ©todo de pago
             $paymentMethodId = $this->getPaymentMethodId($paymentMethod);
             
-            // Si no existe, crear el método de pago automáticamente
+            // Si no existe, crear el mÃ©todo de pago automÃ¡ticamente
             if (!$paymentMethodId) {
                 $methodData = match($paymentMethod) {
                     'efectivo' => ['code' => 'efectivo', 'name' => 'Efectivo'],
@@ -3024,12 +3214,12 @@ class RoomManager extends Component
             }
 
             if (!$paymentMethodId) {
-                $this->dispatch('notify', type: 'error', message: 'Error: No se pudo obtener o crear el método de pago.');
+                $this->dispatch('notify', type: 'error', message: 'Error: No se pudo obtener o crear el mÃ©todo de pago.');
                 \Log::error('Payment method not found in registerCustomerRefund', ['payment_method' => $paymentMethod]);
                 return false;
             }
 
-            // Validar que el usuario esté autenticado
+            // Validar que el usuario estÃ© autenticado
             $userId = auth()->id();
             if (!$userId) {
                 $this->dispatch('notify', type: 'error', message: 'Error: No se pudo identificar al usuario.');
@@ -3041,17 +3231,17 @@ class RoomManager extends Component
             try {
                 \Log::info('Attempting to create refund payment', [
                     'reservation_id' => $reservation->id,
-                    'amount' => -$amount, // NEGATIVO para devolución
+                    'amount' => -$amount, // NEGATIVO para devoluciÃ³n
                     'payment_method_id' => $paymentMethodId,
                     'payment_method' => $paymentMethod,
                 ]);
                 
                 $payment = Payment::create([
                     'reservation_id' => $reservation->id,
-                    'amount' => -$amount, // NEGATIVO para devolución
+                    'amount' => -$amount, // NEGATIVO para devoluciÃ³n
                     'payment_method_id' => $paymentMethodId,
                     'bank_name' => $paymentMethod === 'transferencia' ? ($bankName ?: null) : null,
-                    'reference' => $paymentMethod === 'transferencia' ? ($reference ?: 'Devolución registrada') : 'Devolución en efectivo',
+                    'reference' => $paymentMethod === 'transferencia' ? ($reference ?: 'DevoluciÃ³n registrada') : 'DevoluciÃ³n en efectivo',
                     'paid_at' => now(),
                     'created_by' => $userId,
                 ]);
@@ -3062,11 +3252,11 @@ class RoomManager extends Component
                     'amount' => -$amount,
                 ]);
             } catch (\Illuminate\Database\QueryException $e) {
-                $errorMessage = 'Error al crear el registro de devolución.';
+                $errorMessage = 'Error al crear el registro de devoluciÃ³n.';
                 if (str_contains($e->getMessage(), 'foreign key constraint')) {
-                    $errorMessage = 'Error: El método de pago o la reserva no existe en el sistema.';
+                    $errorMessage = 'Error: El mÃ©todo de pago o la reserva no existe en el sistema.';
                 } elseif (str_contains($e->getMessage(), 'column') && str_contains($e->getMessage(), 'cannot be null')) {
-                    $errorMessage = 'Error: Faltan datos requeridos para registrar la devolución.';
+                    $errorMessage = 'Error: Faltan datos requeridos para registrar la devoluciÃ³n.';
                 }
                 
                 $this->dispatch('notify', type: 'error', message: $errorMessage);
@@ -3077,7 +3267,7 @@ class RoomManager extends Component
                 ]);
                 return false;
             } catch (\Exception $e) {
-                $this->dispatch('notify', type: 'error', message: 'Error inesperado al registrar la devolución: ' . $e->getMessage());
+                $this->dispatch('notify', type: 'error', message: 'Error inesperado al registrar la devoluciÃ³n: ' . $e->getMessage());
                 \Log::error('Unexpected error creating refund payment record', [
                     'reservation_id' => $reservation->id,
                     'amount' => -$amount,
@@ -3091,12 +3281,12 @@ class RoomManager extends Component
             $reservation->refresh();
             $reservation->load('payments', 'sales');
             
-            // CRÍTICO: Separar pagos positivos y negativos (devoluciones)
+            // CRÃTICO: Separar pagos positivos y negativos (devoluciones)
             $paymentsTotalAfter = (float)($reservation->payments->where('amount', '>', 0)->sum('amount') ?? 0);
             $refundsTotalAfter = abs((float)($reservation->payments->where('amount', '<', 0)->sum('amount') ?? 0));
             $salesDebt = (float)($reservation->sales->where('is_paid', false)->sum('total') ?? 0);
             
-            // Fórmula: deuda = (hospedaje - abonos_reales) + devoluciones + consumos_pendientes
+            // FÃ³rmula: deuda = (hospedaje - abonos_reales) + devoluciones + consumos_pendientes
             $balanceDueAfter = ($totalAmount - $paymentsTotalAfter) + $refundsTotalAfter + $salesDebt;
 
             // Actualizar estado de pago de la reserva
@@ -3108,9 +3298,9 @@ class RoomManager extends Component
                 'payment_status_id' => $paymentStatusId,
             ]);
 
-            // Mensaje de éxito
+            // Mensaje de Ã©xito
             $formattedAmount = number_format($amount, 0, ',', '.');
-            $this->dispatch('notify', type: 'success', message: "Devolución de \${$formattedAmount} registrada correctamente.");
+            $this->dispatch('notify', type: 'success', message: "DevoluciÃ³n de \${$formattedAmount} registrada correctamente.");
 
             // Emitir eventos para refrescar UI y cerrar modal
             $this->dispatch('refreshRooms');
@@ -3118,7 +3308,7 @@ class RoomManager extends Component
 
             return true;
         } catch (\Exception $e) {
-            $this->dispatch('notify', type: 'error', message: 'Error al registrar devolución: ' . $e->getMessage());
+            $this->dispatch('notify', type: 'error', message: 'Error al registrar devoluciÃ³n: ' . $e->getMessage());
             \Log::error('Error registering customer refund', [
                 'reservation_id' => $reservationId,
                 'amount' => $amount ?? null,
@@ -3131,6 +3321,10 @@ class RoomManager extends Component
 
     public function openQuickRent($roomId)
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         $room = Room::with('rates')->find($roomId);
         if ($room) {
             // Calculate base price from rates or fallback to base_price_per_night
@@ -3181,7 +3375,7 @@ class RoomManager extends Component
 
     public function updatedRentFormClientId($value): void
     {
-        // 🔐 NORMALIZAR: convertir cadena vacía a NULL (requisito de BD INTEGER)
+        // ðŸ” NORMALIZAR: convertir cadena vacÃ­a a NULL (requisito de BD INTEGER)
         if ($value === '' || $value === null) {
             $this->rentForm['client_id'] = null;
         } else {
@@ -3192,6 +3386,10 @@ class RoomManager extends Component
 
     public function addGuestFromCustomerId($customerId)
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         $customer = \App\Models\Customer::find($customerId);
         
         if (!$customer) {
@@ -3204,7 +3402,7 @@ class RoomManager extends Component
             $room = Room::with('rates')->find($this->rentForm['room_id']);
         }
 
-        // 🔐 VALIDACIÓN CRÍTICA: Verificar capacidad ANTES de agregar huésped adicional
+        // ðŸ” VALIDACIÃ“N CRÃTICA: Verificar capacidad ANTES de agregar huÃ©sped adicional
         if ($room) {
             $principalCount = !empty($this->rentForm['client_id']) ? 1 : 0;
             $currentAdditionalCount = is_array($this->additionalGuests) ? count($this->additionalGuests) : 0;
@@ -3212,7 +3410,7 @@ class RoomManager extends Component
             $maxCapacity = (int)($room->max_capacity ?? 1);
 
             if ($totalAfterAdd > $maxCapacity) {
-                $this->dispatch('notify', type: 'error', message: "No se puede agregar más huéspedes. La habitación tiene capacidad máxima de {$maxCapacity} persona" . ($maxCapacity > 1 ? 's' : '') . ".");
+                $this->dispatch('notify', type: 'error', message: "No se puede agregar mÃ¡s huÃ©spedes. La habitaciÃ³n tiene capacidad mÃ¡xima de {$maxCapacity} persona" . ($maxCapacity > 1 ? 's' : '') . ".");
                 return;
             }
         }
@@ -3221,7 +3419,7 @@ class RoomManager extends Component
         if (is_array($this->additionalGuests)) {
             foreach ($this->additionalGuests as $guest) {
                 if (isset($guest['customer_id']) && $guest['customer_id'] == $customerId) {
-                    $this->dispatch('notify', type: 'error', message: 'Este cliente ya fue agregado como huésped adicional.');
+                    $this->dispatch('notify', type: 'error', message: 'Este cliente ya fue agregado como huÃ©sped adicional.');
                     return;
                 }
             }
@@ -3237,24 +3435,32 @@ class RoomManager extends Component
         ];
 
         $this->dispatch('guest-added');
-        $this->dispatch('notify', type: 'success', message: 'Huésped adicional agregado.');
+        $this->dispatch('notify', type: 'success', message: 'HuÃ©sped adicional agregado.');
 
-        // Recalcular total y contador de huéspedes
+        // Recalcular total y contador de huÃ©spedes
         $this->recalculateQuickRentTotals($room);
     }
 
     public function removeGuest($index)
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         if (isset($this->additionalGuests[$index])) {
             unset($this->additionalGuests[$index]);
             $this->additionalGuests = array_values($this->additionalGuests);
-            $this->dispatch('notify', type: 'success', message: 'Huésped removido.');
+            $this->dispatch('notify', type: 'success', message: 'HuÃ©sped removido.');
             $this->recalculateQuickRentTotals();
         }
     }
 
     public function submitQuickRent()
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         if (!$this->rentForm) {
             return;
         }
@@ -3264,15 +3470,15 @@ class RoomManager extends Component
             $bankName = $paymentMethod === 'transferencia' ? trim($this->rentForm['bank_name'] ?? '') : null;
             $reference = $paymentMethod === 'transferencia' ? trim($this->rentForm['reference'] ?? '') : null;
 
-            // BLOQUEO: Verificar si es fecha histórica
+            // BLOQUEO: Verificar si es fecha histÃ³rica
             if (Carbon::parse($this->rentForm['check_in_date'])->lt(Carbon::today())) {
-                throw new \RuntimeException('No se pueden crear reservas en fechas históricas.');
+                throw new \RuntimeException('No se pueden crear reservas en fechas histÃ³ricas.');
             }
 
-            // 🔐 NORMALIZAR client_id: convertir cadena vacía a NULL (requisito de BD INTEGER)
+            // ðŸ” NORMALIZAR client_id: convertir cadena vacÃ­a a NULL (requisito de BD INTEGER)
             $clientId = $this->rentForm['client_id'] ?? null;
             if ($clientId === '' || $clientId === null) {
-                $clientId = null; // ✅ NULL para reservas sin cliente (walk-in sin asignar)
+                $clientId = null; // âœ… NULL para reservas sin cliente (walk-in sin asignar)
             } else {
                 $clientId = is_numeric($clientId) ? (int)$clientId : null;
             }
@@ -3281,22 +3487,22 @@ class RoomManager extends Component
                 'room_id' => $this->rentForm['room_id'],
                 'check_in_date' => $this->rentForm['check_in_date'],
                 'check_out_date' => $this->rentForm['check_out_date'],
-                'client_id' => $clientId, // ✅ Normalizado: NULL o entero válido
+                'client_id' => $clientId, // âœ… Normalizado: NULL o entero vÃ¡lido
                 'guests_count' => $this->rentForm['guests_count'],
             ];
 
-            // ===== CARGAR HABITACIÓN CON TARIFAS (OBLIGATORIO) =====
-            // CRÍTICO: Usar with('rates') para asegurar que las tarifas estén cargadas
-            // Usar findOrFail() para lanzar excepción automáticamente si no existe
+            // ===== CARGAR HABITACIÃ“N CON TARIFAS (OBLIGATORIO) =====
+            // CRÃTICO: Usar with('rates') para asegurar que las tarifas estÃ©n cargadas
+            // Usar findOrFail() para lanzar excepciÃ³n automÃ¡ticamente si no existe
             $room = Room::with('rates')->findOrFail($validated['room_id']);
 
-            // 🔐 VALIDACIÓN CRÍTICA: Verificar que NO se exceda la capacidad máxima
+            // ðŸ” VALIDACIÃ“N CRÃTICA: Verificar que NO se exceda la capacidad mÃ¡xima
             $guests = $this->calculateGuestCount();
             $maxCapacity = (int)($room->max_capacity ?? 1);
             
             if ($guests > $maxCapacity) {
                 throw new \RuntimeException(
-                    "No se puede confirmar el arrendamiento. La cantidad de huéspedes ({$guests}) excede la capacidad máxima de la habitación ({$maxCapacity} persona" . ($maxCapacity > 1 ? 's' : '') . ")."
+                    "No se puede confirmar el arrendamiento. La cantidad de huÃ©spedes ({$guests}) excede la capacidad mÃ¡xima de la habitaciÃ³n ({$maxCapacity} persona" . ($maxCapacity > 1 ? 's' : '') . ")."
                 );
             }
 
@@ -3308,14 +3514,14 @@ class RoomManager extends Component
             $nights = max(1, $checkIn->diffInDays($checkOut));
 
             // ===== CALCULAR TOTAL DEL HOSPEDAJE (SSOT FINANCIERO) =====
-            // REGLA CRÍTICA: El total puede venir de DOS fuentes (en orden de prioridad):
+            // REGLA CRÃTICA: El total puede venir de DOS fuentes (en orden de prioridad):
             // 1. PRECIO MANUAL/ACORDADO desde el formulario (rentForm.total) - SSOT absoluto
-            // 2. CÁLCULO AUTOMÁTICO desde tarifas (findRateForGuests) - fallback
+            // 2. CÃLCULO AUTOMÃTICO desde tarifas (findRateForGuests) - fallback
             //
             // REGLA: El total del hospedaje se define UNA SOLA VEZ al arrendar
-            // Este valor NO se recalcula después, NO depende de payments, NO depende del release
+            // Este valor NO se recalcula despuÃ©s, NO depende de payments, NO depende del release
             
-            // Log para debugging: verificar datos antes del cálculo
+            // Log para debugging: verificar datos antes del cÃ¡lculo
             \Log::critical('QUICK RENT RAW FORM DATA', [
                 'rentForm' => $this->rentForm,
                 'guests' => $guests,
@@ -3331,13 +3537,13 @@ class RoomManager extends Component
                 'base_price_per_night' => $room->base_price_per_night,
             ]);
             
-            // ===== OPCIÓN 1: PRECIO MANUAL/ACORDADO (SSOT ABSOLUTO) =====
-            // Si el formulario tiene un total definido explícitamente (manual o calculado en frontend),
+            // ===== OPCIÃ“N 1: PRECIO MANUAL/ACORDADO (SSOT ABSOLUTO) =====
+            // Si el formulario tiene un total definido explÃ­citamente (manual o calculado en frontend),
             // ese valor es la VERDAD ABSOLUTA y NO se recalcula desde tarifas
             $manualTotal = isset($this->rentForm['total']) ? (float)($this->rentForm['total']) : 0;
             
             if ($manualTotal > 0) {
-                // ✅ PRECIO MANUAL ES SSOT: usar directamente el valor del formulario
+                // âœ… PRECIO MANUAL ES SSOT: usar directamente el valor del formulario
                 $totalAmount = $manualTotal;
                 // Calcular pricePerNight retroactivamente para logging (no para persistencia)
                 $pricePerNight = $nights > 0 ? ($totalAmount / $nights) : $totalAmount;
@@ -3349,7 +3555,7 @@ class RoomManager extends Component
                     'calculated_price_per_night' => $pricePerNight,
                 ]);
             } else {
-                // ===== OPCIÓN 2: CÁLCULO AUTOMÁTICO DESDE TARIFAS (FALLBACK) =====
+                // ===== OPCIÃ“N 2: CÃLCULO AUTOMÃTICO DESDE TARIFAS (FALLBACK) =====
                 // Si NO hay precio manual, calcular desde tarifas del sistema
                 $pricePerNight = $this->findRateForGuests($room, $guests);
                 $totalAmount = $pricePerNight * $nights;
@@ -3364,7 +3570,7 @@ class RoomManager extends Component
             
             // Validar que totalAmount sea mayor que 0
             if ($totalAmount <= 0) {
-                throw new \RuntimeException('El total del hospedaje debe ser mayor a 0. Verifique las tarifas de la habitación.');
+                throw new \RuntimeException('El total del hospedaje debe ser mayor a 0. Verifique las tarifas de la habitaciÃ³n.');
             }
             
             $depositAmount = (float)($this->rentForm['deposit'] ?? 0); // Del formulario
@@ -3375,8 +3581,8 @@ class RoomManager extends Component
 
             $reservationCode = sprintf('RSV-%s-%s', now()->format('YmdHis'), Str::upper(Str::random(4)));
 
-            // ===== PASO 1: Crear reserva técnica para walk-in =====
-            // CRÍTICO: total_amount es el SSOT financiero del hospedaje, debe persistirse correctamente
+            // ===== PASO 1: Crear reserva tÃ©cnica para walk-in =====
+            // CRÃTICO: total_amount es el SSOT financiero del hospedaje, debe persistirse correctamente
             $reservation = Reservation::create([
                 'reservation_code' => $reservationCode,
                 'client_id' => $validated['client_id'],
@@ -3384,18 +3590,18 @@ class RoomManager extends Component
                 'total_guests' => $validated['guests_count'],
                 'adults' => $validated['guests_count'],
                 'children' => 0,
-                'total_amount' => $totalAmount,        // ✅ SSOT: Total del hospedaje (NO se recalcula)
-                'deposit_amount' => $depositAmount,    // Abono inicial (puede cambiar con más pagos)
+                'total_amount' => $totalAmount,        // âœ… SSOT: Total del hospedaje (NO se recalcula)
+                'deposit_amount' => $depositAmount,    // Abono inicial (puede cambiar con mÃ¡s pagos)
                 'balance_due' => $balanceDue,          // Saldo pendiente (se recalcula con payments)
                 'payment_status_id' => $paymentStatusId,
                 'source_id' => 1, // reception / walk_in
                 'created_by' => auth()->id(),
             ]);
             
-            // CRÍTICO: Refrescar reserva para asegurar que total_amount se persista correctamente
+            // CRÃTICO: Refrescar reserva para asegurar que total_amount se persista correctamente
             $reservation->refresh();
             
-            // Log para debugging: verificar que total_amount se guardó correctamente
+            // Log para debugging: verificar que total_amount se guardÃ³ correctamente
             \Log::info('Quick Rent: Reservation created', [
                 'reservation_id' => $reservation->id,
                 'total_amount' => $reservation->total_amount,
@@ -3405,31 +3611,31 @@ class RoomManager extends Component
                 'deposit_amount' => $depositAmount,
             ]);
             
-            // VALIDACIÓN CRÍTICA: Verificar que total_amount se guardó correctamente
+            // VALIDACIÃ“N CRÃTICA: Verificar que total_amount se guardÃ³ correctamente
             if ((float)($reservation->total_amount ?? 0) <= 0 || abs((float)$reservation->total_amount - $totalAmount) > 0.01) {
                 \Log::error('Quick Rent: total_amount NOT persisted correctly', [
                     'reservation_id' => $reservation->id,
                     'expected_total' => $totalAmount,
                     'actual_total' => $reservation->total_amount,
                 ]);
-                throw new \RuntimeException("Error: El total del hospedaje no se guardó correctamente. Valor esperado: \${$totalAmount}, Valor guardado: \${$reservation->total_amount}");
+                throw new \RuntimeException("Error: El total del hospedaje no se guardÃ³ correctamente. Valor esperado: \${$totalAmount}, Valor guardado: \${$reservation->total_amount}");
             }
 
             // ===== REGISTRAR PAGO EN payments (SSOT FINANCIERO OBLIGATORIO) =====
-            // REGLA CRÍTICA: SIEMPRE que haya un abono (depositAmount > 0), debe registrarse en payments
+            // REGLA CRÃTICA: SIEMPRE que haya un abono (depositAmount > 0), debe registrarse en payments
             // Esto es obligatorio para mantener coherencia financiera con:
             // - Room Detail Modal (usa payments como SSOT)
             // - Stay History (calcula noches pagadas desde payments)
-            // - Room Release (evalúa pagos desde payments)
+            // - Room Release (evalÃºa pagos desde payments)
             // 
-            // Independientemente del método de pago (efectivo o transferencia),
+            // Independientemente del mÃ©todo de pago (efectivo o transferencia),
             // TODO abono recibido genera un registro en payments.
             
             if ($depositAmount > 0) {
-                // Obtener payment_method_id según el método seleccionado
+                // Obtener payment_method_id segÃºn el mÃ©todo seleccionado
                 $paymentMethodId = $this->getPaymentMethodId($paymentMethod);
                 if (!$paymentMethodId) {
-                    // Fallback: buscar método de pago por código o nombre
+                    // Fallback: buscar mÃ©todo de pago por cÃ³digo o nombre
                     $paymentMethodId = DB::table('payments_methods')
                         ->where('code', strtolower($paymentMethod))
                         ->orWhere('name', ucfirst($paymentMethod))
@@ -3451,7 +3657,7 @@ class RoomManager extends Component
                         $bankNameValue = $bankName;
                     }
                 } else {
-                    // Para efectivo, usar referencia genérica
+                    // Para efectivo, usar referencia genÃ©rica
                     $referencePayload = 'Abono registrado en Quick Rent';
                 }
                 
@@ -3484,9 +3690,9 @@ class RoomManager extends Component
                 'price_per_night' => $pricePerNight,
             ]);
 
-            // ===== PASO 2.5: Persistir huéspedes adicionales =====
-            // SSOT: Huésped principal está en reservations.client_id
-            // Huéspedes adicionales van en reservation_guests + reservation_room_guests
+            // ===== PASO 2.5: Persistir huÃ©spedes adicionales =====
+            // SSOT: HuÃ©sped principal estÃ¡ en reservations.client_id
+            // HuÃ©spedes adicionales van en reservation_guests + reservation_room_guests
             if (!empty($this->additionalGuests) && is_array($this->additionalGuests)) {
                 $additionalGuestIds = array_filter(
                     array_column($this->additionalGuests, 'customer_id'),
@@ -3498,30 +3704,30 @@ class RoomManager extends Component
                 }
             }
 
-            // ===== PASO 3: CRÍTICO - Crear STAY activa AHORA (check-in inmediato) =====
-            // Una stay activa es lo que marca que la habitación está OCUPADA
+            // ===== PASO 3: CRÃTICO - Crear STAY activa AHORA (check-in inmediato) =====
+            // Una stay activa es lo que marca que la habitaciÃ³n estÃ¡ OCUPADA
             $stay = \App\Models\Stay::create([
                 'reservation_id' => $reservation->id,
                 'room_id' => $validated['room_id'],
                 'check_in_at' => now(), // Check-in INMEDIATO (timestamp)
-                'check_out_at' => null, // Se completará al checkout
+                'check_out_at' => null, // Se completarÃ¡ al checkout
                 'status' => 'active', // estados: active, pending_checkout, finished
             ]);
 
-            // CRITICAL: Refrescar el modelo Room para invalidar cualquier caché de relaciones
-            // Esto asegura que las siguientes consultas encuentren la stay recién creada
+            // CRITICAL: Refrescar el modelo Room para invalidar cualquier cachÃ© de relaciones
+            // Esto asegura que las siguientes consultas encuentren la stay reciÃ©n creada
             $room = Room::find($validated['room_id']);
             if ($room) {
-                // Invalidar la relación stays en memoria
+                // Invalidar la relaciÃ³n stays en memoria
                 $room->unsetRelation('stays');
             }
 
-            // ÉXITO: Habitación ahora debe aparecer como OCUPADA
-            $this->dispatch('notify', type: 'success', message: 'Arriendo registrado exitosamente. Habitación ocupada.');
+            // Ã‰XITO: HabitaciÃ³n ahora debe aparecer como OCUPADA
+            $this->dispatch('notify', type: 'success', message: 'Arriendo registrado exitosamente. HabitaciÃ³n ocupada.');
             $this->closeQuickRent();
             
-            // CRITICAL: Forzar actualización inmediata de habitaciones para mostrar info de huésped y cuenta
-            // Resetear paginación y forzar re-render completo
+            // CRITICAL: Forzar actualizaciÃ³n inmediata de habitaciones para mostrar info de huÃ©sped y cuenta
+            // Resetear paginaciÃ³n y forzar re-render completo
             $this->resetPage();
             $this->dispatch('$refresh');
             // Disparar evento para resetear Alpine.js y forzar re-render de componentes
@@ -3538,16 +3744,25 @@ class RoomManager extends Component
     }
 
     /**
-     * Abre el modal para asignar cliente y huéspedes a una reserva activa existente.
+     * Abre el modal para asignar cliente y huÃ©spedes a una reserva activa existente.
      * 
      * CASO DE USO: Completar reserva activa sin cliente principal asignado
      * NO crea nueva reserva, solo completa la existente.
      * 
-     * @param int $roomId ID de la habitación
+     * @param int $roomId ID de la habitaciÃ³n
      * @return void
      */
     public function openAssignGuests(int $roomId): void
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
+        if (!$this->canEditOccupancy()) {
+            $this->dispatch('notify', type: 'error', message: 'Solo el administrador o recepciÃ³n puede editar la ocupaciÃ³n.');
+            return;
+        }
+
         try {
             $room = Room::findOrFail($roomId);
 
@@ -3555,7 +3770,7 @@ class RoomManager extends Component
             $stay = $room->getAvailabilityService()->getStayForDate($this->date);
             
             if (!$stay || !$stay->reservation) {
-                $this->dispatch('notify', type: 'error', message: 'No hay reserva activa para esta habitación.');
+                $this->dispatch('notify', type: 'error', message: 'No hay reserva activa para esta habitaciÃ³n.');
                 return;
             }
 
@@ -3570,10 +3785,10 @@ class RoomManager extends Component
                 'payments'
             ]);
 
-            // Obtener ReservationRoom para esta habitación
+            // Obtener ReservationRoom para esta habitaciÃ³n
             $reservationRoom = $reservation->reservationRooms->firstWhere('room_id', $roomId);
             
-            // Cargar huéspedes adicionales existentes
+            // Cargar huÃ©spedes adicionales existentes
             $existingAdditionalGuests = [];
             if ($reservationRoom) {
                 try {
@@ -3595,8 +3810,14 @@ class RoomManager extends Component
                 }
             }
 
-            // Calcular pagos totales para validar precio mínimo
+            // Calcular pagos totales para validar precio mÃ­nimo
             $paidAmount = (float)($reservation->payments->where('amount', '>', 0)->sum('amount') ?? 0);
+            $checkInDate = !empty($reservationRoom?->check_in_date)
+                ? Carbon::parse((string) $reservationRoom->check_in_date)->toDateString()
+                : $this->date->toDateString();
+            $checkOutDate = !empty($reservationRoom?->check_out_date)
+                ? Carbon::parse((string) $reservationRoom->check_out_date)->toDateString()
+                : $this->date->copy()->addDay()->toDateString();
 
             // Inicializar formulario
             $this->assignGuestsForm = [
@@ -3606,8 +3827,11 @@ class RoomManager extends Component
                 'additional_guests' => $existingAdditionalGuests,
                 'override_total_amount' => false,
                 'total_amount' => (float)($reservation->total_amount ?? 0), // SSOT actual
-                'current_paid_amount' => $paidAmount, // Para validación
-                'max_capacity' => (int)($room->max_capacity ?? 1), // 🔐 Para validación de capacidad
+                'current_paid_amount' => $paidAmount, // Para validaciÃ³n
+                'max_capacity' => (int)($room->max_capacity ?? 1), // ðŸ” Para validaciÃ³n de capacidad
+                'check_in_date' => $checkInDate,
+                'check_out_date' => $checkOutDate,
+                'has_customer' => !empty($reservation->client_id),
             ];
 
             $this->assignGuestsModal = true;
@@ -3622,7 +3846,7 @@ class RoomManager extends Component
     }
 
     /**
-     * Cierra el modal de asignar huéspedes.
+     * Cierra el modal de asignar huÃ©spedes.
      */
     public function closeAssignGuests(): void
     {
@@ -3631,9 +3855,9 @@ class RoomManager extends Component
     }
 
     /**
-     * Completa una reserva activa asignando cliente principal y huéspedes adicionales.
+     * Completa una reserva activa asignando cliente principal y huÃ©spedes adicionales.
      * 
-     * REGLAS CRÍTICAS:
+     * REGLAS CRÃTICAS:
      * - NO crea nueva reserva (usa la existente)
      * - NO modifica stay ni fechas
      * - Cliente principal es OBLIGATORIO
@@ -3644,8 +3868,17 @@ class RoomManager extends Component
      */
     public function submitAssignGuests(): void
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         if (!$this->assignGuestsForm) {
             $this->dispatch('notify', type: 'error', message: 'Error: Formulario no inicializado.');
+            return;
+        }
+
+        if (!$this->canEditOccupancy()) {
+            $this->dispatch('notify', type: 'error', message: 'Solo el administrador o recepciÃ³n puede editar la ocupaciÃ³n.');
             return;
         }
 
@@ -3663,11 +3896,11 @@ class RoomManager extends Component
                     ->first();
 
                 if (!$stay) {
-                    throw new \RuntimeException('No se puede modificar una reserva que no tiene estadía activa.');
+                    throw new \RuntimeException('No se puede modificar una reserva que no tiene estadÃ­a activa.');
                 }
 
                 // ===== PASO 2: Validar y asignar cliente principal (OBLIGATORIO) =====
-                // 🔍 DEBUG: Log del valor recibido
+                // ðŸ” DEBUG: Log del valor recibido
                 \Log::info('submitAssignGuests: Validating client_id', [
                     'client_id' => $data['client_id'] ?? null,
                     'is_empty' => empty($data['client_id']),
@@ -3687,15 +3920,15 @@ class RoomManager extends Component
                     throw new \RuntimeException('El cliente seleccionado no existe.');
                 }
 
-                // Actualizar cliente principal (puede ser asignación inicial o cambio de cliente)
-                // Si ya había un cliente, se actualiza; si no había, se asigna por primera vez
+                // Actualizar cliente principal (puede ser asignaciÃ³n inicial o cambio de cliente)
+                // Si ya habÃ­a un cliente, se actualiza; si no habÃ­a, se asigna por primera vez
                 $oldClientId = $reservation->client_id;
                 $reservation->update([
                     'client_id' => $customerId,
                 ]);
                 
-                // 🔄 CRÍTICO: Refrescar la reserva DESPUÉS de actualizar para limpiar caché de Eloquent
-                // Esto asegura que las relaciones cargadas después tengan los datos correctos
+                // ðŸ”„ CRÃTICO: Refrescar la reserva DESPUÃ‰S de actualizar para limpiar cachÃ© de Eloquent
+                // Esto asegura que las relaciones cargadas despuÃ©s tengan los datos correctos
                 $reservation->refresh();
                 
                 \Log::info('AssignGuests: Client principal updated', [
@@ -3705,36 +3938,126 @@ class RoomManager extends Component
                     'client_id_after_refresh' => $reservation->client_id,
                 ]);
 
-                // ===== PASO 3: VALIDACIÓN DE CAPACIDAD (CRÍTICO) =====
-                // Cargar habitación para obtener max_capacity
+                // ===== PASO 3: VALIDACIÃ“N DE CAPACIDAD (CRÃTICO) =====
+                // Cargar habitaciÃ³n para obtener max_capacity
                 $room = Room::findOrFail($data['room_id']);
                 $maxCapacity = (int)($room->max_capacity ?? 1);
                 
-                // Calcular total de huéspedes: principal (1) + adicionales
+                // Calcular total de huÃ©spedes: principal (1) + adicionales
                 $principalCount = 1; // Cliente principal siempre cuenta
                 $additionalGuestsCount = !empty($data['additional_guests']) && is_array($data['additional_guests']) 
                     ? count($data['additional_guests']) 
                     : 0;
                 $totalGuests = $principalCount + $additionalGuestsCount;
                 
-                // Validar que NO se exceda la capacidad máxima
+                // Validar que NO se exceda la capacidad mÃ¡xima
                 if ($totalGuests > $maxCapacity) {
                     throw new \RuntimeException(
-                        "No se puede confirmar la asignación. La cantidad de huéspedes ({$totalGuests}) excede la capacidad máxima de la habitación ({$maxCapacity} persona" . ($maxCapacity > 1 ? 's' : '') . ")."
+                        "No se puede confirmar la asignaciÃ³n. La cantidad de huÃ©spedes ({$totalGuests}) excede la capacidad mÃ¡xima de la habitaciÃ³n ({$maxCapacity} persona" . ($maxCapacity > 1 ? 's' : '') . ")."
                     );
                 }
 
-                // ===== PASO 4: Asignar huéspedes adicionales =====
+                // ===== PASO 4: Asignar huÃ©spedes adicionales =====
                 $reservationRoom = $reservation->reservationRooms()
                     ->where('room_id', $data['room_id'])
                     ->first();
 
                 if (!$reservationRoom) {
-                    throw new \RuntimeException('No se encontró la relación reserva-habitación.');
+                    throw new \RuntimeException('No se encontrÃ³ la relaciÃ³n reserva-habitaciÃ³n.');
                 }
 
-                // Limpiar huéspedes adicionales existentes
+                // Limpiar huÃ©spedes adicionales existentes
                 // Primero eliminar de reservation_room_guests
+                // ===== PASO 4A: Editar fechas de ocupaciÃƒÂ³n =====
+                $currentCheckInDate = !empty($reservationRoom->check_in_date)
+                    ? Carbon::parse((string) $reservationRoom->check_in_date)->startOfDay()
+                    : $this->date->copy()->startOfDay();
+                $currentCheckOutDate = !empty($reservationRoom->check_out_date)
+                    ? Carbon::parse((string) $reservationRoom->check_out_date)->startOfDay()
+                    : $currentCheckInDate->copy()->addDay();
+
+                $newCheckInDate = !empty($data['check_in_date'])
+                    ? Carbon::parse((string) $data['check_in_date'])->startOfDay()
+                    : $currentCheckInDate->copy();
+                $newCheckOutDate = !empty($data['check_out_date'])
+                    ? Carbon::parse((string) $data['check_out_date'])->startOfDay()
+                    : $currentCheckOutDate->copy();
+
+                if (!$newCheckOutDate->gt($newCheckInDate)) {
+                    throw new \RuntimeException('La fecha de salida debe ser posterior a la fecha de entrada.');
+                }
+
+                $today = Carbon::today();
+                if ($newCheckInDate->gt($today)) {
+                    throw new \RuntimeException('La fecha de entrada no puede ser futura para una ocupaciÃƒÂ³n activa.');
+                }
+                if ($newCheckOutDate->lt($today)) {
+                    throw new \RuntimeException('La fecha de salida no puede ser anterior a hoy.');
+                }
+
+                $conflictingReservationRoom = ReservationRoom::query()
+                    ->where('room_id', $data['room_id'])
+                    ->where('id', '!=', $reservationRoom->id)
+                    ->where('reservation_id', '!=', $reservation->id)
+                    ->whereDate('check_in_date', '<', $newCheckOutDate->toDateString())
+                    ->whereDate('check_out_date', '>', $newCheckInDate->toDateString())
+                    ->whereHas('reservation', static function ($query): void {
+                        // Ignorar reservas canceladas (soft-deleted).
+                        $query->whereNull('deleted_at');
+                    })
+                    ->first();
+
+                if ($conflictingReservationRoom) {
+                    \Log::warning('AssignGuests overlap detected', [
+                        'current_reservation_id' => $reservation->id,
+                        'room_id' => $data['room_id'],
+                        'new_check_in_date' => $newCheckInDate->toDateString(),
+                        'new_check_out_date' => $newCheckOutDate->toDateString(),
+                        'conflicting_reservation_id' => $conflictingReservationRoom->reservation_id,
+                        'conflicting_reservation_room_id' => $conflictingReservationRoom->id,
+                        'conflicting_check_in_date' => $conflictingReservationRoom->check_in_date,
+                        'conflicting_check_out_date' => $conflictingReservationRoom->check_out_date,
+                    ]);
+
+                    throw new \RuntimeException('Las nuevas fechas se cruzan con otra reserva para esta habitaciÃƒÂ³n.');
+                }
+
+                $newNights = max(1, $newCheckInDate->diffInDays($newCheckOutDate));
+                $currentPricePerNight = (float) ($reservationRoom->price_per_night ?? 0);
+                if ($currentPricePerNight <= 0) {
+                    $existingSubtotal = (float) ($reservationRoom->subtotal ?? 0);
+                    $existingNights = (int) ($reservationRoom->nights ?? 0);
+                    if ($existingSubtotal > 0 && $existingNights > 0) {
+                        $currentPricePerNight = round($existingSubtotal / $existingNights, 2);
+                    }
+                }
+
+                if ($currentPricePerNight <= 0) {
+                    $fallbackTotal = (float) ($reservation->total_amount ?? 0);
+                    $currentPricePerNight = $fallbackTotal > 0
+                        ? round($fallbackTotal / $newNights, 2)
+                        : 0.0;
+                }
+
+                $reservationRoom->update([
+                    'check_in_date' => $newCheckInDate->toDateString(),
+                    'check_out_date' => $newCheckOutDate->toDateString(),
+                    'nights' => $newNights,
+                    'price_per_night' => $currentPricePerNight,
+                    'subtotal' => round($currentPricePerNight * $newNights, 2),
+                ]);
+
+                $reservationRoomsCount = (int) $reservation->reservationRooms()->count();
+                if ($reservationRoomsCount === 1 && Schema::hasColumn('reservations', 'check_in_date') && Schema::hasColumn('reservations', 'check_out_date')) {
+                    DB::table('reservations')
+                        ->where('id', $reservation->id)
+                        ->update([
+                            'check_in_date' => $newCheckInDate->toDateString(),
+                            'check_out_date' => $newCheckOutDate->toDateString(),
+                            'updated_at' => now(),
+                        ]);
+                }
+
                 $existingReservationGuests = DB::table('reservation_guests')
                     ->where('reservation_room_id', $reservationRoom->id)
                     ->get();
@@ -3754,7 +4077,7 @@ class RoomManager extends Component
                         ->delete();
                 }
 
-                // Asignar nuevos huéspedes adicionales (si se proporcionaron)
+                // Asignar nuevos huÃ©spedes adicionales (si se proporcionaron)
                 if (!empty($data['additional_guests']) && is_array($data['additional_guests'])) {
                     $additionalGuestIds = array_filter(
                         array_column($data['additional_guests'], 'customer_id'),
@@ -3766,40 +4089,45 @@ class RoomManager extends Component
                     }
                 }
 
-                // ===== PASO 4: OPCIONAL - Actualizar total_amount (SSOT) =====
-                if (!empty($data['override_total_amount']) && $data['override_total_amount'] === true) {
+                // ===== PASO 5: Actualizar monto del hospedaje (SSOT) =====
+                $reservation->loadMissing(['sales']);
+                $paidAmount = (float)($data['current_paid_amount'] ?? 0);
+                $overrideTotalAmount = !empty($data['override_total_amount']) && $data['override_total_amount'] === true;
+
+                if ($overrideTotalAmount) {
                     $newTotal = (float)($data['total_amount'] ?? 0);
 
                     if ($newTotal <= 0) {
                         throw new \RuntimeException('El total del hospedaje debe ser mayor a 0.');
                     }
 
-                    // Validar que el nuevo total no sea menor a lo ya pagado
-                    $paidAmount = (float)($data['current_paid_amount'] ?? 0);
-                    
                     if ($newTotal < $paidAmount) {
                         throw new \RuntimeException(
                             'El nuevo total del hospedaje no puede ser menor a lo ya pagado ($' . number_format($paidAmount, 0, ',', '.') . ').'
                         );
                     }
 
-                    // Calcular nuevo balance_due
-                    $salesDebt = (float)($reservation->sales?->where('is_paid', false)->sum('total') ?? 0);
-                    $newBalanceDue = $newTotal - $paidAmount + $salesDebt;
-
-                    // Actualizar total_amount y balance_due
-                    $reservation->update([
-                        'total_amount' => $newTotal,
-                        'balance_due' => max(0, $newBalanceDue),
-                    ]);
-
-                    \Log::info('AssignGuests: Total amount updated', [
-                        'reservation_id' => $reservation->id,
-                        'old_total' => $reservation->getOriginal('total_amount'),
-                        'new_total' => $newTotal,
-                        'paid_amount' => $paidAmount,
-                    ]);
+                    if ($reservationRoomsCount === 1) {
+                        $manualPricePerNight = round($newTotal / $newNights, 2);
+                        $reservationRoom->update([
+                            'price_per_night' => $manualPricePerNight,
+                            'subtotal' => round($newTotal, 2),
+                        ]);
+                    }
+                } else {
+                    $newTotal = (float) $reservation->reservationRooms()->sum('subtotal');
+                    if ($newTotal <= 0) {
+                        $newTotal = (float) ($reservation->total_amount ?? 0);
+                    }
                 }
+
+                $salesDebt = (float)($reservation->sales?->where('is_paid', false)->sum('total') ?? 0);
+                $newBalanceDue = $newTotal - $paidAmount + $salesDebt;
+
+                $reservation->update([
+                    'total_amount' => $newTotal,
+                    'balance_due' => max(0, $newBalanceDue),
+                ]);
 
                 // ===== PASO 6: Actualizar total_guests en la reserva =====
                 $reservation->refresh();
@@ -3808,18 +4136,18 @@ class RoomManager extends Component
                 
                 if ($reservationRoom) {
                     try {
-                        // Calcular total de huéspedes: principal (1) + adicionales
+                        // Calcular total de huÃ©spedes: principal (1) + adicionales
                         $principalCount = 1; // Cliente principal siempre cuenta
                         $additionalGuestsCount = $reservationRoom->getGuests()->count() ?? 0;
                         $totalGuests = $principalCount + $additionalGuestsCount;
 
                         $reservation->update([
                             'total_guests' => $totalGuests,
-                            'adults' => $totalGuests, // Simplificación: todos son adultos
+                            'adults' => $totalGuests, // SimplificaciÃ³n: todos son adultos
                             'children' => 0,
                         ]);
                     } catch (\Exception $e) {
-                        // No crítico, solo log
+                        // No crÃ­tico, solo log
                         \Log::warning('Error updating total_guests in submitAssignGuests', [
                             'reservation_id' => $reservation->id,
                             'error' => $e->getMessage()
@@ -3828,10 +4156,10 @@ class RoomManager extends Component
                 }
             });
 
-            $this->dispatch('notify', type: 'success', message: 'Cliente y huéspedes asignados correctamente.');
+            $this->dispatch('notify', type: 'success', message: 'OcupaciÃ³n actualizada correctamente.');
             $this->closeAssignGuests();
             
-            // 🔄 CRÍTICO: Forzar refresh completo para recargar todas las relaciones desde BD
+            // ðŸ”„ CRÃTICO: Forzar refresh completo para recargar todas las relaciones desde BD
             // resetPage() re-ejecuta render() que usa getRoomsQuery() con eager loading fresco
             // Esto asegura que room-row.blade.php reciba datos frescos con customer cargado
             $this->resetPage(); // Re-ejecutar render() con datos frescos desde BD
@@ -3843,18 +4171,27 @@ class RoomManager extends Component
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            $this->dispatch('notify', type: 'error', message: 'Error al asignar huéspedes: ' . $e->getMessage());
+            $this->dispatch('notify', type: 'error', message: 'Error al asignar huÃ©spedes: ' . $e->getMessage());
         }
     }
 
     /**
-     * Agrega un huésped adicional al formulario de asignación.
+     * Agrega un huÃ©sped adicional al formulario de asignaciÃ³n.
      * 
      * @param int $customerId ID del cliente a agregar
      * @return void
      */
     public function addAssignGuest(int $customerId): void
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
+        if (!$this->canEditOccupancy()) {
+            $this->dispatch('notify', type: 'error', message: 'Solo el administrador o recepciÃ³n puede editar la ocupaciÃ³n.');
+            return;
+        }
+
         if (!$this->assignGuestsForm) {
             return;
         }
@@ -3874,56 +4211,56 @@ class RoomManager extends Component
             // Verificar duplicados
             foreach ($this->assignGuestsForm['additional_guests'] as $guest) {
                 if (isset($guest['customer_id']) && (int)$guest['customer_id'] === $customerId) {
-                    $this->dispatch('notify', type: 'warning', message: 'Este cliente ya está agregado como huésped adicional.');
+                    $this->dispatch('notify', type: 'warning', message: 'Este cliente ya estÃ¡ agregado como huÃ©sped adicional.');
                     return;
                 }
             }
 
             // Verificar que no sea el cliente principal
             if (isset($this->assignGuestsForm['client_id']) && (int)$this->assignGuestsForm['client_id'] === $customerId) {
-                $this->dispatch('notify', type: 'warning', message: 'Este cliente ya está asignado como cliente principal.');
+                $this->dispatch('notify', type: 'warning', message: 'Este cliente ya estÃ¡ asignado como cliente principal.');
                 return;
             }
 
-            // 🔐 VALIDACIÓN CRÍTICA: Verificar capacidad ANTES de agregar huésped adicional
+            // ðŸ” VALIDACIÃ“N CRÃTICA: Verificar capacidad ANTES de agregar huÃ©sped adicional
             $principalCount = !empty($this->assignGuestsForm['client_id']) ? 1 : 0;
             $currentAdditionalCount = count($this->assignGuestsForm['additional_guests'] ?? []);
             $totalAfterAdd = $principalCount + $currentAdditionalCount + 1;
             $maxCapacity = (int)($this->assignGuestsForm['max_capacity'] ?? 1);
 
             if ($totalAfterAdd > $maxCapacity) {
-                $this->dispatch('notify', type: 'error', message: "No se puede agregar más huéspedes. La habitación tiene capacidad máxima de {$maxCapacity} persona" . ($maxCapacity > 1 ? 's' : '') . ".");
+                $this->dispatch('notify', type: 'error', message: "No se puede agregar mÃ¡s huÃ©spedes. La habitaciÃ³n tiene capacidad mÃ¡xima de {$maxCapacity} persona" . ($maxCapacity > 1 ? 's' : '') . ".");
                 return;
             }
 
-            // Agregar huésped
+            // Agregar huÃ©sped
             $this->assignGuestsForm['additional_guests'][] = [
                 'customer_id' => $customer->id,
                 'name' => $customer->name,
                 'identification' => $customer->taxProfile?->identification ?? 'N/A',
             ];
 
-            $this->dispatch('notify', type: 'success', message: 'Huésped adicional agregado.');
+            $this->dispatch('notify', type: 'success', message: 'HuÃ©sped adicional agregado.');
         } catch (\Exception $e) {
             \Log::error('Error adding assign guest', [
                 'customer_id' => $customerId,
                 'error' => $e->getMessage()
             ]);
-            $this->dispatch('notify', type: 'error', message: 'Error al agregar huésped: ' . $e->getMessage());
+            $this->dispatch('notify', type: 'error', message: 'Error al agregar huÃ©sped: ' . $e->getMessage());
         }
     }
 
     /**
-     * Abre el modal de historial diario de liberaciones de una habitación.
+     * Abre el modal de historial diario de liberaciones de una habitaciÃ³n.
      * 
-     * CONCEPTO: Muestra TODAS las liberaciones que ocurrieron en un día específico
-     * (por defecto HOY) desde room_release_history (auditoría inmutable).
+     * CONCEPTO: Muestra TODAS las liberaciones que ocurrieron en un dÃ­a especÃ­fico
+     * (por defecto HOY) desde room_release_history (auditorÃ­a inmutable).
      * 
      * DIFERENCIA CON openRoomDetail():
      * - openRoomDetail(): Estado operativo actual (stays/reservations activas)
-     * - openRoomDailyHistory(): Historial histórico cerrado (room_release_history)
+     * - openRoomDailyHistory(): Historial histÃ³rico cerrado (room_release_history)
      * 
-     * @param int $roomId ID de la habitación
+     * @param int $roomId ID de la habitaciÃ³n
      * @return void
      */
     public function openRoomDailyHistory(int $roomId): void
@@ -3932,8 +4269,8 @@ class RoomManager extends Component
             $room = Room::findOrFail($roomId);
             $date = $this->date->toDateString(); // Fecha seleccionada (HOY por defecto)
 
-            // Obtener TODAS las liberaciones de esta habitación en el día seleccionado
-            // 🔧 QUERY DEFENSIVA: Usa release_date como principal, created_at como fallback
+            // Obtener TODAS las liberaciones de esta habitaciÃ³n en el dÃ­a seleccionado
+            // ðŸ”§ QUERY DEFENSIVA: Usa release_date como principal, created_at como fallback
             // Esto garantiza que registros con release_date NULL o mal guardado no se pierdan
             $releases = RoomReleaseHistory::where('room_id', $roomId)
                 ->where(function ($q) use ($date) {
@@ -3949,10 +4286,10 @@ class RoomManager extends Component
                     });
                 })
                 ->with('releasedBy')
-                ->orderBy('created_at', 'desc') // Más recientes primero (última liberación arriba)
+                ->orderBy('created_at', 'desc') // MÃ¡s recientes primero (Ãºltima liberaciÃ³n arriba)
                 ->get();
             
-            // 🔍 DEBUG: Log de la query para verificar qué se encontró
+            // ðŸ” DEBUG: Log de la query para verificar quÃ© se encontrÃ³
             \Log::info('Room daily history query executed', [
                 'room_id' => $roomId,
                 'date_filter' => $date,
@@ -3985,8 +4322,8 @@ class RoomManager extends Component
                         'id' => $release->id,
                         'released_at' => $release->created_at->format('H:i'),
                         'released_at_full' => $release->created_at->format('d/m/Y H:i'),
-                        // ✅ SIEMPRE MOSTRAR - nunca ocultar por falta de cliente
-                        'customer_name' => $release->customer_name ?: 'Sin huésped asignado', // ✅ Fallback semántico
+                        // âœ… SIEMPRE MOSTRAR - nunca ocultar por falta de cliente
+                        'customer_name' => $release->customer_name ?: 'Sin huÃ©sped asignado', // âœ… Fallback semÃ¡ntico
                         'customer_identification' => $release->customer_identification ?: 'N/A',
                         'guests_count' => $release->guests_count ?? 0,
 
@@ -4003,7 +4340,7 @@ class RoomManager extends Component
                         'sales_data' => $release->sales_data ?? [],
                         'deposits_data' => $release->deposits_data ?? [],
 
-                        // Operación
+                        // OperaciÃ³n
                         'released_by' => $release->releasedBy?->name ?? 'Sistema',
                         'target_status' => $release->target_status,
                         'check_in_date' => $release->check_in_date?->format('d/m/Y'),
@@ -4033,31 +4370,40 @@ class RoomManager extends Component
     }
 
     /**
-     * Elimina un huésped adicional del formulario de asignación.
+     * Elimina un huÃ©sped adicional del formulario de asignaciÃ³n.
      * 
-     * @param int $index Índice del huésped en el array
+     * @param int $index Ãndice del huÃ©sped en el array
      * @return void
      */
     public function removeAssignGuest(int $index): void
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
+        if (!$this->canEditOccupancy()) {
+            $this->dispatch('notify', type: 'error', message: 'Solo el administrador o recepciÃ³n puede editar la ocupaciÃ³n.');
+            return;
+        }
+
         if (!$this->assignGuestsForm || !isset($this->assignGuestsForm['additional_guests'][$index])) {
             return;
         }
 
         unset($this->assignGuestsForm['additional_guests'][$index]);
         $this->assignGuestsForm['additional_guests'] = array_values($this->assignGuestsForm['additional_guests']);
-        $this->dispatch('notify', type: 'success', message: 'Huésped removido.');
+        $this->dispatch('notify', type: 'success', message: 'HuÃ©sped removido.');
     }
 
     /**
      * Assign guests to a specific reservation room.
      * 
      * SINGLE SOURCE OF TRUTH:
-     * - Huésped principal: reservations.client_id
-     * - Huéspedes adicionales: reservation_guests + reservation_room_guests
+     * - HuÃ©sped principal: reservations.client_id
+     * - HuÃ©spedes adicionales: reservation_guests + reservation_room_guests
      * 
-     * Esta lógica es IDÉNTICA a ReservationController::assignGuestsToRoom()
-     * para mantener consistencia arquitectónica.
+     * Esta lÃ³gica es IDÃ‰NTICA a ReservationController::assignGuestsToRoom()
+     * para mantener consistencia arquitectÃ³nica.
      * 
      * @param ReservationRoom $reservationRoom
      * @param array $assignedGuestIds Array de customer IDs
@@ -4101,7 +4447,7 @@ class RoomManager extends Component
                     ->first();
                 
                 if ($existingReservationGuest) {
-                    // Ya existe, verificar si está en reservation_room_guests
+                    // Ya existe, verificar si estÃ¡ en reservation_room_guests
                     $existingRoomGuest = DB::table('reservation_room_guests')
                         ->where('reservation_room_id', $reservationRoom->id)
                         ->where('reservation_guest_id', $existingReservationGuest->id)
@@ -4147,7 +4493,11 @@ class RoomManager extends Component
 
     public function openRoomEdit($roomId)
     {
-        if (!Auth::user()?->hasRole('Administrador')) {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
+        if (!$this->isAdmin()) {
             $this->dispatch('notify', type: 'error', message: 'Solo el administrador puede editar habitaciones.');
             return;
         }
@@ -4170,12 +4520,50 @@ class RoomManager extends Component
         $this->roomEditData = null;
     }
 
+    public function deleteRoom(int $roomId): void
+    {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
+        if (!$this->isAdmin()) {
+            $this->dispatch('notify', type: 'error', message: 'Solo el administrador puede eliminar habitaciones.');
+            return;
+        }
+
+        try {
+            $room = Room::findOrFail($roomId);
+
+            if ($room->getAvailabilityService()->getStayForDate($this->date ?? Carbon::today())) {
+                throw new \RuntimeException('No se puede eliminar una habitaciÃ³n con ocupaciÃ³n activa.');
+            }
+
+            if ($room->reservations()->exists()) {
+                throw new \RuntimeException('No se puede eliminar la habitaciÃ³n porque tiene reservas asociadas.');
+            }
+
+            $room->rates()->delete();
+            $room->delete();
+
+            $editingRoomId = (int) data_get($this->roomEditData, 'room.id', 0);
+            if ($editingRoomId === $roomId) {
+                $this->closeRoomEdit();
+            }
+
+            $this->dispatch('notify', type: 'success', message: 'HabitaciÃ³n eliminada correctamente.');
+            $this->resetPage();
+            $this->dispatch('$refresh');
+        } catch (\Exception $e) {
+            $this->dispatch('notify', type: 'error', message: 'Error al eliminar habitaciÃ³n: ' . $e->getMessage());
+        }
+    }
+
     public function viewReleaseHistoryDetail($historyId)
     {
         $history = RoomReleaseHistory::with(['room', 'customer', 'releasedBy'])->find($historyId);
         if ($history) {
             // Convertir el objeto a array para compatibilidad con Livewire
-            // Incluir también el nombre del usuario que liberó
+            // Incluir tambiÃ©n el nombre del usuario que liberÃ³
             $historyArray = $history->toArray();
             $historyArray['released_by_name'] = $history->releasedBy?->name ?? 'N/A';
             $this->releaseHistoryDetail = $historyArray;
@@ -4261,7 +4649,7 @@ class RoomManager extends Component
             $sales = $activeReservation->sales ?? collect();
             $payments = $activeReservation->payments ?? collect();
 
-            // ✅ NUEVO SSOT: Total del hospedaje desde stay_nights si existe
+            // âœ… NUEVO SSOT: Total del hospedaje desde stay_nights si existe
             try {
                 $totalHospedaje = (float)\App\Models\StayNight::where('reservation_id', $activeReservation->id)
                     ->sum('price');
@@ -4285,29 +4673,29 @@ class RoomManager extends Component
             $salesTotal = (float)($sales->sum('total') ?? 0);
             $salesDebt = (float)($sales->where('is_paid', false)->sum('total') ?? 0);
             
-            // ===== REGLA HOTELERA CRÍTICA: Calcular deuda solo si NO hay stay activa =====
-            // REGLA: Mientras la habitación esté OCUPADA, pagos > total_hospedaje es PAGO ADELANTADO, NO saldo a favor
-            // Solo se evalúa saldo a favor cuando stay.status = finished (checkout completado)
+            // ===== REGLA HOTELERA CRÃTICA: Calcular deuda solo si NO hay stay activa =====
+            // REGLA: Mientras la habitaciÃ³n estÃ© OCUPADA, pagos > total_hospedaje es PAGO ADELANTADO, NO saldo a favor
+            // Solo se evalÃºa saldo a favor cuando stay.status = finished (checkout completado)
             $hasActiveStay = \App\Models\Stay::where('reservation_id', $activeReservation->id)
                 ->whereNull('check_out_at')
                 ->whereIn('status', ['active', 'pending_checkout'])
                 ->exists();
 
             if ($hasActiveStay) {
-                // ===== HABITACIÓN OCUPADA: Calcular deuda normal =====
-                // Fórmula: deuda = (hospedaje - abonos_reales) + devoluciones + consumos_pendientes
-                // Si totalPaid > total_hospedaje, totalDebt será NEGATIVO (pago adelantado)
-                // PERO NO es "saldo a favor" - es crédito para noches futuras/consumos
+                // ===== HABITACIÃ“N OCUPADA: Calcular deuda normal =====
+                // FÃ³rmula: deuda = (hospedaje - abonos_reales) + devoluciones + consumos_pendientes
+                // Si totalPaid > total_hospedaje, totalDebt serÃ¡ NEGATIVO (pago adelantado)
+                // PERO NO es "saldo a favor" - es crÃ©dito para noches futuras/consumos
                 $totalDebt = ($totalHospedaje - $totalPaidPositive) + $refundsTotal + $salesDebt;
-                // ✅ totalDebt < 0 = Pago adelantado (válido mientras esté ocupada)
-                // ✅ totalDebt > 0 = Deuda pendiente
-                // ✅ totalDebt = 0 = Al día
+                // âœ… totalDebt < 0 = Pago adelantado (vÃ¡lido mientras estÃ© ocupada)
+                // âœ… totalDebt > 0 = Deuda pendiente
+                // âœ… totalDebt = 0 = Al dÃ­a
             } else {
-                // ===== HABITACIÓN LIBERADA: Evaluar saldo a favor real =====
-                // Aquí sí se evalúa si hay overpaid (saldo a favor) después de cerrar la estadía
+                // ===== HABITACIÃ“N LIBERADA: Evaluar saldo a favor real =====
+                // AquÃ­ sÃ­ se evalÃºa si hay overpaid (saldo a favor) despuÃ©s de cerrar la estadÃ­a
                 $overpaid = $totalPaidPositive - $totalHospedaje;
                 if ($overpaid > 0) {
-                    // Hay saldo a favor real (habrá que devolver)
+                    // Hay saldo a favor real (habrÃ¡ que devolver)
                     $totalDebt = -$overpaid + $refundsTotal + $salesDebt;  // Negativo = se le debe
                 } else {
                     // No hay saldo a favor o hay deuda pendiente
@@ -4355,25 +4743,29 @@ class RoomManager extends Component
 
     public function updateCleaningStatus($roomId, $status)
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         try {
             $room = Room::find($roomId);
             
             if (!$room) {
-                $this->dispatch('notify', type: 'error', message: 'Habitación no encontrada.');
+                $this->dispatch('notify', type: 'error', message: 'HabitaciÃ³n no encontrada.');
                 return;
             }
 
-            // Validar que no sea fecha histórica - usando lógica de HotelTime
+            // Validar que no sea fecha histÃ³rica - usando lÃ³gica de HotelTime
             $today = Carbon::today();
             $selectedDate = $this->date ?? $today;
             
-            // 🔥 PERMITIR cambios en fecha actual (hoy)
+            // ðŸ”¥ PERMITIR cambios en fecha actual (hoy)
             if ($selectedDate->copy()->startOfDay()->lt($today)) {
-                $this->dispatch('notify', type: 'error', message: 'No se pueden hacer cambios en fechas históricas.');
+                $this->dispatch('notify', type: 'error', message: 'No se pueden hacer cambios en fechas histÃ³ricas.');
                 return;
             }
             
-            // 🔥 DEBUG: Log para verificar qué fecha se está usando
+            // ðŸ”¥ DEBUG: Log para verificar quÃ© fecha se estÃ¡ usando
             \Log::info('updateCleaningStatus', [
                 'room_id' => $roomId,
                 'status' => $status,
@@ -4382,9 +4774,9 @@ class RoomManager extends Component
                 'isPast' => $selectedDate->copy()->startOfDay()->lt($today)
             ]);
 
-            // Validar que el estado sea válido
+            // Validar que el estado sea vÃ¡lido
             if (!in_array($status, ['limpia', 'pendiente'])) {
-                $this->dispatch('notify', type: 'error', message: 'Estado de limpieza inválido.');
+                $this->dispatch('notify', type: 'error', message: 'Estado de limpieza invÃ¡lido.');
                 return;
             }
 
@@ -4392,11 +4784,11 @@ class RoomManager extends Component
             if ($status === 'limpia') {
                 $room->last_cleaned_at = now();
                 $room->save();
-                $this->dispatch('notify', type: 'success', message: 'Habitación marcada como limpia.');
+                $this->dispatch('notify', type: 'success', message: 'HabitaciÃ³n marcada como limpia.');
             } elseif ($status === 'pendiente') {
                 $room->last_cleaned_at = null;
                 $room->save();
-                $this->dispatch('notify', type: 'success', message: 'Habitación marcada como pendiente de limpieza.');
+                $this->dispatch('notify', type: 'success', message: 'HabitaciÃ³n marcada como pendiente de limpieza.');
             }
             
             // Refrescar habitaciones para actualizar la vista
@@ -4413,12 +4805,16 @@ class RoomManager extends Component
 
     public function confirmReleaseRoom($roomId)
     {
-        // Implementar lógica de liberación de habitación
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
+        // Implementar lÃ³gica de liberaciÃ³n de habitaciÃ³n
         try {
             $room = Room::find($roomId);
             if ($room && $room->isOccupied()) {
-                // Realizar checkout y liberar habitación
-                $this->dispatch('notify', type: 'success', message: 'Habitación liberada exitosamente.');
+                // Realizar checkout y liberar habitaciÃ³n
+                $this->dispatch('notify', type: 'success', message: 'HabitaciÃ³n liberada exitosamente.');
                 $this->closeRoomReleaseConfirmation();
             }
         } catch (\Exception $e) {
@@ -4427,7 +4823,7 @@ class RoomManager extends Component
     }
 
     /**
-     * Libera la habitación (checkout).
+     * Libera la habitaciÃ³n (checkout).
      * 
      * Flujo:
      * 1. Si hay deuda pendiente:
@@ -4443,12 +4839,16 @@ class RoomManager extends Component
      */
     public function releaseRoom($roomId, $status = null, $paymentMethod = null, $bankName = null, $reference = null)
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         $started = false;
         try {
             $this->isReleasingRoom = true;
             $room = Room::find($roomId);
             if (!$room) {
-                $this->dispatch('notify', type: 'error', message: 'Habitación no encontrada.');
+                $this->dispatch('notify', type: 'error', message: 'HabitaciÃ³n no encontrada.');
                 $this->isReleasingRoom = false;
                 return;
             }
@@ -4459,9 +4859,9 @@ class RoomManager extends Component
             $availabilityService = $room->getAvailabilityService();
             $today = Carbon::today();
             
-            // BLOQUEO: No se puede liberar ocupaciones históricas
+            // BLOQUEO: No se puede liberar ocupaciones histÃ³ricas
             if ($availabilityService->isHistoricDate($today)) {
-                $this->dispatch('notify', type: 'error', message: 'No se pueden hacer cambios en fechas históricas.');
+                $this->dispatch('notify', type: 'error', message: 'No se pueden hacer cambios en fechas histÃ³ricas.');
                 if ($started) {
                     $this->dispatch('room-release-finished', roomId: $roomId);
                 }
@@ -4472,7 +4872,7 @@ class RoomManager extends Component
             $activeStay = $availabilityService->getStayForDate($today);
 
             if (!$activeStay) {
-                $this->dispatch('notify', type: 'info', message: 'No hay ocupación activa para liberar hoy.');
+                $this->dispatch('notify', type: 'info', message: 'No hay ocupaciÃ³n activa para liberar hoy.');
                 if ($started) {
                     $this->dispatch('room-release-finished', roomId: $roomId);
                 }
@@ -4483,22 +4883,22 @@ class RoomManager extends Component
             // ===== PASO 2: Obtener reserva y calcular deuda REAL desde SSOT =====
             $reservation = $activeStay->reservation;
             if (!$reservation) {
-                $this->dispatch('notify', type: 'error', message: 'La ocupación no tiene reserva asociada.');
+                $this->dispatch('notify', type: 'error', message: 'La ocupaciÃ³n no tiene reserva asociada.');
                 if ($started) {
                     $this->dispatch('room-release-finished', roomId: $roomId);
                 }
                 return;
             }
 
-            // 🔁 RECALCULAR TODA LA DEUDA REAL DESDE SSOT
+            // ðŸ” RECALCULAR TODA LA DEUDA REAL DESDE SSOT
             $reservation->load(['payments', 'sales']);
             
-            // ✅ NUEVO SSOT: Total del hospedaje desde stay_nights
+            // âœ… NUEVO SSOT: Total del hospedaje desde stay_nights
             try {
                 $totalHospedaje = (float)\App\Models\StayNight::where('reservation_id', $reservation->id)
                     ->sum('price');
                 
-                // Si no hay noches aún, usar fallback
+                // Si no hay noches aÃºn, usar fallback
                 if ($totalHospedaje <= 0) {
                     $totalHospedaje = (float)($reservation->total_amount ?? 0);
                 }
@@ -4522,14 +4922,14 @@ class RoomManager extends Component
                 ->where('is_paid', false)
                 ->sum('total') ?? 0);
             
-            // 🔴 DEUDA REAL TOTAL
+            // ðŸ”´ DEUDA REAL TOTAL
             $realDebt = ($totalHospedaje - $totalPaid) + $totalRefunds + $totalSalesDebt;
 
             // ===== PASO 3: Si hay deuda, pagarla COMPLETA =====
             if ($realDebt > 0) {
                 // Requiere datos de pago desde frontend
                 if (!$paymentMethod) {
-                    $this->dispatch('notify', type: 'error', message: 'Debe seleccionar un método de pago.');
+                    $this->dispatch('notify', type: 'error', message: 'Debe seleccionar un mÃ©todo de pago.');
                     if ($started) {
                         $this->dispatch('room-release-finished', roomId: $roomId);
                     }
@@ -4541,15 +4941,15 @@ class RoomManager extends Component
                     ->orWhere('code', 'cash')
                     ->value('id');
 
-                // ✅ Pagar TODO lo pendiente
+                // âœ… Pagar TODO lo pendiente
                 Payment::create([
                     'reservation_id' => $reservation->id,
-                    'amount' => $realDebt,  // ✅ TODO lo que faltaba
+                    'amount' => $realDebt,  // âœ… TODO lo que faltaba
                     'payment_method_id' => $paymentMethodId,
                     'bank_name' => $paymentMethod === 'transferencia' ? ($bankName ?: null) : null,
                     'reference' => $paymentMethod === 'transferencia' 
                         ? ($reference ?: null) 
-                        : 'Pago total en liberación',
+                        : 'Pago total en liberaciÃ³n',
                     'paid_at' => now(),
                     'created_by' => auth()->id(),
                 ]);
@@ -4565,7 +4965,7 @@ class RoomManager extends Component
             // ===== PASO 4: REVALIDAR que balance sea 0 (OBLIGATORIO) =====
             $reservation->refresh()->load(['payments', 'sales']);
             
-            // Recalcular desde BD después de pagos y marcar consumos
+            // Recalcular desde BD despuÃ©s de pagos y marcar consumos
             $finalPaid = (float)($reservation->payments
                 ->where('amount', '>', 0)
                 ->sum('amount') ?? 0);
@@ -4580,9 +4980,9 @@ class RoomManager extends Component
             
             $finalBalance = ($totalHospedaje - $finalPaid) + $finalRefunds + $finalSalesDebt;
             
-            // 🔒 VALIDACIÓN DEFENSIVA: No liberar si balance != 0
+            // ðŸ”’ VALIDACIÃ“N DEFENSIVA: No liberar si balance != 0
             if (abs($finalBalance) > 0.01) { // Tolerancia para floats
-                $this->dispatch('notify', type: 'error', message: "Error crítico: No se puede liberar con saldo pendiente. Balance: \${$finalBalance}");
+                $this->dispatch('notify', type: 'error', message: "Error crÃ­tico: No se puede liberar con saldo pendiente. Balance: \${$finalBalance}");
                 \Log::error('Release Room: Attempted to release with non-zero balance', [
                     'room_id' => $roomId,
                     'reservation_id' => $reservation->id,
@@ -4599,15 +4999,15 @@ class RoomManager extends Component
             }
 
             // ===== PASO 5: Marcar TODAS las noches como pagadas =====
-            // 🔥 CRÍTICO: Al liberar, todas las noches hasta HOY quedan pagadas
-            // 🔐 PROTECCIÓN: Solo marcar noches hasta hoy (evitar pagar noches futuras accidentalmente)
+            // ðŸ”¥ CRÃTICO: Al liberar, todas las noches hasta HOY quedan pagadas
+            // ðŸ” PROTECCIÃ“N: Solo marcar noches hasta hoy (evitar pagar noches futuras accidentalmente)
             try {
                 \App\Models\StayNight::where('reservation_id', $reservation->id)
                     ->where('date', '<=', now()->toDateString()) // Solo noches hasta hoy
                     ->where('is_paid', false)
                     ->update(['is_paid' => true]);
             } catch (\Exception $e) {
-                // No crítico, solo log (si la tabla no existe aún, continuar)
+                // No crÃ­tico, solo log (si la tabla no existe aÃºn, continuar)
                 \Log::warning('Error marking nights as paid in releaseRoom', [
                     'reservation_id' => $reservation->id,
                     'error' => $e->getMessage()
@@ -4627,9 +5027,9 @@ class RoomManager extends Component
                 ->value('id');
             $reservation->save();
 
-            // ===== PASO 8: Crear registro en historial de liberación =====
+            // ===== PASO 8: Crear registro en historial de liberaciÃ³n =====
             try {
-                // Cargar relaciones necesarias (NO cargar 'guests' porque la relación está rota)
+                // Cargar relaciones necesarias (NO cargar 'guests' porque la relaciÃ³n estÃ¡ rota)
                 $reservation->loadMissing([
                     'customer.taxProfile', 
                     'sales.product', 
@@ -4638,12 +5038,12 @@ class RoomManager extends Component
                 ]);
                 
                 // ===== CALCULAR TOTALES (SSOT FINANCIERO) =====
-                // ✅ NUEVO SSOT: Calcular desde stay_nights si existe
+                // âœ… NUEVO SSOT: Calcular desde stay_nights si existe
                 try {
                     $totalAmount = (float)\App\Models\StayNight::where('reservation_id', $reservation->id)
                         ->sum('price');
                     
-                    // Si no hay noches aún, usar fallback
+                    // Si no hay noches aÃºn, usar fallback
                     if ($totalAmount <= 0) {
                         $totalAmount = (float)($reservation->total_amount ?? 0);
                     }
@@ -4652,14 +5052,14 @@ class RoomManager extends Component
                     $totalAmount = (float)($reservation->total_amount ?? 0);
                 }
                 
-                // VALIDACIÓN CRÍTICA: Verificar que totalAmount existe y es válido
+                // VALIDACIÃ“N CRÃTICA: Verificar que totalAmount existe y es vÃ¡lido
                 if ($totalAmount <= 0) {
                     \Log::error('Release Room: totalAmount is 0 or null', [
                         'reservation_id' => $reservation->id,
                         'total_amount' => $reservation->total_amount,
                         'room_id' => $room->id,
                     ]);
-                    // NO lanzar excepción para no bloquear el release, pero loguear el error
+                    // NO lanzar excepciÃ³n para no bloquear el release, pero loguear el error
                     // Usar fallback: calcular desde ReservationRoom si existe
                     $reservationRoom = $reservation->reservationRooms->where('room_id', $room->id)->first();
                     if ($reservationRoom && $reservationRoom->price_per_night > 0) {
@@ -4672,8 +5072,8 @@ class RoomManager extends Component
                     }
                 }
                 
-                // 🔁 RECALCULAR TOTALES FINALES DESPUÉS DE PAGOS (SSOT)
-                // Asegurar que tenemos los datos más recientes desde BD
+                // ðŸ” RECALCULAR TOTALES FINALES DESPUÃ‰S DE PAGOS (SSOT)
+                // Asegurar que tenemos los datos mÃ¡s recientes desde BD
                 $reservation->refresh()->load(['payments', 'sales']);
                 
                 // Pagos finales (SOLO positivos)
@@ -4684,12 +5084,12 @@ class RoomManager extends Component
                 // Consumos totales (todos)
                 $consumptionsTotal = (float)($reservation->sales->sum('total') ?? 0);
                 
-                // Consumos pendientes (debe ser 0 después de marcar como pagados)
+                // Consumos pendientes (debe ser 0 despuÃ©s de marcar como pagados)
                 $consumptionsPending = (float)($reservation->sales
                     ->where('is_paid', false)
                     ->sum('total') ?? 0);
                 
-                // 🔒 VALIDACIÓN: Consumos pendientes debe ser 0
+                // ðŸ”’ VALIDACIÃ“N: Consumos pendientes debe ser 0
                 if ($consumptionsPending > 0.01) {
                     \Log::warning('Release Room: Some sales still unpaid after marking as paid', [
                         'reservation_id' => $reservation->id,
@@ -4713,11 +5113,11 @@ class RoomManager extends Component
                         ? Carbon::parse($reservation->check_out_date) 
                         : $today);
                 
-                // 🔒 REGLA ABSOLUTA: pending_amount SIEMPRE debe ser 0 al liberar
+                // ðŸ”’ REGLA ABSOLUTA: pending_amount SIEMPRE debe ser 0 al liberar
                 // El snapshot refleja el estado FINAL (cerrado)
                 $pendingAmount = 0;
                 
-                // Determinar target_status basado en el parámetro o estado de limpieza
+                // Determinar target_status basado en el parÃ¡metro o estado de limpieza
                 $targetStatus = $status ?? 'libre';
                 if (!$status) {
                     // Si no se especifica, verificar estado de limpieza
@@ -4731,8 +5131,8 @@ class RoomManager extends Component
                     }
                 }
                 
-                // Preparar datos de huéspedes
-                // Obtener huéspedes desde reservation_guests usando reservation_room_id
+                // Preparar datos de huÃ©spedes
+                // Obtener huÃ©spedes desde reservation_guests usando reservation_room_id
                 $guestsData = [];
                 
                 // Cliente principal
@@ -4745,7 +5145,7 @@ class RoomManager extends Component
                     ];
                 }
                 
-                // Obtener huéspedes adicionales desde reservation_guests usando reservation_room_id
+                // Obtener huÃ©spedes adicionales desde reservation_guests usando reservation_room_id
                 if ($reservationRoom) {
                     try {
                         // Verificar si la tabla tax_profiles existe
@@ -4759,7 +5159,7 @@ class RoomManager extends Component
                                 ->select('customers.id', 'customers.name', 'tax_profiles.identification')
                                 ->get();
                         } else {
-                            // Si no existe tax_profiles, solo obtener datos básicos
+                            // Si no existe tax_profiles, solo obtener datos bÃ¡sicos
                             $additionalGuests = DB::table('reservation_guests')
                                 ->where('reservation_room_id', $reservationRoom->id)
                                 ->join('customers', 'reservation_guests.guest_id', '=', 'customers.id')
@@ -4776,7 +5176,7 @@ class RoomManager extends Component
                             ];
                         }
                     } catch (\Exception $e) {
-                        // Si falla la consulta de huéspedes, continuar sin ellos
+                        // Si falla la consulta de huÃ©spedes, continuar sin ellos
                         \Log::warning('Error loading additional guests for release history', [
                             'reservation_room_id' => $reservationRoom->id,
                             'error' => $e->getMessage(),
@@ -4784,11 +5184,11 @@ class RoomManager extends Component
                     }
                 }
                 
-                // 🔥 CRÍTICO: Asegurar que release_date sea la fecha real de liberación (SSOT para historial diario)
-                // NO confiar en defaults ni Carbon automático - SETEARLO EXPLÍCITAMENTE
+                // ðŸ”¥ CRÃTICO: Asegurar que release_date sea la fecha real de liberaciÃ³n (SSOT para historial diario)
+                // NO confiar en defaults ni Carbon automÃ¡tico - SETEARLO EXPLÃCITAMENTE
                 $releaseDate = $today->toDateString(); // Fecha actual (HOY) - SSOT para historial diario
                 
-                // 🔐 CUSTOMER: Puede ser NULL (walk-in sin asignar)
+                // ðŸ” CUSTOMER: Puede ser NULL (walk-in sin asignar)
                 // NO asumir que siempre existe customer - usar null-safe operator
                 $customer = $reservation->customer; // puede ser null
                 
@@ -4796,22 +5196,22 @@ class RoomManager extends Component
                 $historyData = [
                     'room_id' => $room->id,
                     'reservation_id' => $reservation->id,
-                    'customer_id' => $customer?->id, // ✅ puede ser null
+                    'customer_id' => $customer?->id, // âœ… puede ser null
                     'released_by' => auth()->id(),
                     'room_number' => $room->room_number,
-                    // 💰 FINANCIEROS FINALES (SSOT)
+                    // ðŸ’° FINANCIEROS FINALES (SSOT)
                     'total_amount' => $totalAmount,
-                    'deposit' => $finalPaidAmount,  // ✅ Pagos finales después de pago automático
+                    'deposit' => $finalPaidAmount,  // âœ… Pagos finales despuÃ©s de pago automÃ¡tico
                     'consumptions_total' => $consumptionsTotal,
-                    'pending_amount' => 0,  // 🔒 SIEMPRE 0 al liberar (cuenta cerrada)
+                    'pending_amount' => 0,  // ðŸ”’ SIEMPRE 0 al liberar (cuenta cerrada)
                     'guests_count' => $reservation->total_guests ?? count($guestsData) ?: 1,
                     'check_in_date' => $checkInDate->toDateString(),
                     'check_out_date' => $checkOutDate->toDateString(),
-                    // 🔥 CRÍTICO: release_date DEBE ser la fecha real de liberación (SSOT para historial diario)
-                    'release_date' => $releaseDate,  // ✅ Seteado explícitamente con fecha actual
+                    // ðŸ”¥ CRÃTICO: release_date DEBE ser la fecha real de liberaciÃ³n (SSOT para historial diario)
+                    'release_date' => $releaseDate,  // âœ… Seteado explÃ­citamente con fecha actual
                     'target_status' => $targetStatus,
-                    // 🔐 DATOS DENORMALIZADOS (NO obligatorios) - siempre con placeholder semántico si no hay cliente
-                    'customer_name' => $customer?->name ?? 'Sin huésped asignado', // ✅ Nunca NULL, siempre placeholder
+                    // ðŸ” DATOS DENORMALIZADOS (NO obligatorios) - siempre con placeholder semÃ¡ntico si no hay cliente
+                    'customer_name' => $customer?->name ?? 'Sin huÃ©sped asignado', // âœ… Nunca NULL, siempre placeholder
                     'customer_identification' => $customer?->taxProfile?->identification ?? null,
                     'customer_phone' => $customer?->phone ?? null,
                     'customer_email' => $customer?->email ?? null,
@@ -4855,7 +5255,7 @@ class RoomManager extends Component
                     'guests_data' => $guestsData,
                 ];
                 
-                // 🔍 VALIDACIÓN PRE-CREACIÓN: Verificar que release_date no sea NULL
+                // ðŸ” VALIDACIÃ“N PRE-CREACIÃ“N: Verificar que release_date no sea NULL
                 if (empty($historyData['release_date']) || $historyData['release_date'] === null) {
                     \Log::error('CRITICAL: release_date is NULL before creating RoomReleaseHistory', [
                         'room_id' => $room->id,
@@ -4867,7 +5267,7 @@ class RoomManager extends Component
                     $historyData['release_date'] = now()->toDateString();
                 }
                 
-                // 🔍 DEBUG: Verificar datos antes de crear
+                // ðŸ” DEBUG: Verificar datos antes de crear
                 \Log::info('Creating room release history', [
                     'room_id' => $room->id,
                     'reservation_id' => $reservation->id,
@@ -4878,19 +5278,19 @@ class RoomManager extends Component
                 
                 $releaseHistory = RoomReleaseHistory::create($historyData);
                 
-                // 🔍 DEBUG: Verificar datos después de crear
+                // ðŸ” DEBUG: Verificar datos despuÃ©s de crear
                 $releaseHistory->refresh();
                 \Log::info('Room release history created successfully', [
                     'room_id' => $room->id,
                     'reservation_id' => $reservation->id,
                     'history_id' => $releaseHistory->id,
-                    'release_date_SAVED' => $releaseHistory->release_date?->toDateString(), // ✅ Verificar que se guardó correctamente
+                    'release_date_SAVED' => $releaseHistory->release_date?->toDateString(), // âœ… Verificar que se guardÃ³ correctamente
                     'created_at' => $releaseHistory->created_at->toDateString(),
                     'release_date_IN_DB' => DB::table('room_release_history')->where('id', $releaseHistory->id)->value('release_date'),
                     'target_status' => $targetStatus,
                 ]);
             } catch (\Exception $e) {
-                // No fallar la liberación si falla el historial, solo loguear
+                // No fallar la liberaciÃ³n si falla el historial, solo loguear
                 \Log::error('Error creating room release history', [
                     'room_id' => $room->id,
                     'reservation_id' => $reservation->id,
@@ -4899,7 +5299,7 @@ class RoomManager extends Component
                 ]);
             }
 
-            $this->dispatch('notify', type: 'success', message: 'Habitación liberada correctamente.');
+            $this->dispatch('notify', type: 'success', message: 'HabitaciÃ³n liberada correctamente.');
             if ($started) {
                 $this->dispatch('room-release-finished', roomId: $roomId);
             }
@@ -4911,7 +5311,7 @@ class RoomManager extends Component
                 $this->dispatch('room-release-finished', roomId: $roomId);
             }
             $this->isReleasingRoom = false;
-            $this->dispatch('notify', type: 'error', message: 'Error al liberar habitación: ' . $e->getMessage());
+            $this->dispatch('notify', type: 'error', message: 'Error al liberar habitaciÃ³n: ' . $e->getMessage());
             \Log::error('Error releasing room: ' . $e->getMessage(), ['exception' => $e]);
         }
     }
@@ -4921,12 +5321,16 @@ class RoomManager extends Component
      */
     public function openEditPrices($reservationId)
     {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
         try {
-            \Log::error('🔥 openEditPrices llamado con reservationId: ' . $reservationId);
+            \Log::error('ðŸ”¥ openEditPrices llamado con reservationId: ' . $reservationId);
             
             $reservation = \App\Models\Reservation::with(['stayNights'])->findOrFail($reservationId);
             
-            \Log::error('📋 Reservation encontrada:', [
+            \Log::error('ðŸ“‹ Reservation encontrada:', [
                 'id' => $reservation->id,
                 'total_amount' => $reservation->total_amount,
                 'stay_nights_count' => $reservation->stayNights->count()
@@ -4941,11 +5345,11 @@ class RoomManager extends Component
             
             // Cargar noches existentes
             $stayNights = $reservation->stayNights;
-            \Log::error('🌙 StayNights cargados: ' . $stayNights->count());
+            \Log::error('ðŸŒ™ StayNights cargados: ' . $stayNights->count());
             
-            // Si no hay stay_nights, intentar crearlos automáticamente
+            // Si no hay stay_nights, intentar crearlos automÃ¡ticamente
             if ($stayNights->isEmpty() && $reservation->check_in_date && $reservation->check_out_date) {
-                \Log::error('🔥 Creando stay_nights automáticamente para reservation ' . $reservation->id);
+                \Log::error('ðŸ”¥ Creando stay_nights automÃ¡ticamente para reservation ' . $reservation->id);
                 
                 $checkIn = \Carbon\Carbon::parse($reservation->check_in_date);
                 $checkOut = \Carbon\Carbon::parse($reservation->check_out_date);
@@ -4971,7 +5375,7 @@ class RoomManager extends Component
                         'is_paid' => false
                     ];
                     
-                    \Log::error('🌙 Noche creada:', [
+                    \Log::error('ðŸŒ™ Noche creada:', [
                         'id' => $stayNight->id,
                         'date' => $nightDate->format('Y-m-d'),
                         'price' => $nightPrice,
@@ -4980,7 +5384,7 @@ class RoomManager extends Component
                 }
             } else {
                 foreach ($stayNights as $night) {
-                    \Log::error('🌙 Noche procesada:', [
+                    \Log::error('ðŸŒ™ Noche procesada:', [
                         'id' => $night->id,
                         'date' => $night->date,
                         'price' => $night->price,
@@ -4996,12 +5400,12 @@ class RoomManager extends Component
                 }
             }
             
-            \Log::error('💾 editPricesForm final:', $this->editPricesForm);
+            \Log::error('ðŸ’¾ editPricesForm final:', $this->editPricesForm);
             
             $this->editPricesModal = true;
             
         } catch (\Exception $e) {
-            \Log::error('❌ Error en openEditPrices: ' . $e->getMessage(), [
+            \Log::error('âŒ Error en openEditPrices: ' . $e->getMessage(), [
                 'reservation_id' => $reservationId,
                 'trace' => $e->getTraceAsString()
             ]);
@@ -5025,10 +5429,10 @@ class RoomManager extends Component
 
             if ($room->current_reservation) {
                 // ===============================
-                // SSOT: CÁLCULO CORRECTO DE NOCHE PAGA
+                // SSOT: CÃLCULO CORRECTO DE NOCHE PAGA
                 // ===============================
-                // REGLA: Una noche está pagada si los PAGOS POSITIVOS cubren el valor de las noches consumidas
-                // Se usa reservation.total_amount como SSOT (NO tarifas, NO heurísticas)
+                // REGLA: Una noche estÃ¡ pagada si los PAGOS POSITIVOS cubren el valor de las noches consumidas
+                // Se usa reservation.total_amount como SSOT (NO tarifas, NO heurÃ­sticas)
                 
                 $reservation = $room->current_reservation;
                 
@@ -5039,7 +5443,7 @@ class RoomManager extends Component
                 $reservationTotalAmount = (float)($reservation->total_amount ?? 0);
                 
                 // Pagos reales (SOLO positivos) - SSOT financiero
-                // REGLA CRÍTICA: Separar pagos y devoluciones para coherencia
+                // REGLA CRÃTICA: Separar pagos y devoluciones para coherencia
                 $reservation->loadMissing(['payments']);
                 $paidAmount = (float)($reservation->payments
                     ->where('amount', '>', 0)
@@ -5061,7 +5465,7 @@ class RoomManager extends Component
                     }
                 }
                 
-                // Total contractual por habitación (si existe subtotal por habitación, usarlo).
+                // Total contractual por habitaciÃ³n (si existe subtotal por habitaciÃ³n, usarlo).
                 $roomContractTotal = $reservationTotalAmount;
                 if ($reservationRoom) {
                     $roomSubtotal = (float)($reservationRoom->subtotal ?? 0);
@@ -5078,17 +5482,17 @@ class RoomManager extends Component
                 // Fechas para calcular noches consumidas
                 // Priorizar stay->check_in_at (timestamp real) sobre reservationRoom->check_in_date (fecha planificada)
                 if ($stay && $stay->check_in_at) {
-                    $checkIn = Carbon::parse($stay->check_in_at)->startOfDay(); // Mantener startOfDay para cálculo de noches
+                    $checkIn = Carbon::parse($stay->check_in_at)->startOfDay(); // Mantener startOfDay para cÃ¡lculo de noches
                 } elseif ($reservationRoom && $reservationRoom->check_in_date) {
-                    $checkIn = Carbon::parse($reservationRoom->check_in_date)->startOfDay(); // Mantener startOfDay para cálculo de noches
+                    $checkIn = Carbon::parse($reservationRoom->check_in_date)->startOfDay(); // Mantener startOfDay para cÃ¡lculo de noches
                 } else {
                     $checkIn = null;
                 }
                 
-                $today = $this->date->copy()->startOfDay(); // Mantener startOfDay para cálculo de noches consumidas
+                $today = $this->date->copy()->startOfDay(); // Mantener startOfDay para cÃ¡lculo de noches consumidas
                 
                 // Noches consumidas hasta la fecha vista (inclusive)
-                // REGLA: Si hoy >= check_in, al menos 1 noche está consumida
+                // REGLA: Si hoy >= check_in, al menos 1 noche estÃ¡ consumida
                 if ($checkIn) {
                     if ($today->lt($checkIn)) {
                         $nightsConsumed = 0;
@@ -5101,22 +5505,22 @@ class RoomManager extends Component
                     $nightsConsumed = 1;
                 }
                 
-                // Total que debería estar pagado hasta hoy
+                // Total que deberÃ­a estar pagado hasta hoy
                 $expectedPaid = $pricePerNight * $nightsConsumed;
                 
-                // ✅ VERDAD FINAL: Noche pagada si pagos positivos >= esperado
+                // âœ… VERDAD FINAL: Noche pagada si pagos positivos >= esperado
                 $room->is_night_paid = $expectedPaid > 0 && $paidAmount >= $expectedPaid;
 
                 // Calcular total_debt usando SSOT financiero (alineado con room-payment-info y room-detail-modal)
-                // REGLA CRÍTICA: Separar pagos y devoluciones para coherencia financiera
+                // REGLA CRÃTICA: Separar pagos y devoluciones para coherencia financiera
                 $refundsTotal = abs((float)($reservation->payments
                     ->where('amount', '<', 0)
                     ->sum('amount') ?? 0));
                 
-                // Usar total contractual por habitación como SSOT.
+                // Usar total contractual por habitaciÃ³n como SSOT.
                 $totalStay = $roomContractTotal > 0 ? $roomContractTotal : ($pricePerNight * $totalNights);
                 
-                // Cargar sales si no están cargadas
+                // Cargar sales si no estÃ¡n cargadas
                 $reservation->loadMissing(['sales']);
                 
                 $sales_debt = 0;
@@ -5124,7 +5528,7 @@ class RoomManager extends Component
                     $sales_debt = (float)$reservation->sales->where('is_paid', false)->sum('total');
                 }
                 
-                // Fórmula alineada con room-payment-info: (total - abonos) + devoluciones + consumos
+                // FÃ³rmula alineada con room-payment-info: (total - abonos) + devoluciones + consumos
                 $computedDebt = ($totalStay - $paidAmount) + $refundsTotal + $sales_debt;
                 
                 // Mostrar deuda contractual calculada en tiempo real para evitar desalineaciones
@@ -5138,7 +5542,7 @@ class RoomManager extends Component
             return $room;
         });
 
-        // Aplicar filtro de estado si existe (después de enriquecer)
+        // Aplicar filtro de estado si existe (despuÃ©s de enriquecer)
         if ($this->statusFilter) {
             $rooms->setCollection(
                 $rooms->getCollection()->filter(function($room) {
@@ -5147,7 +5551,7 @@ class RoomManager extends Component
             );
         }
 
-        // Cargar historial solo cuando se necesita (en la pestaña de historial)
+        // Cargar historial solo cuando se necesita (en la pestaÃ±a de historial)
         $releaseHistory = null;
         if ($this->activeTab === 'history') {
             $releaseHistory = $this->getReleaseHistory();

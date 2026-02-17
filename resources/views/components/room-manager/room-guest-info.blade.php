@@ -1,4 +1,4 @@
-﻿@props(['room', 'stay'])
+﻿@props(['room', 'stay', 'selectedDate' => null])
 
 @php
     use App\Support\HotelTime;
@@ -50,6 +50,16 @@
             ]);
         }
     }
+
+    $authUser = auth()->user();
+    $canEditOccupancy = $authUser
+        && (
+            $authUser->hasRole('Administrador')
+            || $authUser->hasAnyRole(['Recepcionista Día', 'Recepcionista Noche'])
+        );
+    $isPastDate = $selectedDate
+        ? (\Carbon\Carbon::parse($selectedDate)->startOfDay()->lt(\Carbon\Carbon::today()))
+        : false;
     @endphp
 
 @if($stay && $reservation)
@@ -63,7 +73,7 @@
                 <p class="text-sm font-bold text-gray-900 truncate">
                     @if($reservation->customer)
                         <button type="button"
-                                wire:click="dispatch('showAllGuests', [{{ $reservation->id }}, {{ $room->id }}])"
+                                wire:click="showAllGuests({{ $reservation->id }}, {{ $room->id }})"
                                 class="text-blue-600 hover:text-blue-800 underline hover:bg-blue-50 px-1 rounded transition-colors">
                             {{ $reservation->customer->name }}
                         </button>
@@ -77,13 +87,13 @@
                     </p>
                 @endif
                 
-                {{--  BOTON ASIGNAR HUESPED si no hay cliente asignado --}}
-                @if(!$reservation->customer || !$reservation->client_id)
+                {{-- BOTON EDITAR/COMPLETAR OCUPACION --}}
+                @if($canEditOccupancy && !$isPastDate)
                     <button type="button"
-                            wire:click="dispatch('openAssignGuests', {{ $room->id }})"
+                            wire:click="openAssignGuests({{ $room->id }})"
                             class="mt-2 text-xs text-blue-600 hover:text-blue-800 underline font-medium flex items-center space-x-1">
-                        <i class="fas fa-user-plus"></i>
-                        <span>Asignar huesped</span>
+                        <i class="fas {{ (!$reservation->customer || !$reservation->client_id) ? 'fa-user-plus' : 'fa-user-edit' }}"></i>
+                        <span>{{ (!$reservation->customer || !$reservation->client_id) ? 'Asignar huesped' : 'Editar ocupacion' }}</span>
                     </button>
                 @endif
             </div>
@@ -137,5 +147,4 @@
         </button>
     </div>
 @endif
-
 

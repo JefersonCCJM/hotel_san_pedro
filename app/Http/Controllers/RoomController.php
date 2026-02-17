@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Room;
+use App\Models\VentilationType as VentilationTypeModel;
 use App\Enums\RoomStatus;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 
 class RoomController extends Controller
 {
@@ -139,40 +141,121 @@ class RoomController extends Controller
     {
         $this->ensureAdmin();
 
-        $validated = $request->validate([
+        $rules = [
             'room_number' => 'required|string|unique:rooms,room_number,' . $room->id,
             'beds_count' => 'required|integer|min:1|max:15',
             'max_capacity' => 'required|integer|min:1',
-            'ventilation_type' => 'required|string|in:' . implode(',', array_column(\App\Enums\VentilationType::cases(), 'value')),
             'occupancy_prices' => 'required|array',
-            'status' => 'required|string',
-        ], [
-            'beds_count.max' => 'El número de camas no puede ser mayor a 15.',
+        ];
+
+        // Compatibilidad: aceptar esquema nuevo (ventilation_type_id) y legado (ventilation_type).
+        if ($request->filled('ventilation_type_id')) {
+            $rules['ventilation_type_id'] = 'required|integer|exists:ventilation_types,id';
+        } else {
+            $rules['ventilation_type'] = 'required|string';
+        }
+
+        if (Schema::hasColumn('rooms', 'status') && $request->filled('status')) {
+            $rules['status'] = 'nullable|string';
+        }
+
+        $validated = $request->validate($rules, [
+            'beds_count.max' => 'El numero de camas no puede ser mayor a 15.',
         ]);
 
-        $newStatus = RoomStatus::from($validated['status']);
-        $isOccupied = $room->isOccupied();
+        $ventilationTypeId = null;
+        if (!empty($validated['ventilation_type_id'])) {
+            $ventilationTypeId = (int) $validated['ventilation_type_id'];
+        } else {
+            $rawType = strtolower(trim((string) ($validated['ventilation_type'] ?? '')));
+            $legacyMap = [
+                'ventilador' => 'fan',
+                'aire_acondicionado' => 'ac',
+            ];
+            $normalizedType = $legacyMap[$rawType] ?? $rawType;
 
-        // RESTRICCIÓN: No permitir cambiar a Ocupada/Libre si hay reserva activa
-        // Ocupación se calcula desde reservas, NO se puede cambiar manualmente
-        if ($isOccupied) {
-            if ($newStatus === RoomStatus::OCUPADA || $newStatus === RoomStatus::LIBRE) {
-                return back()->with('error', 'No se puede cambiar el estado a "Ocupada" o "Libre" cuando hay una reserva activa. La ocupación se calcula automáticamente desde las reservas.');
+            if (is_numeric($normalizedType)) {
+                $ventilationTypeId = VentilationTypeModel::query()
+                    ->whereKey((int) $normalizedType)
+                    ->value('id');
+            } else {
+                $ventilationTypeId = VentilationTypeModel::query()
+                    ->where('code', $normalizedType)
+                    ->value('id');
             }
         }
 
-        // Asegurar que los precios sean numéricos
-        $validated['occupancy_prices'] = array_map('intval', $validated['occupancy_prices']);
+        if (empty($ventilationTypeId)) {
+            return back()
+                ->withInput()
+                ->with('error', 'El tipo de ventilacion seleccionado no es valido.');
+        }
 
-        // Mantener compatibilidad con columnas antiguas
-        $validated['price_1_person'] = $validated['occupancy_prices'][1] ?? 0;
-        $validated['price_2_persons'] = $validated['occupancy_prices'][2] ?? 0;
-        $validated['price_per_night'] = $validated['price_2_persons'];
+        if (Schema::hasColumn('rooms', 'status') && !empty($validated['status'])) {
+            $newStatus = RoomStatus::from($validated['status']);
+            $isOccupied = $room->isOccupied();
 
-        $room->update($validated);
+            // Restriccion: no permitir cambiar a Ocupada/Libre si hay reserva activa.
+            if ($isOccupied && ($newStatus === RoomStatus::OCUPADA || $newStatus === RoomStatus::LIBRE)) {
+                return back()->with('error', 'No se puede cambiar el estado a "Ocupada" o "Libre" cuando hay una reserva activa. La ocupacion se calcula automaticamente desde las reservas.');
+            }
+        }
+
+        $validatedPrices = collect($validated['occupancy_prices'] ?? [])
+            ->mapWithKeys(function ($price, $guests) {
+                $guestCount = (int) $guests;
+                if ($guestCount <= 0) {
+                    return [];
+                }
+
+                return [$guestCount => max(0, (int) $price)];
+            })
+            ->sortKeys();
+
+        if ($validatedPrices->isEmpty()) {
+            return back()
+                ->withInput()
+                ->with('error', 'Debe definir al menos un precio de ocupacion valido.');
+        }
+
+        DB::transaction(function () use ($room, $validated, $validatedPrices, $ventilationTypeId): void {
+            $room->room_number = (string) $validated['room_number'];
+            $room->beds_count = (int) $validated['beds_count'];
+            $room->max_capacity = (int) $validated['max_capacity'];
+            $room->ventilation_type_id = $ventilationTypeId;
+
+            if (Schema::hasColumn('rooms', 'status') && !empty($validated['status'])) {
+                $room->status = $validated['status'];
+            }
+
+            if (Schema::hasColumn('rooms', 'base_price_per_night')) {
+                $basePrice = (float) ($validatedPrices->get(1, $validatedPrices->first() ?? 0));
+                $room->base_price_per_night = $basePrice;
+            }
+
+            $room->save();
+
+            foreach ($validatedPrices as $guestCount => $price) {
+                $room->rates()->updateOrCreate(
+                    [
+                        'min_guests' => (int) $guestCount,
+                        'max_guests' => (int) $guestCount,
+                    ],
+                    [
+                        'price_per_night' => (float) $price,
+                    ]
+                );
+            }
+
+            // Limpiar tarifas estandar que ya no aplican para la nueva capacidad.
+            $room->rates()
+                ->whereColumn('min_guests', 'max_guests')
+                ->whereNotIn('min_guests', $validatedPrices->keys()->all())
+                ->delete();
+        });
 
         return redirect()->route('rooms.index')
-            ->with('success', 'Habitación actualizada exitosamente.');
+            ->with('success', 'Habitacion actualizada exitosamente.');
     }
 
     /**
