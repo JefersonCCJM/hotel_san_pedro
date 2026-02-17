@@ -143,12 +143,16 @@ class CreateElectronicInvoiceModal extends Component
             ];
         })->toArray();
 
-        // Cargar rangos de numeración disponibles (solo Factura de Venta con prefijo SETP)
+        // Cargar rangos de numeración: en producción excluir SETP (pruebas), en local solo SETP
         $this->numberingRanges = \App\Models\FactusNumberingRange::where('is_active', true)
             ->where('is_expired', false)
             ->where('document', 'Factura de Venta')
-            ->where('prefix', 'SETP')
-            ->orderBy('document')
+            ->when(app()->environment('production'), function ($query) {
+                $query->where('prefix', '!=', 'SETP');
+            }, function ($query) {
+                $query->where('prefix', 'SETP');
+            })
+            ->orderBy('prefix')
             ->get()
             ->map(function ($range) {
                 return [
