@@ -22,15 +22,7 @@
     {{-- ESTADO: free_clean (Libre y limpia) --}}
     @if($operationalStatus === 'free_clean')
         @if($selectedDate->isFuture())
-            {{-- Reservar (FECHA FUTURA) --}}
-            <button type="button"
-                wire:click="openQuickRent({{ $room->id }})"
-                wire:loading.attr="disabled"
-                title="Reservar"
-                class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:border-emerald-300 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50">
-                <i class="fas fa-calendar-check text-sm"></i>
-                <span class="sr-only">Reservar</span>
-            </button>
+            {{-- Reservar (FECHA FUTURA) eliminado por requerimiento --}}
         @elseif($canPerformActions)
             {{-- Ocupar habitacion (HOY) --}}
             <button type="button"
@@ -42,15 +34,7 @@
                 <span class="sr-only">Ocupar habitacion</span>
             </button>
 
-            {{-- Reservar (HOY) --}}
-            <button type="button"
-                wire:click="openQuickRent({{ $room->id }})"
-                wire:loading.attr="disabled"
-                title="Reservar"
-                class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:border-emerald-300 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50">
-                <i class="fas fa-calendar-check text-sm"></i>
-                <span class="sr-only">Reservar</span>
-            </button>
+            {{-- Reservar (HOY) eliminado por requerimiento --}}
         @endif
     @endif
 

@@ -21,8 +21,15 @@
                     <select wire:model.live="statusFilter"
                             class="block w-full pl-3 pr-10 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white">
                         <option value="">Todos los estados</option>
+                        @php
+                            $allowedStatuses = ['libre', 'ocupada', 'pendiente_checkout', 'sucia'];
+                        @endphp
                         @foreach($statuses as $s)
-                            <option value="{{ $s->value }}">{{ $s->label() }}</option>
+                            @if(in_array($s->value, $allowedStatuses, true))
+                                <option value="{{ $s->value }}">
+                                    {{ $s->value === 'sucia' ? 'Pendiente por aseo' : $s->label() }}
+                                </option>
+                            @endif
                         @endforeach
                     </select>
                     <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -135,5 +142,3 @@
         </div>
     </div>
 </div>
-
-

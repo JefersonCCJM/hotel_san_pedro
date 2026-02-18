@@ -10,7 +10,9 @@
       "Bash(php artisan:*)",
       "Bash(ls:*)",
       "Read(//c/dev/hotel_san_pedro/**)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(where:*)",
+      "Bash(php:*)"
     ]
   }
 }

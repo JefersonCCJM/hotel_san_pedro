@@ -72,7 +72,7 @@
             x-transition:leave-start="transform opacity-100 scale-100"
             x-transition:leave-end="transform opacity-0 scale-95"
             x-cloak
-            class="absolute z-50 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1"
+            class="absolute bottom-full left-0 z-50 mb-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1"
             style="display: none;">
             
             <button
@@ -119,5 +119,4 @@
         </div>
     @endif
 </div>
-
 
