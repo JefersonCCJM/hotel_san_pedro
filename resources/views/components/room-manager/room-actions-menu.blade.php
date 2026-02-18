@@ -8,6 +8,7 @@
     $isPastDate = $currentDate->isPast() && !$currentDate->isToday();
     $selectedDate = $currentDate instanceof \Carbon\Carbon ? $currentDate : \Carbon\Carbon::parse($currentDate);
     $operationalStatus = $room->getOperationalStatus($selectedDate);
+    $cleaningCode = data_get($room->cleaningStatus($selectedDate), 'code');
     
     // CRITICAL: isPendingCheckout() solo retorna true para HOY
     // Nunca para fechas pasadas o futuras
@@ -20,7 +21,7 @@
 
 <div class="flex items-center justify-end gap-1.5">
     {{-- ESTADO: free_clean (Libre y limpia) --}}
-    @if($operationalStatus === 'free_clean')
+    @if($operationalStatus === 'free_clean' && $cleaningCode === 'limpia')
         @if($selectedDate->isFuture())
             {{-- Reservar (FECHA FUTURA) eliminado por requerimiento --}}
         @elseif($canPerformActions)
@@ -74,7 +75,7 @@
     @endif
 
     {{-- ESTADO: pending_cleaning (Pendiente por aseo) --}}
-    @if($operationalStatus === 'pending_cleaning' && $canPerformActions && $selectedDate->isToday())
+    @if($cleaningCode === 'pendiente' && !in_array($operationalStatus, ['occupied', 'pending_checkout'], true) && $canPerformActions && $selectedDate->isToday())
         {{-- Marcar como limpia: Solo si es HOY --}}
         <button type="button"
             wire:click="markRoomAsClean({{ $room->id }})"

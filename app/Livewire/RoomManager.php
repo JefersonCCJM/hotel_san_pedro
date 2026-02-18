@@ -28,7 +28,8 @@ use Illuminate\Support\Str;
 class RoomManager extends Component
 {
     use WithPagination;
-    private const ALLOWED_STATUS_FILTERS = ['libre', 'ocupada', 'pendiente_checkout', 'sucia'];
+    private const ALLOWED_STATUS_FILTERS = ['libre', 'ocupada', 'pendiente_checkout'];
+    private const ALLOWED_CLEANING_STATUS_FILTERS = ['limpia', 'pendiente'];
 
     public function dehydrate(): void
     {
@@ -41,6 +42,7 @@ class RoomManager extends Component
     public $date = null;
     public $search = '';
     public $statusFilter = null;
+    public $cleaningStatusFilter = null;
     public $ventilationTypeFilter = null;
 
     // Modales
@@ -1433,7 +1435,7 @@ class RoomManager extends Component
 
     /**
      * Marca una habitación como limpia actualizando last_cleaned_at.
-     * Solo permitido cuando operational_status === 'pending_cleaning'.
+     * Solo permitido cuando cleaningStatus().code === 'pendiente'.
      */
     public function markRoomAsClean($roomId)
     {
@@ -1448,9 +1450,10 @@ class RoomManager extends Component
                 return;
             }
 
-            // Validar que esté en pending_cleaning
-            $operationalStatus = $room->getOperationalStatus($this->date ?? Carbon::today());
-            if ($operationalStatus !== 'pending_cleaning') {
+            // Validar por estado de limpieza real (SSOT de limpieza)
+            $selectedDate = $this->getSelectedDate();
+            $cleaningCode = data_get($room->cleaningStatus($selectedDate), 'code');
+            if ($cleaningCode !== 'pendiente') {
                 $this->dispatch('notify', type: 'error', message: 'La habitación no requiere limpieza.');
                 return;
             }
@@ -1479,8 +1482,15 @@ class RoomManager extends Component
         }
     }
 
-    public function updatedStatusFilter()
+    public function updatedStatusFilter($value)
     {
+        $this->statusFilter = in_array((string) $value, self::ALLOWED_STATUS_FILTERS, true) ? $value : null;
+        $this->resetPage();
+    }
+
+    public function updatedCleaningStatusFilter($value)
+    {
+        $this->cleaningStatusFilter = in_array((string) $value, self::ALLOWED_CLEANING_STATUS_FILTERS, true) ? $value : null;
         $this->resetPage();
     }
 
@@ -3376,8 +3386,8 @@ class RoomManager extends Component
         $room = Room::with('rates')->find($roomId);
         if ($room) {
             $selectedDate = $this->getSelectedDate();
-            $operationalStatus = $room->getOperationalStatus($selectedDate);
-            if ($operationalStatus === 'pending_cleaning') {
+            $cleaningCode = data_get($room->cleaningStatus($selectedDate), 'code');
+            if ($cleaningCode === 'pendiente') {
                 $this->dispatch('notify', type: 'error', message: 'No se puede arrendar esta habitacion mientras este pendiente por aseo. Marquela como limpia primero.');
                 return;
             }
@@ -3553,8 +3563,8 @@ class RoomManager extends Component
 
             // Bloqueo de aseo: no permitir arrendar habitaciones pendientes por limpieza.
             $checkInOperationalDate = Carbon::parse($validated['check_in_date']);
-            $operationalStatus = $room->getOperationalStatus($checkInOperationalDate);
-            if ($operationalStatus === 'pending_cleaning') {
+            $cleaningCode = data_get($room->cleaningStatus($checkInOperationalDate), 'code');
+            if ($cleaningCode === 'pendiente') {
                 throw new \RuntimeException('No se puede arrendar esta habitacion porque esta pendiente por aseo. Marquela como limpia antes de continuar.');
             }
 
@@ -5623,19 +5633,28 @@ class RoomManager extends Component
             return $room;
         });
 
-        // Aplicar filtro de estado si existe (después de enriquecer)
-        if ($this->statusFilter) {
+        // Aplicar filtros de estado operativo y limpieza (independientes)
+        if ($this->statusFilter || $this->cleaningStatusFilter) {
+            $selectedDate = $this->getSelectedDate();
             $rooms->setCollection(
-                $rooms->getCollection()->filter(function($room) {
-                    $operationalStatus = $room->getOperationalStatus($this->date ?? Carbon::today());
+                $rooms->getCollection()->filter(function($room) use ($selectedDate) {
+                    $operationalStatus = $room->getOperationalStatus($selectedDate);
+                    $cleaningCode = data_get($room->cleaningStatus($selectedDate), 'code');
 
-                    return match ((string) $this->statusFilter) {
-                        'libre' => $operationalStatus === 'free_clean',
+                    $matchesOperationalStatus = match ((string) $this->statusFilter) {
+                        'libre' => in_array($operationalStatus, ['free_clean', 'pending_cleaning'], true),
                         'ocupada' => $operationalStatus === 'occupied',
                         'pendiente_checkout' => $operationalStatus === 'pending_checkout',
-                        'sucia' => $operationalStatus === 'pending_cleaning',
                         default => true,
                     };
+
+                    $matchesCleaningStatus = match ((string) $this->cleaningStatusFilter) {
+                        'limpia' => $cleaningCode === 'limpia',
+                        'pendiente' => $cleaningCode === 'pendiente',
+                        default => true,
+                    };
+
+                    return $matchesOperationalStatus && $matchesCleaningStatus;
                 })
             );
         }
