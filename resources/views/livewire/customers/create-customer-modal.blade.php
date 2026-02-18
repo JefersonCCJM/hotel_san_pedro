@@ -130,7 +130,7 @@
                             <!-- Teléfono -->
                             <div>
                                 <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                    Teléfono <span class="text-red-500">*</span>
+                                    Teléfono <span class="text-gray-400 font-normal">(Opcional)</span>
                                 </label>
                                 <div class="relative">
                                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

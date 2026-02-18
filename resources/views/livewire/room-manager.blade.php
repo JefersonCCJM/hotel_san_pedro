@@ -235,7 +235,7 @@
     />
 
     <!-- MODAL: CREAR CLIENTE -->
-    <livewire:create-customer-modal />
+    <livewire:customers.create-customer-modal />
 
     <!-- MODAL: DETALLE HISTORIAL DE LIBERACION -->
     <x-room-manager.release-history-detail-modal 

@@ -54,7 +54,7 @@
                             CLIENTE PRINCIPAL <span class="text-red-500">*</span>
                         </label>
                         <button type="button" 
-                                @click="$dispatch('open-create-customer-modal')"
+                                @click="Livewire.dispatch('open-create-customer-modal')"
                                 class="text-[9px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-tighter flex items-center gap-1">
                             <i class="fas fa-plus text-[8px]"></i>
                             Nuevo Cliente
@@ -181,7 +181,7 @@
                                 Cancelar
                             </button>
                             <button type="button" 
-                                    @click="$dispatch('open-create-customer-modal-for-additional'); showGuestSearch = false"
+                                    @click="Livewire.dispatch('open-create-customer-modal-for-additional'); showGuestSearch = false"
                                     class="flex-1 px-3 py-1.5 text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100">
                                 <i class="fas fa-plus mr-1 text-[8px]"></i>
                                 Crear Nuevo

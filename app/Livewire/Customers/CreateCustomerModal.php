@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Log;
 class CreateCustomerModal extends Component
 {
     public bool $isOpen = false;
+    public string $context = 'principal'; // 'principal' o 'additional'
     public string $activeTab = 'basic'; // 'basic' o 'complete'
     // PROPIEDADES PARA CLIENTE BÁSICO
     public array $basicData = [
@@ -53,6 +54,19 @@ class CreateCustomerModal extends Component
     {
         $this->reset();
         $this->resetValidation();
+        $this->context = 'principal';
+        $this->applyBasicDefaults();
+        $this->activeTab = 'basic';
+        $this->isOpen = true;
+    }
+
+    #[On('open-create-customer-modal-for-additional')]
+    public function openForAdditional(): void
+    {
+        $this->reset();
+        $this->resetValidation();
+        $this->context = 'additional';
+        $this->applyBasicDefaults();
         $this->activeTab = 'basic';
         $this->isOpen = true;
     }
@@ -109,6 +123,23 @@ class CreateCustomerModal extends Component
         $this->identificationMessage = '';
         $this->identificationExists = false;
         $this->selectedDocumentCode = '';
+        $this->applyBasicDefaults();
+    }
+
+    private function applyBasicDefaults(): void
+    {
+        $defaultDocument = DianIdentificationDocument::query()
+            ->where('code', 'CC')
+            ->first(['id', 'code']);
+
+        if (!$defaultDocument) {
+            $defaultDocument = DianIdentificationDocument::query()
+                ->orderBy('id')
+                ->first(['id', 'code']);
+        }
+
+        $this->basicData['identification_document_id'] = $defaultDocument?->id ?? '';
+        $this->selectedDocumentCode = $defaultDocument?->code ?? '';
     }
 
     // MÉTODOS PARA CLIENTE BÁSICO
@@ -202,11 +233,6 @@ class CreateCustomerModal extends Component
             } elseif (!preg_match('/^\d+$/', $identification)) {
                 $errors['identification'] = 'El número de documento solo puede contener dígitos.';
             }
-        }
-        
-        // Validar teléfono
-        if (empty($this->basicData['phone'])) {
-            $errors['phone'] = 'El teléfono es obligatorio.';
         }
         
         // Validar tipo de documento
@@ -355,14 +381,20 @@ class CreateCustomerModal extends Component
                 'trade_name' => null,
             ]);
 
-            $this->dispatch('customer-created', customerId: $customer->id, customerData: [
+            $customerPayload = [
                 'id' => $customer->id,
                 'name' => $customer->name,
+                'identification' => trim($this->basicData['identification']),
                 'phone' => $customer->phone,
-                'taxProfile' => [
-                    'identification' => trim($this->basicData['identification']),
-                ],
-            ]);
+            ];
+
+            $this->dispatch(
+                'customer-created',
+                customerId: $customer->id,
+                customer: $customerPayload,
+                customerData: $customerPayload,
+                context: $this->context
+            );
             $this->close();
             
             $this->dispatch('notify', [
@@ -463,14 +495,20 @@ class CreateCustomerModal extends Component
                 'trade_name' => null,
             ]);
 
-            $this->dispatch('customer-created', customerId: $customer->id, customerData: [
+            $customerPayload = [
                 'id' => $customer->id,
                 'name' => $customer->name,
+                'identification' => trim($this->dianData['identification']),
                 'phone' => $customer->phone,
-                'taxProfile' => [
-                    'identification' => trim($this->dianData['identification']),
-                ],
-            ]);
+            ];
+
+            $this->dispatch(
+                'customer-created',
+                customerId: $customer->id,
+                customer: $customerPayload,
+                customerData: $customerPayload,
+                context: $this->context
+            );
             $this->close();
             
             $this->dispatch('notify', [
