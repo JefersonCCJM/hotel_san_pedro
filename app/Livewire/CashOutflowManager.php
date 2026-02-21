@@ -169,7 +169,7 @@ class CashOutflowManager extends Component
         $isAdmin = $user->hasRole('Administrador');
         $deleteWindowMinutes = (int) config('shifts.cash_delete_window_minutes', 60);
 
-        $query = CashOutflow::with('user', 'shiftHandover');
+        $query = CashOutflow::with(['user', 'shiftHandover']);
 
         // Recepcionistas: ver solo sus propios gastos de su turno activo
         if (!$isAdmin) {
@@ -197,6 +197,7 @@ class CashOutflowManager extends Component
             'activeShiftStatus' => $activeShift ? $activeShift->status->value : null,
             'deleteWindowMinutes' => $deleteWindowMinutes,
             'isAdmin' => $isAdmin,
+            'activeShift' => $activeShift,
         ])->extends('layouts.app')
           ->section('content');
     }
