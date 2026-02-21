@@ -163,6 +163,27 @@ class Room extends Model
     }
 
     /**
+     * Get the future reservation for a specific date (reservations not yet checked-in).
+     * 
+     * @param \Carbon\Carbon|null $date Date to check. Defaults to today.
+     * @return \App\Models\Reservation|null
+     */
+    public function getFutureReservation(?\Carbon\Carbon $date = null): ?\App\Models\Reservation
+    {
+        $date = $date ?? \Carbon\Carbon::today();
+        
+        return $this->reservationRooms()
+            ->where('check_in_date', '>', $date->toDateString())
+            ->whereHas('reservation', function($query) {
+                $query->whereNull('deleted_at'); // No canceladas
+            })
+            ->with('reservation.customer')
+            ->orderBy('check_in_date', 'asc')
+            ->first()
+            ?->reservation;
+    }
+
+    /**
      * Check if the room is in maintenance (blocks everything).
      *
      * @return bool

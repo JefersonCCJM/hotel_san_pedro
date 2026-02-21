@@ -5499,8 +5499,14 @@ class RoomManager extends Component
         $rooms->getCollection()->transform(function($room) {
             $room->display_status = $room->getDisplayStatus($this->date);
             $room->current_reservation = $room->getActiveReservation($this->date);
+            $room->future_reservation = $room->getFutureReservation($this->date);
+            
             if ($room->current_reservation) {
                 $room->current_reservation->loadMissing(['customer']);
+            }
+            
+            if ($room->future_reservation) {
+                $room->future_reservation->loadMissing(['customer']);
             }
 
             if ($room->current_reservation) {

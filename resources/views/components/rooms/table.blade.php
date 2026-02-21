@@ -40,6 +40,7 @@
                             </div>
                         </td>
 
+                        {{-- Columna de estado de la habitación --}}
                         <td class="px-6 py-4 whitespace-nowrap text-center">
                             <span
                                 class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {{ $room->display_status->color() }}">
@@ -49,13 +50,27 @@
                             </span>
                         </td>
 
+                        {{-- Columna de estado de limpieza --}}
                         <td class="px-6 py-4 whitespace-nowrap text-center">
                             @php($cleaning = $room->cleaning_status_for_date ?? $room->cleaningStatus($date ?? null))
+                            @php($hasFutureReservation = $room->future_reservation || ($room->current_reservation && $room->current_reservation->isReserved()))
                             <span
-                                class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {{ $cleaning['color'] }}">
+                                class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {{ $hasFutureReservation ? 'bg-blue-100 text-blue-700' : $cleaning['color'] }}">
                                 <i class="fas {{ $cleaning['icon'] }} mr-1.5"></i>
                                 {{ $cleaning['label'] }}
                             </span>
+                            
+                            {{-- Etiqueta de reserva --}}
+                            @if ($hasFutureReservation)
+                                @php($reservation = $room->future_reservation ?: $room->current_reservation)
+                                <div class="mt-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 border border-blue-200">
+                                    <i class="fas fa-calendar-check mr-1.5"></i>
+                                    <span>{{ $reservation->customer->name ?? 'Sin cliente' }}</span>
+                                    @if ($reservation->reservation_code)
+                                        <span class="ml-1 text-blue-600 font-mono text-[10px]">{{ $reservation->reservation_code }}</span>
+                                    @endif
+                                </div>
+                            @endif
                         </td>
 
                         <td class="px-6 py-4 whitespace-nowrap text-center">
@@ -138,8 +153,7 @@
                                     $room->display_status === \App\Enums\RoomStatus::LIBRE &&
                                         (!Carbon\Carbon::parse($date)->isPast() || Carbon\Carbon::parse($date)->isToday()))
                                     <button wire:click="openQuickRent({{ $room->id }})"
-                                        class="text-blue-600 hover:text-blue-700 transition-colors"
-                                        title="Arrendar">
+                                        class="text-blue-600 hover:text-blue-700 transition-colors" title="Arrendar">
                                         <i class="fas fa-key"></i>
                                     </button>
                                 @endif
@@ -162,8 +176,7 @@
 
                                 @if (auth()->check() && auth()->user()->hasRole('Administrador'))
                                     <a href="{{ route('rooms.edit', $room) }}"
-                                        class="text-indigo-600 hover:text-indigo-700 transition-colors"
-                                        title="Editar">
+                                        class="text-indigo-600 hover:text-indigo-700 transition-colors" title="Editar">
                                         <i class="fas fa-edit"></i>
                                     </a>
                                 @endif
