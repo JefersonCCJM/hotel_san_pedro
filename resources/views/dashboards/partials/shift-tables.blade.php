@@ -396,9 +396,10 @@
                                     <td class="px-4 py-3 whitespace-nowrap text-center">
                                         @php
                                             $resCode = $res?->reservation_code ?? '';
-                                            $isWalkIn = str_starts_with($resCode, 'RSV/WLK');
+                                            $isWalkInOld = str_starts_with($resCode, 'RSV');
+                                            $isWalkinNew = str_starts_with($resCode, 'WLK');
                                         @endphp
-                                        @if ($isWalkIn)
+                                        @if ($isWalkInOld or $isWalkinNew)
                                             <span
                                                 class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-700">
                                                 Arrendada
