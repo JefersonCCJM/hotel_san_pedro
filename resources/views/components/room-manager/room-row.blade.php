@@ -167,12 +167,11 @@
 
         {{-- Etiqueta de reserva futura (RES-) --}}
         @if ($room->future_reservation)
-            <div class="mt-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 border border-blue-200">
-                <i class="fas fa-calendar-check mr-1.5"></i>
-                <span>{{ $room->future_reservation->customer->name ?? 'Sin cliente' }}</span>
-                @if ($room->future_reservation->reservation_code)
-                    <span class="ml-1 text-blue-600 font-mono text-[10px]">{{ $room->future_reservation->reservation_code }}</span>
-                @endif
+            <div class="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-200"
+                title="{{ $room->future_reservation->customer->name ?? '' }}">
+                <i class="fas fa-calendar-check text-[8px]"></i>
+                <span>{{ \Illuminate\Support\Str::limit($room->future_reservation->customer->name ?? 'Sin cliente', 15) }}</span>
+                <span class="font-mono text-blue-500">{{ $room->future_reservation->reservation_code }}</span>
             </div>
         @endif
     </td>
