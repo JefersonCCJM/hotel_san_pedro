@@ -162,7 +162,6 @@ class ShiftHandover extends Model
         // Esto permite que "pago de noche" impacte la caja del recepcionista.
         $lodgingPayments = DB::table('payments as p')
             ->leftJoin('payments_methods as pm', 'pm.id', '=', 'p.payment_method_id')
-            ->where('p.amount', '>', 0)
             ->whereBetween(DB::raw('COALESCE(p.paid_at, p.created_at)'), [$windowStart, $windowEnd])
             ->selectRaw("
                 COALESCE(SUM(CASE

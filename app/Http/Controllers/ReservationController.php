@@ -15,6 +15,8 @@ use App\Models\DianIdentificationDocument;
 use App\Models\DianLegalOrganization;
 use App\Models\DianCustomerTribute;
 use App\Models\DianMunicipality;
+use App\Models\ShiftHandover;
+use App\Enums\ShiftHandoverStatus;
 use App\Http\Requests\StoreReservationRequest;
 use App\Services\AuditService;
 use App\Services\ReservationReportService;
@@ -952,6 +954,36 @@ class ReservationController extends Controller
     public function destroy(Request $request, Reservation $reservation)
     {
         $reservation->delete();
+
+        // Revertir abonos del turno activo al cancelar la reserva
+        $activeShift = ShiftHandover::where('entregado_por', Auth::id())
+            ->where('status', ShiftHandoverStatus::ACTIVE)
+            ->first();
+
+        if ($activeShift && $activeShift->started_at) {
+            $shiftStart = $activeShift->started_at;
+            $shiftEnd = now();
+
+            $paymentsInShift = Payment::where('reservation_id', $reservation->id)
+                ->where('amount', '>', 0)
+                ->whereBetween(DB::raw('COALESCE(paid_at, created_at)'), [$shiftStart, $shiftEnd])
+                ->get();
+
+            foreach ($paymentsInShift as $payment) {
+                Payment::create([
+                    'reservation_id' => $reservation->id,
+                    'amount'          => -abs((float) $payment->amount),
+                    'payment_method_id' => $payment->payment_method_id,
+                    'paid_at'         => now(),
+                    'created_by'      => Auth::id(),
+                    'notes'           => 'Reversión por cancelación de reserva ' . ($reservation->reservation_code ?? '#' . $reservation->id),
+                ]);
+            }
+
+            if ($paymentsInShift->isNotEmpty()) {
+                $activeShift->updateTotals();
+            }
+        }
 
         // Audit log for reservation cancellation
         $this->auditService->logReservationCancelled($reservation, request());

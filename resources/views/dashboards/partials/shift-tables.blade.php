@@ -8,6 +8,7 @@
         'products' => collect(),
     ];
     $shiftInventoryProducts = $shiftInventory['products'] ?? collect();
+    $shiftPayments = $shiftPayments ?? collect();
 @endphp
 
 <!-- Acciones Rápidas -->
@@ -278,6 +279,85 @@
                 </table>
             @endif
         </div>
+    </div>
+</div>
+
+<!-- Abonos de Reservas -->
+<div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <h3 class="font-bold text-gray-900 uppercase text-xs tracking-wider">
+            <i class="fas fa-file-invoice-dollar mr-2 text-cyan-500"></i>Abonos de Reservas
+            <span class="ml-2 text-cyan-600">({{ $shiftPayments->where('amount', '>', 0)->count() }})</span>
+        </h3>
+        @php
+            $paymentsNetTotal = $shiftPayments->sum(fn($p) => (float) $p->amount);
+        @endphp
+        <span class="text-sm font-bold {{ $paymentsNetTotal >= 0 ? 'text-cyan-700' : 'text-red-600' }}">
+            Total neto: ${{ number_format(abs($paymentsNetTotal), 0, ',', '.') }}
+        </span>
+    </div>
+    <div class="p-0">
+        @if($shiftPayments->isEmpty())
+            <p class="p-6 text-sm text-gray-500 text-center">Sin abonos de reservas en este turno</p>
+        @else
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-100">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase">Hora</th>
+                            <th class="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase">Reserva</th>
+                            <th class="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase">Huesped</th>
+                            <th class="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase">Habitacion</th>
+                            <th class="px-4 py-3 text-center text-[10px] font-black text-gray-500 uppercase">Metodo</th>
+                            <th class="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase">Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-100">
+                        @foreach($shiftPayments as $payment)
+                        @php
+                            $res = $payment->reservation;
+                            $rooms = $res?->reservationRooms?->pluck('room.room_number')->filter()->unique()->implode(', ');
+                            $isReversal = (float) $payment->amount < 0;
+                            $pmCode = strtolower($payment->paymentMethod?->code ?? $payment->paymentMethod?->name ?? '');
+                            $methodLabel = match(true) {
+                                str_contains($pmCode, 'efectivo') || str_contains($pmCode, 'cash') => 'efectivo',
+                                str_contains($pmCode, 'transferencia') || str_contains($pmCode, 'transfer') => 'transferencia',
+                                default => ($pmCode ?: 'otro'),
+                            };
+                            $methodClass = match($methodLabel) {
+                                'efectivo'       => 'bg-emerald-100 text-emerald-700',
+                                'transferencia'  => 'bg-blue-100 text-blue-700',
+                                default          => 'bg-gray-100 text-gray-700',
+                            };
+                        @endphp
+                        <tr class="{{ $isReversal ? 'bg-red-50/40' : 'hover:bg-gray-50' }}">
+                            <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
+                                {{ optional($payment->paid_at ?? $payment->created_at)->format('H:i') }}
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-xs font-mono text-gray-600">
+                                {{ $res?->reservation_code ?? ('#' . ($res?->id ?? 'N/A')) }}
+                                @if($isReversal)
+                                    <span class="ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700 uppercase">Reversa</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-700">{{ $res?->customer?->name ?? 'N/A' }}</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                                {{ $rooms ? 'Hab. ' . $rooms : '—' }}
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-center">
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase {{ $methodClass }}">
+                                    {{ $methodLabel }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-bold {{ $isReversal ? 'text-red-600' : 'text-cyan-700' }}">
+                                {{ $isReversal ? '-' : '' }}${{ number_format(abs((float) $payment->amount), 0, ',', '.') }}
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
     </div>
 </div>
 

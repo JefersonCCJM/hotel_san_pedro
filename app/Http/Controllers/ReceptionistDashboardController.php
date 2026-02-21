@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\AuditLog;
 use App\Models\InventoryMovement;
 use App\Models\ShiftCashOut;
+use App\Models\Payment;
 use App\Models\Reservation;
 use App\Models\ReservationRoom;
 use App\Models\ReservationSale;
@@ -95,6 +96,7 @@ class ReceptionistDashboardController extends Controller
 
         $shiftRentals = collect();
         $shiftRoomSales = collect();
+        $shiftPayments = collect();
         if ($handover->started_at) {
             $shiftStart = $handover->started_at->copy();
             $shiftEnd = $handover->ended_at
@@ -189,11 +191,26 @@ class ReceptionistDashboardController extends Controller
             }
 
             $shiftRoomSales = $roomSalesQuery->orderByDesc("created_at")->get();
+
+            $shiftPayments = Payment::query()
+                ->with([
+                    'paymentMethod',
+                    'reservation' => function ($q) {
+                        $q->withTrashed()->with([
+                            'customer:id,name',
+                            'reservationRooms:id,reservation_id,room_id',
+                            'reservationRooms.room:id,room_number',
+                        ]);
+                    },
+                ])
+                ->whereBetween(DB::raw('COALESCE(paid_at, created_at)'), [$shiftStart, $shiftEnd])
+                ->orderByDesc(DB::raw('COALESCE(paid_at, created_at)'))
+                ->get();
         }
 
         return view(
             "shift-handovers.show",
-            compact("handover", "shiftRentals", "shiftRoomSales"),
+            compact("handover", "shiftRentals", "shiftRoomSales", "shiftPayments"),
         );
     }
 
@@ -532,6 +549,7 @@ class ReceptionistDashboardController extends Controller
         $shiftOutflows = collect();
         $shiftCashOuts = collect();
         $shiftProductOuts = collect();
+        $shiftPayments = collect();
         $shiftInventory = $this->emptyShiftInventorySummary();
 
         if ($activeShift) {
@@ -590,6 +608,22 @@ class ReceptionistDashboardController extends Controller
                 $windowEnd,
                 (bool) $activeShift->ended_at,
             );
+
+            $shiftPayments = Payment::query()
+                ->with([
+                    'paymentMethod',
+                    'reservation' => function ($q) {
+                        $q->withTrashed()->with([
+                            'customer:id,name',
+                            'reservationRooms:id,reservation_id,room_id',
+                            'reservationRooms.room:id,room_number',
+                        ]);
+                    },
+                ])
+                ->whereBetween(DB::raw('COALESCE(paid_at, created_at)'), [$windowStart, $windowEnd])
+                ->orderByDesc(DB::raw('COALESCE(paid_at, created_at)'))
+                ->take(30)
+                ->get();
         }
 
         $operationalShift = Shift::openOperational()->with("openedBy")->first();
@@ -612,6 +646,7 @@ class ReceptionistDashboardController extends Controller
                 "shiftOutflows",
                 "shiftCashOuts",
                 "shiftProductOuts",
+                "shiftPayments",
                 "shiftInventory",
                 "alerts",
                 "operationalShift",
