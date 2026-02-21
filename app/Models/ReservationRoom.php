@@ -40,31 +40,29 @@ class ReservationRoom extends Model
     }
 
     /**
-     * Get the guests assigned to this specific room in the reservation.
-     */
-    public function guests()
-    {
-        return $this->belongsToMany(
-            Customer::class,
-            'reservation_guests',
-            'reservation_room_id',
-            'guest_id'
-        )
-            ->withTimestamps()
-            ->withTrashed();
-    }
-    
-    /**
-     * Get guests as a collection (helper method for easier usage).
+     * Get guests as a collection via the two-table join:
+     * reservation_room_guests → reservation_guests → customers
      */
     public function getGuests()
     {
         try {
-            return $this->guests()->get();
+            $customerIds = \DB::table('reservation_room_guests as rrg')
+                ->join('reservation_guests as rg', 'rrg.reservation_guest_id', '=', 'rg.id')
+                ->where('rrg.reservation_room_id', $this->id)
+                ->pluck('rg.customer_id');
+
+            if ($customerIds->isEmpty()) {
+                return collect();
+            }
+
+            return Customer::withTrashed()
+                ->with('taxProfile')
+                ->whereIn('id', $customerIds)
+                ->get();
         } catch (\Exception $e) {
             \Log::warning('Error loading guests for ReservationRoom', [
                 'reservation_room_id' => $this->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             return collect();
         }

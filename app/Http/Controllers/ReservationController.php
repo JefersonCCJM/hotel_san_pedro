@@ -2332,43 +2332,32 @@ class ReservationController extends Controller
 
         try {
             // Estructura de BD:
-            // reservation_guests: id, reservation_room_id, guest_id
+            // reservation_guests: id, reservation_id, customer_id
             // reservation_room_guests: id, reservation_room_id, reservation_guest_id
-            
+
             foreach ($validGuestIds as $guestId) {
-                // Verificar si ya existe el registro
+                // Buscar o crear entrada en reservation_guests (cliente vinculado a la reserva)
                 $existingReservationGuest = \DB::table('reservation_guests')
-                    ->where('reservation_room_id', $reservationRoom->id)
-                    ->where('guest_id', $guestId)
+                    ->where('reservation_id', $reservationRoom->reservation_id)
+                    ->where('customer_id', $guestId)
                     ->first();
-                
-                if ($existingReservationGuest) {
-                    // Ya existe, verificar si está en reservation_room_guests
-                    $existingRoomGuest = \DB::table('reservation_room_guests')
-                        ->where('reservation_room_id', $reservationRoom->id)
-                        ->where('reservation_guest_id', $existingReservationGuest->id)
-                        ->first();
-                    
-                    if (!$existingRoomGuest) {
-                        // Crear solo el registro en reservation_room_guests
-                        \DB::table('reservation_room_guests')->insert([
-                            'reservation_room_id' => $reservationRoom->id,
-                            'reservation_guest_id' => $existingReservationGuest->id,
-                            'created_at' => now(),
-                            'updated_at' => now(),
-                        ]);
-                    }
-                } else {
-                    // Crear registro en reservation_guests
-                    $reservationGuestId = \DB::table('reservation_guests')->insertGetId([
-                        'reservation_room_id' => $reservationRoom->id,
-                        'guest_id' => $guestId,
-                        'is_primary' => false,
+
+                $reservationGuestId = $existingReservationGuest
+                    ? $existingReservationGuest->id
+                    : \DB::table('reservation_guests')->insertGetId([
+                        'reservation_id' => $reservationRoom->reservation_id,
+                        'customer_id' => $guestId,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
-                    
-                    // Crear registro en reservation_room_guests
+
+                // Vincular la entrada de reservation_guests a esta habitación (si no existe ya)
+                $existingRoomGuest = \DB::table('reservation_room_guests')
+                    ->where('reservation_room_id', $reservationRoom->id)
+                    ->where('reservation_guest_id', $reservationGuestId)
+                    ->exists();
+
+                if (!$existingRoomGuest) {
                     \DB::table('reservation_room_guests')->insert([
                         'reservation_room_id' => $reservationRoom->id,
                         'reservation_guest_id' => $reservationGuestId,

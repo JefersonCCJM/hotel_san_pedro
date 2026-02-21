@@ -2592,9 +2592,10 @@ class RoomManager extends Component
                 return;
             }
 
-            $alreadyAssigned = DB::table('reservation_guests')
-                ->where('reservation_room_id', $reservationRoom->id)
-                ->where('guest_id', $guestId)
+            $alreadyAssigned = DB::table('reservation_room_guests as rrg')
+                ->join('reservation_guests as rg', 'rrg.reservation_guest_id', '=', 'rg.id')
+                ->where('rrg.reservation_room_id', $reservationRoom->id)
+                ->where('rg.customer_id', $guestId)
                 ->exists();
 
             if ($alreadyAssigned) {
@@ -2603,13 +2604,20 @@ class RoomManager extends Component
             }
 
             DB::transaction(function () use ($reservationRoom, $guestId): void {
-                $reservationGuestId = DB::table('reservation_guests')->insertGetId([
-                    'reservation_room_id' => $reservationRoom->id,
-                    'guest_id' => $guestId,
-                    'is_primary' => false,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+                // Buscar o crear entrada en reservation_guests (cliente vinculado a la reserva)
+                $existingGuest = DB::table('reservation_guests')
+                    ->where('reservation_id', $reservationRoom->reservation_id)
+                    ->where('customer_id', $guestId)
+                    ->first();
+
+                $reservationGuestId = $existingGuest
+                    ? $existingGuest->id
+                    : DB::table('reservation_guests')->insertGetId([
+                        'reservation_id' => $reservationRoom->reservation_id,
+                        'customer_id' => $guestId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
 
                 DB::table('reservation_room_guests')->insert([
                     'reservation_room_id' => $reservationRoom->id,
@@ -4147,24 +4155,10 @@ class RoomManager extends Component
                         ]);
                 }
 
-                $existingReservationGuests = DB::table('reservation_guests')
+                // Eliminar asignaciones de huéspedes adicionales de esta habitación
+                DB::table('reservation_room_guests')
                     ->where('reservation_room_id', $reservationRoom->id)
-                    ->get();
-
-                if ($existingReservationGuests->isNotEmpty()) {
-                    $existingReservationGuestIds = $existingReservationGuests->pluck('id')->toArray();
-                    
-                    DB::table('reservation_room_guests')
-                        ->where('reservation_room_id', $reservationRoom->id)
-                        ->whereIn('reservation_guest_id', $existingReservationGuestIds)
-                        ->delete();
-
-                    // Eliminar de reservation_guests (solo los que no son principal)
-                    DB::table('reservation_guests')
-                        ->where('reservation_room_id', $reservationRoom->id)
-                        ->where('is_primary', false)
-                        ->delete();
-                }
+                    ->delete();
 
                 // Asignar nuevos huéspedes adicionales (si se proporcionaron)
                 if (!empty($data['additional_guests']) && is_array($data['additional_guests'])) {
@@ -4525,43 +4519,32 @@ class RoomManager extends Component
 
         try {
             // Estructura de BD:
-            // reservation_guests: id, reservation_room_id, guest_id, is_primary
+            // reservation_guests: id, reservation_id, customer_id
             // reservation_room_guests: id, reservation_room_id, reservation_guest_id
-            
+
             foreach ($validGuestIds as $guestId) {
-                // Verificar si ya existe el registro en reservation_guests
+                // Buscar o crear entrada en reservation_guests (cliente vinculado a la reserva)
                 $existingReservationGuest = DB::table('reservation_guests')
-                    ->where('reservation_room_id', $reservationRoom->id)
-                    ->where('guest_id', $guestId)
+                    ->where('reservation_id', $reservationRoom->reservation_id)
+                    ->where('customer_id', $guestId)
                     ->first();
-                
-                if ($existingReservationGuest) {
-                    // Ya existe, verificar si está en reservation_room_guests
-                    $existingRoomGuest = DB::table('reservation_room_guests')
-                        ->where('reservation_room_id', $reservationRoom->id)
-                        ->where('reservation_guest_id', $existingReservationGuest->id)
-                        ->first();
-                    
-                    if (!$existingRoomGuest) {
-                        // Crear solo el registro en reservation_room_guests
-                        DB::table('reservation_room_guests')->insert([
-                            'reservation_room_id' => $reservationRoom->id,
-                            'reservation_guest_id' => $existingReservationGuest->id,
-                            'created_at' => now(),
-                            'updated_at' => now(),
-                        ]);
-                    }
-                } else {
-                    // Crear registro en reservation_guests
-                    $reservationGuestId = DB::table('reservation_guests')->insertGetId([
-                        'reservation_room_id' => $reservationRoom->id,
-                        'guest_id' => $guestId,
-                        'is_primary' => false,
+
+                $reservationGuestId = $existingReservationGuest
+                    ? $existingReservationGuest->id
+                    : DB::table('reservation_guests')->insertGetId([
+                        'reservation_id' => $reservationRoom->reservation_id,
+                        'customer_id' => $guestId,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
-                    
-                    // Crear registro en reservation_room_guests
+
+                // Vincular la entrada de reservation_guests a esta habitación (si no existe ya)
+                $existingRoomGuest = DB::table('reservation_room_guests')
+                    ->where('reservation_room_id', $reservationRoom->id)
+                    ->where('reservation_guest_id', $reservationGuestId)
+                    ->exists();
+
+                if (!$existingRoomGuest) {
                     DB::table('reservation_room_guests')->insert([
                         'reservation_room_id' => $reservationRoom->id,
                         'reservation_guest_id' => $reservationGuestId,
@@ -5241,17 +5224,19 @@ class RoomManager extends Component
                         $hasTaxProfiles = Schema::hasTable('tax_profiles');
                         
                         if ($hasTaxProfiles) {
-                            $additionalGuests = DB::table('reservation_guests')
-                                ->where('reservation_room_id', $reservationRoom->id)
-                                ->join('customers', 'reservation_guests.guest_id', '=', 'customers.id')
+                            $additionalGuests = DB::table('reservation_room_guests as rrg')
+                                ->join('reservation_guests as rg', 'rrg.reservation_guest_id', '=', 'rg.id')
+                                ->join('customers', 'rg.customer_id', '=', 'customers.id')
                                 ->leftJoin('tax_profiles', 'customers.id', '=', 'tax_profiles.customer_id')
+                                ->where('rrg.reservation_room_id', $reservationRoom->id)
                                 ->select('customers.id', 'customers.name', 'tax_profiles.identification')
                                 ->get();
                         } else {
                             // Si no existe tax_profiles, solo obtener datos básicos
-                            $additionalGuests = DB::table('reservation_guests')
-                                ->where('reservation_room_id', $reservationRoom->id)
-                                ->join('customers', 'reservation_guests.guest_id', '=', 'customers.id')
+                            $additionalGuests = DB::table('reservation_room_guests as rrg')
+                                ->join('reservation_guests as rg', 'rrg.reservation_guest_id', '=', 'rg.id')
+                                ->join('customers', 'rg.customer_id', '=', 'customers.id')
+                                ->where('rrg.reservation_room_id', $reservationRoom->id)
                                 ->select('customers.id', 'customers.name')
                                 ->get();
                         }
