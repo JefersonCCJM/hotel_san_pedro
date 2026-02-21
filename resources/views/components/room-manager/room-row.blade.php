@@ -164,6 +164,17 @@
                 <span>Libre</span>
             </template>
         </span>
+
+        {{-- Etiqueta de reserva futura (RES-) --}}
+        @if ($room->future_reservation)
+            <div class="mt-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 border border-blue-200">
+                <i class="fas fa-calendar-check mr-1.5"></i>
+                <span>{{ $room->future_reservation->customer->name ?? 'Sin cliente' }}</span>
+                @if ($room->future_reservation->reservation_code)
+                    <span class="ml-1 text-blue-600 font-mono text-[10px]">{{ $room->future_reservation->reservation_code }}</span>
+                @endif
+            </div>
+        @endif
     </td>
 
     <td class="px-6 py-4 whitespace-nowrap text-center align-top">
