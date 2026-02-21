@@ -113,9 +113,9 @@
                                     <div class="flex items-center">
                                         <div
                                             class="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 mr-2 text-[10px] font-bold">
-                                            {{ substr($outflow->user->name, 0, 2) }}
+                                            {{ substr($outflow->shiftHandover->recepcionist_name, 0, 2) }}
                                         </div>
-                                        <div class="text-sm font-medium text-gray-700">{{ $outflow->user->name }}</div>
+                                        <div class="text-sm font-medium text-gray-700">{{ $outflow->shiftHandover->recepcionist_name }}</div>
                                     </div>
                                 </td>
                                 <td class="px-4 py-4">
