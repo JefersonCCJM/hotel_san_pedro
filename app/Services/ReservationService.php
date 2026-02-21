@@ -104,6 +104,30 @@ class ReservationService
     }
 
     /**
+     * Genera un código de reserva secuencial único con el prefijo dado.
+     * Formato: {PREFIX}-{AÑO}-{SECUENCIAL 4 dígitos}
+     * Ejemplos: RES-2026-0001, WLK-2026-0003
+     */
+    public function generateCode(string $prefix): string
+    {
+        $year = date('Y');
+        $fullPrefix = "{$prefix}-{$year}-";
+
+        $lastCode = Reservation::withTrashed()
+            ->where('reservation_code', 'like', "{$fullPrefix}%")
+            ->orderBy('reservation_code', 'desc')
+            ->value('reservation_code');
+
+        $nextNumber = 1;
+        if ($lastCode) {
+            $lastNumber = (int) substr($lastCode, -4);
+            $nextNumber = $lastNumber + 1;
+        }
+
+        return $fullPrefix . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
      * @throws \Exception
      */
     public function createReservation(array $data): Reservation
@@ -137,21 +161,7 @@ class ReservationService
                     ->value('id') ?: 1;
             }
 
-            $year = date('Y');
-            $prefix = "RES-{$year}-";
-
-            $lastCode = Reservation::withTrashed()
-                ->where('reservation_code', 'like', "{$prefix}%")
-                ->orderBy('reservation_code', 'desc')
-                ->value('reservation_code');
-
-            $nextNumber = 1;
-            if ($lastCode) {
-                $lastNumber = substr($lastCode, -4);
-                $nextNumber = (int) $lastNumber + 1;
-            }
-
-            $reservationCode = $prefix . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
+            $reservationCode = $this->generateCode('RES');
 
             $guestComposition = $this->resolveGuestComposition($data);
 

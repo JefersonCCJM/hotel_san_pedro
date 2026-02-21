@@ -29,15 +29,25 @@
         return empty($roomNumbers) ? 'Sin habitaciones asignadas' : implode(', ', $roomNumbers);
     };
 
-    // El calendario de Reservas no debe mostrar ocupaciones creadas desde Room Manager (código RSV-*).
+    // Todas las reservas (RES, RSV, WLK) se muestran en el calendario.
+    // Las WLK y RSV (walk-ins) solo aparecen en su día de check-in y en color rojo.
     $shouldDisplayReservationOnCalendar = static function ($reservation): bool {
         if (!$reservation || empty($reservation->id)) {
             return false;
         }
 
-        $reservationCode = strtoupper(trim((string) ($reservation->reservation_code ?? '')));
+        return true;
+    };
 
-        return !str_starts_with($reservationCode, 'RSV-');
+    // Identifica reservas walk-in (WLK o RSV): se muestran un solo día y en rojo.
+    $isWalkIn = static function ($reservation): bool {
+        if (!$reservation) {
+            return false;
+        }
+
+        $code = strtoupper(trim((string) ($reservation->reservation_code ?? '')));
+
+        return str_starts_with($code, 'WLK-') || str_starts_with($code, 'RSV-');
     };
 
     $payloadsByReservationId = [];
@@ -305,7 +315,7 @@
                 }
             } else {
                 $activeStay = $room->stays
-                    ->filter(static function ($stay) use ($dayNormalized, $room, $resolveStayCheckoutDate, $shouldDisplayReservationOnCalendar) {
+                    ->filter(static function ($stay) use ($dayNormalized, $room, $resolveStayCheckoutDate, $shouldDisplayReservationOnCalendar, $isWalkIn) {
                         $status = (string) ($stay->status ?? '');
                         if (!in_array($status, ['active', 'pending_checkout', 'finished'], true)) {
                             return false;
@@ -330,7 +340,12 @@
                             return $dayNormalized->gte($checkIn) && $dayNormalized->lt($checkOut);
                         }
 
-                        // Fallback for active stays without checkout: keep room occupied from check-in forward.
+                        // Fallback sin fecha de salida: walk-ins solo ocupan su día de entrada;
+                        // las reservas normales mantienen la habitación ocupada hacia adelante.
+                        if ($isWalkIn($stay->reservation ?? null)) {
+                            return $dayNormalized->equalTo($checkIn);
+                        }
+
                         return $dayNormalized->gte($checkIn);
                     })
                     ->sortBy(static function ($stay): int {
@@ -615,6 +630,7 @@
                                     $reservation = $cell['reservation'] ?? null;
                                     $reservationId = (int) ($reservation->id ?? 0);
                                     $payload = $reservationId > 0 ? ($payloadsByReservationId[$reservationId] ?? null) : null;
+                                    $cellIsWalkIn = $isWalkIn($reservation);
 
                                     $statusLabel = match ($status) {
                                         'checked_in' => 'Llego',
@@ -649,16 +665,18 @@
                                         $rounded = 'rounded-r-lg';
                                     }
 
-                                    $barClasses = match ($status) {
-                                        'checked_in' => 'bg-emerald-600 hover:bg-emerald-700 text-white',
-                                        'reserved' => 'bg-indigo-500 hover:bg-indigo-600 text-white',
-                                        'occupied' => 'bg-red-500 hover:bg-red-600 text-white',
-                                        'cancelled' => 'bg-slate-100 border border-dashed border-slate-300 hover:bg-slate-200 text-slate-600',
-                                        'checkout_day' => 'bg-blue-50 border-2 border-dashed border-blue-400 hover:bg-blue-100 text-blue-600',
-                                        'maintenance' => 'bg-yellow-400 hover:bg-yellow-500 text-white',
-                                        'cleaning' => 'bg-purple-400 hover:bg-purple-500 text-white',
-                                        default => 'bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 text-emerald-500',
-                                    };
+                                    $barClasses = $cellIsWalkIn
+                                        ? 'bg-red-500 hover:bg-red-600 text-white'
+                                        : match ($status) {
+                                            'checked_in' => 'bg-emerald-600 hover:bg-emerald-700 text-white',
+                                            'reserved' => 'bg-indigo-500 hover:bg-indigo-600 text-white',
+                                            'occupied' => 'bg-red-500 hover:bg-red-600 text-white',
+                                            'cancelled' => 'bg-slate-100 border border-dashed border-slate-300 hover:bg-slate-200 text-slate-600',
+                                            'checkout_day' => 'bg-blue-50 border-2 border-dashed border-blue-400 hover:bg-blue-100 text-blue-600',
+                                            'maintenance' => 'bg-yellow-400 hover:bg-yellow-500 text-white',
+                                            'cleaning' => 'bg-purple-400 hover:bg-purple-500 text-white',
+                                            default => 'bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 text-emerald-500',
+                                        };
                                 @endphp
 
                                 <td :class="{ 'hidden': !isVisibleDay({{ $dayIndex }}) }" class="border-r border-b border-gray-50 p-0 relative h-14 min-w-[56px] w-[56px]">

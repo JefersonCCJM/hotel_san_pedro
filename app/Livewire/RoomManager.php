@@ -3676,7 +3676,7 @@ class RoomManager extends Component
                 ?? $this->resolveReservationSourceIdByCode('reception')
                 ?? 1;
 
-            $reservationCode = sprintf('RSV-%s-%s', now()->format('YmdHis'), Str::upper(Str::random(4)));
+            $reservationCode = app(\App\Services\ReservationService::class)->generateCode('WLK');
 
             // ===== PASO 1: Crear reserva técnica para walk-in =====
             // CRÍTICO: total_amount es el SSOT financiero del hospedaje, debe persistirse correctamente
