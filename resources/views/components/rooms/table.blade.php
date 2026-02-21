@@ -48,19 +48,15 @@
                                     style="background-color: currentColor"></span>
                                 {{ $room->display_status->label() }}
                             </span>
-                        </td>
-
-                        {{-- Columna de estado de limpieza --}}
-                        <td class="px-6 py-4 whitespace-nowrap text-center">
-                            @php($cleaning = $room->cleaning_status_for_date ?? $room->cleaningStatus($date ?? null))
-                            @php($hasFutureReservation = $room->future_reservation || ($room->current_reservation && $room->current_reservation->isReserved()))
-                            <span
-                                class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {{ $hasFutureReservation ? 'bg-blue-100 text-blue-700' : $cleaning['color'] }}">
-                                <i class="fas {{ $cleaning['icon'] }} mr-1.5"></i>
-                                {{ $cleaning['label'] }}
-                            </span>
                             
                             {{-- Etiqueta de reserva --}}
+                            @php($hasFutureReservation = $room->future_reservation || ($room->current_reservation && $room->current_reservation->isReserved()))
+                            {{-- Prueba temporal - mostrar si hay alguna reserva --}}
+                            @if($room->reservationRooms->count() > 0)
+                                <div class="mt-1 text-xs text-gray-500">
+                                    Reservas: {{ $room->reservationRooms->count() }}
+                                </div>
+                            @endif
                             @if ($hasFutureReservation)
                                 @php($reservation = $room->future_reservation ?: $room->current_reservation)
                                 <div class="mt-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 border border-blue-200">
@@ -71,6 +67,16 @@
                                     @endif
                                 </div>
                             @endif
+                        </td>
+
+                        {{-- Columna de estado de limpieza --}}
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            @php($cleaning = $room->cleaning_status_for_date ?? $room->cleaningStatus($date ?? null))
+                            <span
+                                class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {{ $cleaning['color'] }}">
+                                <i class="fas {{ $cleaning['icon'] }} mr-1.5"></i>
+                                {{ $cleaning['label'] }}
+                            </span>
                         </td>
 
                         <td class="px-6 py-4 whitespace-nowrap text-center">

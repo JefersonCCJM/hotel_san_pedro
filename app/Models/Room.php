@@ -173,7 +173,18 @@ class Room extends Model
         $date = $date ?? \Carbon\Carbon::today();
         
         return $this->reservationRooms()
-            ->where('check_in_date', '>', $date->toDateString())
+            ->where(function($query) use ($date) {
+                // Caso 1: Reservas futuras (check-in > today)
+                $query->where('check_in_date', '>', $date->toDateString());
+                
+                // Caso 2: Reservas de hoy que aún no tienen stay (no check-in)
+                $query->orWhere(function($subQuery) use ($date) {
+                    $subQuery->where('check_in_date', '=', $date->toDateString())
+                           ->whereDoesntHave('reservation.stays', function($stayQuery) use ($date) {
+                               $stayQuery->where('check_in_at', '!=', null);
+                           });
+                });
+            })
             ->whereHas('reservation', function($query) {
                 $query->whereNull('deleted_at'); // No canceladas
             })
