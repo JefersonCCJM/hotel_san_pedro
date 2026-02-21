@@ -141,7 +141,7 @@
 
                 <div class="rounded-xl border border-emerald-100 bg-white p-4">
                     <div class="flex items-center justify-between mb-3">
-                        <p class="text-xs font-bold uppercase tracking-wider text-emerald-700">Reservas de manana</p>
+                        <p class="text-xs font-bold uppercase tracking-wider text-emerald-700">Reservas de mañana</p>
                         <span class="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">
                             {{ (int) ($receptionReservationsSummary['tomorrow_count'] ?? 0) }}
                         </span>

@@ -49,21 +49,13 @@
                                 {{ $room->display_status->label() }}
                             </span>
                             
-                            {{-- Etiqueta de reserva --}}
-                            @php($hasFutureReservation = $room->future_reservation || ($room->current_reservation && $room->current_reservation->isReserved()))
-                            {{-- Prueba temporal - mostrar si hay alguna reserva --}}
-                            @if($room->reservationRooms->count() > 0)
-                                <div class="mt-1 text-xs text-gray-500">
-                                    Reservas: {{ $room->reservationRooms->count() }}
-                                </div>
-                            @endif
-                            @if ($hasFutureReservation)
-                                @php($reservation = $room->future_reservation ?: $room->current_reservation)
+                            {{-- Etiqueta de reserva futura (RES-) --}}
+                            @if ($room->future_reservation)
                                 <div class="mt-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 border border-blue-200">
                                     <i class="fas fa-calendar-check mr-1.5"></i>
-                                    <span>{{ $reservation->customer->name ?? 'Sin cliente' }}</span>
-                                    @if ($reservation->reservation_code)
-                                        <span class="ml-1 text-blue-600 font-mono text-[10px]">{{ $reservation->reservation_code }}</span>
+                                    <span>{{ $room->future_reservation->customer->name ?? 'Sin cliente' }}</span>
+                                    @if ($room->future_reservation->reservation_code)
+                                        <span class="ml-1 text-blue-600 font-mono text-[10px]">{{ $room->future_reservation->reservation_code }}</span>
                                     @endif
                                 </div>
                             @endif
