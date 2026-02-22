@@ -333,6 +333,7 @@
                         $checkIn = \Carbon\Carbon::parse($stay->check_in_at)->startOfDay();
                         $checkOut = $resolveStayCheckoutDate($stay, (int) $room->id);
                         $isPendingCheckoutDay = $checkOut
+                            && $dayNormalized->isToday()
                             && $dayNormalized->equalTo($checkOut)
                             && empty($stay->check_out_at)
                             && in_array($status, ['active', 'pending_checkout'], true);
@@ -361,6 +362,7 @@
                         $status = (string) ($stay->status ?? '');
                         $checkOut = $resolveStayCheckoutDate($stay, (int) $room->id);
                         $isPendingCheckoutDay = $checkOut
+                            && $dayNormalized->isToday()
                             && $dayNormalized->equalTo($checkOut)
                             && empty($stay->check_out_at)
                             && in_array($status, ['active', 'pending_checkout'], true);
@@ -383,6 +385,7 @@
                     $dayReservation = $activeStay->reservation ?? null;
                     $activeStayCheckOut = $resolveStayCheckoutDate($activeStay, (int) $room->id);
                     $isPendingCheckoutDay = $activeStayCheckOut
+                        && $dayNormalized->isToday()
                         && $dayNormalized->equalTo($activeStayCheckOut)
                         && empty($activeStay->check_out_at)
                         && in_array($activeStayStatus, ['active', 'pending_checkout'], true);
