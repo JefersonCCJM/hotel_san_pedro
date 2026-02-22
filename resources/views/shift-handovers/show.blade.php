@@ -344,6 +344,7 @@
                                             ->unique()
                                             ->implode(', ');
                                         $isReversal = (float) $payment->amount < 0;
+                                        $alreadyReversed = in_array($payment->id, $alreadyReversedIds);
                                         $pmCode = strtolower(
                                             $payment->paymentMethod?->code ?? ($payment->paymentMethod?->name ?? ''),
                                         );
@@ -360,7 +361,7 @@
                                             default => 'bg-gray-100 text-gray-700',
                                         };
                                     @endphp
-                                    <tr class="{{ $isReversal ? 'bg-red-50/40' : 'hover:bg-gray-50' }}">
+                                    <tr class="{{ $isReversal ? 'bg-red-50/40' : ($alreadyReversed ? 'bg-red-50/40 line-through decoration-red-400 decoration-2' : 'hover:bg-gray-50') }}">
                                         <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
                                             {{ optional($payment->paid_at ?? $payment->created_at)->format('H:i') }}
                                         </td>
