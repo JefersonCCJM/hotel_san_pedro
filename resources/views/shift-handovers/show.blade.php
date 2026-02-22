@@ -157,7 +157,7 @@
                     <span class="ml-2 text-indigo-600">({{ $shiftRentals->count() }})</span>
                 </h3>
                 @php
-                    $rentalsTotal = $shiftRentals->sum(function ($stay) {
+                    $rentalsTotal = $shiftRentals->sum(function ($stay) use ($handover) {
                         $reservation = $stay->reservation;
                         if (!$reservation) {
                             return 0;
