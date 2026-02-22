@@ -709,11 +709,13 @@
                                         $rounded = 'rounded-r-lg';
                                     }
 
-                                    $barClasses = $cellIsWalkIn
-                                        ? 'bg-red-500 hover:bg-red-600 text-white'
-                                        : match ($status) {
+                                    if ($status === 'pending_checkout') {
+                                        $barClasses = 'bg-yellow-400 hover:bg-yellow-500 text-white';
+                                    } elseif ($cellIsWalkIn) {
+                                        $barClasses = 'bg-red-500 hover:bg-red-600 text-white';
+                                    } else {
+                                        $barClasses = match ($status) {
                                             'checked_in' => 'bg-emerald-600 hover:bg-emerald-700 text-white',
-                                            'pending_checkout' => 'bg-yellow-400 hover:bg-yellow-500 text-white',
                                             'reserved' => 'bg-indigo-500 hover:bg-indigo-600 text-white',
                                             'occupied' => 'bg-red-500 hover:bg-red-600 text-white',
                                             'cancelled' => 'bg-slate-100 border border-dashed border-slate-300 hover:bg-slate-200 text-slate-600',
@@ -722,6 +724,7 @@
                                             'cleaning' => 'bg-purple-400 hover:bg-purple-500 text-white',
                                             default => 'bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 text-emerald-500',
                                         };
+                                    }
                                 @endphp
 
                                 <td :class="{ 'hidden': !isVisibleDay({{ $dayIndex }}) }" class="border-r border-b border-gray-50 p-0 relative h-14 min-w-[56px] w-[56px]">
