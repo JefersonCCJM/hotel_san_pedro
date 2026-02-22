@@ -298,7 +298,10 @@
                 ->filter(fn($p) => !in_array($p->id, $alreadyReversedIds))
                 ->sum(fn($p) => (float) $p->amount);
         @endphp
-        <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden"
+             x-data="{
+                 reversedInSession: {{ json_encode($alreadyReversedIds) }}
+             }">
             <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                 <h3 class="font-bold text-gray-900 uppercase text-xs tracking-wider">
                     <i class="fas fa-file-invoice-dollar mr-2 text-cyan-500"></i>Pagos y Abonos de Reservas
@@ -361,7 +364,7 @@
                                             default => 'bg-gray-100 text-gray-700',
                                         };
                                     @endphp
-                                    <tr class="{{ $isReversal ? 'bg-red-50/40' : ($alreadyReversed ? 'bg-red-50/40 line-through decoration-red-400 decoration-2' : 'hover:bg-gray-50') }}">
+                                    <tr x-bind:class="reversedInSession.includes({{ $payment->id }}) ? 'opacity-50 bg-red-50/40' : '{{ $isReversal ? 'bg-red-50/40' : 'hover:bg-gray-50' }}'">
                                         <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
                                             {{ optional($payment->paid_at ?? $payment->created_at)->format('H:i') }}
                                         </td>
@@ -389,6 +392,8 @@
                                                 <span
                                                     class="ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700 uppercase">Reversa</span>
                                             @endif
+                                            <span x-show="reversedInSession.includes({{ $payment->id }})"
+                                                class="ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700 uppercase">Revertido</span>
                                         </td>
                                         <td class="px-4 py-3 text-sm text-gray-700">
                                             {{ $res?->customer?->name ?? 'N/A' }}
