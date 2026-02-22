@@ -138,19 +138,8 @@ class Room extends Model
      */
     public function isOccupiedOn(Carbon $date): bool
     {
-        $startOfDay = $date->copy()->startOfDay();
-        $endOfDay = $date->copy()->endOfDay();
-
-        return $this->stays()
-            ->where('check_in_at', '<=', $endOfDay)
-            ->where(function ($q) use ($startOfDay) {
-                $q->whereNull('check_out_at')
-                  ->orWhere('check_out_at', '>', $startOfDay);
-            })
-            ->where('status', '!=', 'finished')
-            ->exists();
+        return $this->getAvailabilityService()->getStayForDate($date) !== null;
     }
-
     /**
      * Get the active reservation for a specific date.
      * DEPRECATED: Use RoomAvailabilityService instead.

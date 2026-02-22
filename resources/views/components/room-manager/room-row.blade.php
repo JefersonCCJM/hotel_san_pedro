@@ -32,7 +32,7 @@
     $hasStayInfo = $stay && $stay->reservation;
     $currentReservation = $hasStayInfo ? $stay->reservation : null;
     $currentReservationCode = strtoupper(trim((string) ($currentReservation->reservation_code ?? '')));
-    $hasCurrentReservationBadge = $currentReservationCode !== '';
+    $hasCurrentReservationBadge = str_starts_with($currentReservationCode, 'RES-');
 @endphp
 
 <tr
@@ -168,7 +168,7 @@
                 </template>
             </span>
 
-            {{-- Etiqueta de reserva futura: solo RES-, excluir si ya esta ocupada al renderizar --}}
+            {{-- Etiqueta de reserva actual: solo codigos RES- --}}
             @if ($hasCurrentReservationBadge)
                 <div
                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200"
@@ -181,12 +181,10 @@
             @php
                 $futureRes = $room->future_reservation;
                 $hasFutureBadge = $futureRes
-                    && str_starts_with(strtoupper($futureRes->reservation_code ?? ''), 'RES-')
-                    && !in_array($operationalStatus, ['occupied', 'pending_checkout'], true);
+                    && str_starts_with(strtoupper($futureRes->reservation_code ?? ''), 'RES-');
             @endphp
             @if ($hasFutureBadge)
-                {{-- x-show reactivo: se oculta inmediatamente si hay checkin (room-rented) sin esperar re-render --}}
-                <div x-show="displayState === 'free_clean' || displayState === 'pending_cleaning'"
+                <div
                     class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-200"
                     title="{{ $futureRes->customer->name ?? '' }}">
                     <i class="fas fa-calendar-check text-[8px]"></i>
