@@ -16,7 +16,7 @@
             </thead>
             <tbody class="divide-y divide-gray-200" style="position: static;">
                 @forelse($rooms as $room)
-                    <x-room-manager.room-row :room="$room" :currentDate="$currentDate" wire:key="room-row-{{ $room->id }}" />
+                    <x-room-manager.room-row :room="$room" :currentDate="$currentDate" wire:key="room-row-{{ $room->id }}-{{ $currentDate instanceof \Carbon\Carbon ? $currentDate->format('Y-m-d') : \Carbon\Carbon::parse($currentDate)->format('Y-m-d') }}" />
                 @empty
                     <tr>
                         <td colspan="7" class="px-6 py-12 text-center">
