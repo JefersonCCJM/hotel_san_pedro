@@ -2660,6 +2660,7 @@ class RoomManager extends Component
             $this->allGuestsForm = [
                 'reservation_id' => $reservationId,
                 'room_id' => $roomId,
+                'room_number' => $room->room_number,
                 'max_capacity' => $room->max_capacity,
                 'guests' => $allGuests,
                 'is_past_date' => $isPastDate,

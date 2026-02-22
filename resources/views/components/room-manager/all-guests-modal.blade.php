@@ -18,6 +18,19 @@
                     document.body.style.overflow = 'auto';
                 }
             });
+            // Sincronizar currentGuestCount cuando Livewire actualiza allGuestsForm.guests
+            this.$watch(
+                () => $wire.allGuestsForm?.guests?.length,
+                (count) => {
+                    if (count !== undefined) {
+                        this.currentGuestCount = count;
+                        // Cerrar formulario automáticamente si se alcanzó la capacidad
+                        if (count >= this.maxCapacity) {
+                            this.addingGuest = false;
+                        }
+                    }
+                }
+            );
         },
         get canAddGuest() {
             return this.currentGuestCount < this.maxCapacity;
@@ -101,7 +114,7 @@
                             </div>
                             <div>
                                 <h3 class="text-2xl font-bold">Todos los Huéspedes</h3>
-                                <p class="text-blue-100 text-sm">Habitación: {{ $allGuestsForm['room_id'] ?? 'N/A' }}
+                                <p class="text-blue-100 text-sm">Habitación: {{ $allGuestsForm['room_number'] ?? 'N/A' }}
                                 </p>
                                 <p class="text-blue-100 text-xs">Capacidad: <span
                                         x-text="currentGuestCount"></span>/<span x-text="maxCapacity"></span></p>
@@ -250,62 +263,20 @@
                                         </button>
                                     </div>
                                 </div>
-
-                                <!-- Opción 2: Crear nuevo cliente directamente -->
-                                <div class="border-t pt-3">
-                                    <div class="flex items-center justify-between mb-2">
-                                        <label class="text-[10px] font-bold text-gray-700 uppercase tracking-widest">O
-                                            Crear Nuevo Cliente</label>
-                                    </div>
-                                    <div class="space-y-3">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-                                            <input type="text" x-model="newGuestName"
-                                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                placeholder="Nombre completo">
-                                        </div>
-                                        <div>
-                                            <label
-                                                class="block text-sm font-medium text-gray-700 mb-1">Identificación</label>
-                                            <input type="text" x-model="newGuestIdentification"
-                                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                placeholder="Número de identificación">
-                                        </div>
-                                        <div>
-                                            <label
-                                                class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-                                            <input type="text" x-model="newGuestPhone"
-                                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                placeholder="Número de teléfono">
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="flex justify-end space-x-3 mt-4 pt-3 border-t">
-                                <button @click="cancelAddingGuest()"
-                                    class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
-                                    Cancelar
-                                </button>
-                                <button @click="saveGuest()"
-                                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                                    Guardar
-                                </button>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Footer -->
-                <div class="bg-gray-50 px-6 py-4 border-t border-gray-200">
-                    <div class="flex justify-end space-x-3">
-                        <button @click="close()"
-                            class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
-                            Cerrar
-                        </button>
+                    <!-- Footer -->
+                    <div class="bg-gray-50 px-6 py-4 border-t border-gray-200">
+                        <div class="flex justify-end space-x-3">
+                            <button @click="close()"
+                                class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+                                Cerrar
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 @endif
