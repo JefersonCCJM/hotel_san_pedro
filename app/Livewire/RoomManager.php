@@ -4137,6 +4137,7 @@ class RoomManager extends Component
                 'reservation_id' => $reservation->id,
                 'room_id' => $roomId,
                 'client_id' => $reservation->client_id, // Puede ser null
+                'client_name' => $reservation->customer?->name ?? '',
                 'additional_guests' => $existingAdditionalGuests,
                 'override_total_amount' => false,
                 'total_amount' => (float)($reservation->total_amount ?? 0), // SSOT actual

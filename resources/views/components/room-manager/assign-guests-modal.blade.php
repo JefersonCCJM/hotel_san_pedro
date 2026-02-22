@@ -47,29 +47,40 @@
                     </p>
                 </div>
 
-                {{-- Cliente Principal (OBLIGATORIO) --}}
+                {{-- Cliente Principal --}}
                 <div class="space-y-1.5">
-                    <div class="flex items-center justify-between mb-1">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
-                            CLIENTE PRINCIPAL <span class="text-red-500">*</span>
-                        </label>
-                        <button type="button" 
-                                @click="Livewire.dispatch('open-create-customer-modal')"
-                                class="text-[9px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-tighter flex items-center gap-1">
-                            <i class="fas fa-plus text-[8px]"></i>
-                            Nuevo Cliente
-                        </button>
-                    </div>
-                    <div wire:ignore>
-                        <select id="assign_guests_customer_id" 
-                                class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                                data-placeholder="Seleccione un cliente">
-                            <option value="">Seleccione un cliente...</option>
-                        </select>
-                    </div>
-                    @error('assignGuestsForm.client_id')
-                        <p class="text-[10px] text-red-600 mt-1">{{ $message }}</p>
-                    @enderror
+                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
+                        CLIENTE PRINCIPAL @if(empty($assignGuestsForm['has_customer']))<span class="text-red-500">*</span>@endif
+                    </label>
+                    @if(!empty($assignGuestsForm['has_customer']))
+                        {{-- Modo edición: solo lectura --}}
+                        <div class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 flex items-center space-x-2">
+                            <i class="fas fa-user text-gray-400 text-sm"></i>
+                            <span class="text-sm font-bold text-gray-900">{{ $assignGuestsForm['client_name'] ?? 'N/A' }}</span>
+                            <span class="ml-auto text-[9px] font-semibold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded uppercase">Principal</span>
+                        </div>
+                    @else
+                        {{-- Modo nuevo: selector de cliente --}}
+                        <div class="flex items-center justify-between mb-1">
+                            <div></div>
+                            <button type="button"
+                                    @click="Livewire.dispatch('open-create-customer-modal')"
+                                    class="text-[9px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-tighter flex items-center gap-1">
+                                <i class="fas fa-plus text-[8px]"></i>
+                                Nuevo Cliente
+                            </button>
+                        </div>
+                        <div wire:ignore>
+                            <select id="assign_guests_customer_id"
+                                    class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                    data-placeholder="Seleccione un cliente">
+                                <option value="">Seleccione un cliente...</option>
+                            </select>
+                        </div>
+                        @error('assignGuestsForm.client_id')
+                            <p class="text-[10px] text-red-600 mt-1">{{ $message }}</p>
+                        @enderror
+                    @endif
                 </div>
 
                 {{-- Información de Capacidad y Huéspedes --}}
@@ -121,13 +132,15 @@
                 <div class="space-y-2 pt-2 border-t border-gray-100" x-data="{ showGuestSearch: false }">
                     <div class="flex items-center justify-between">
                         <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">HUÉSPEDES ADICIONALES</label>
-                        <button type="button" 
+                        @if($remaining > 0)
+                        <button type="button"
                                 x-show="!showGuestSearch"
                                 @click="showGuestSearch = true"
                                 class="text-[9px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-tighter flex items-center gap-1">
                             <i class="fas fa-user-plus text-[8px]"></i>
                             Agregar
                         </button>
+                        @endif
                     </div>
 
                     {{-- Lista de huéspedes adicionales actuales --}}

@@ -121,6 +121,9 @@ Livewire.on('assignGuestsModalOpened', () => {
     setTimeout(() => {
         if (assignCustomerSelect) assignCustomerSelect.destroy();
 
+        const assignGuestsSelectEl = document.getElementById('assign_guests_customer_id');
+        if (!assignGuestsSelectEl) return; // cliente principal es solo lectura en modo edición
+
         const currentClientId = @this.get('assignGuestsForm.client_id') || null;
 
         assignCustomerSelect = new TomSelect('#assign_guests_customer_id', {
