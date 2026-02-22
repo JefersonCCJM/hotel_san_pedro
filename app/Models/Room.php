@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Enums\RoomDisplayStatus;
+use App\Support\HotelTime;
 use Carbon\Carbon;
 
 class Room extends Model
@@ -128,7 +129,7 @@ class Room extends Model
      */
     public function isOccupied(?\Carbon\Carbon $date = null): bool
     {
-        return $this->isOccupiedOn($date ?? Carbon::today());
+        return $this->isOccupiedOn($date ?? HotelTime::currentOperationalDate());
     }
 
     /**
@@ -170,7 +171,7 @@ class Room extends Model
      */
     public function getFutureReservation(?\Carbon\Carbon $date = null): ?\App\Models\Reservation
     {
-        $date = $date ?? \Carbon\Carbon::today();
+        $date = $date ?? HotelTime::currentOperationalDate();
         $dateStr = $date->toDateString();
 
         return $this->reservationRooms()
@@ -235,8 +236,8 @@ class Room extends Model
      */
     public function cleaningStatus(?\Carbon\Carbon $date = null): array
     {
-        $date = $date ?? \Carbon\Carbon::today();
-        $today = Carbon::today();
+        $date = $date ?? HotelTime::currentOperationalDate();
+        $today = HotelTime::currentOperationalDate();
         $queryDate = $date->copy()->startOfDay();
         $endOfQueryDay = $queryDate->copy()->endOfDay();
         $isPastDate = $queryDate->lt($today);
@@ -452,7 +453,7 @@ class Room extends Model
      */
     public function getOperationalStatus(Carbon $date): string
     {
-        $today = Carbon::today();
+        $today = HotelTime::currentOperationalDate();
         $queryDate = $date->copy()->startOfDay();
         $isPastDate = $queryDate->lt($today);
 
@@ -571,7 +572,7 @@ class Room extends Model
     public function isPendingCheckout(Carbon $date): bool
     {
         // CRITICAL: Only check for TODAY, never for past or future dates
-        if (!$date->isToday()) {
+        if (!HotelTime::isOperationalToday($date)) {
             return false;
         }
 
@@ -728,7 +729,7 @@ class Room extends Model
      */
     public function getPendingCheckoutReservation(?\Carbon\Carbon $date = null): ?\App\Models\Reservation
     {
-        $date = $date ?? \Carbon\Carbon::today();
+        $date = $date ?? HotelTime::currentOperationalDate();
 
         // If not in Pendiente Checkout status, return null
         if ($this->getDisplayStatus($date) !== RoomDisplayStatus::PENDIENTE_CHECKOUT) {
@@ -799,8 +800,6 @@ class Room extends Model
      */
     public function validateReservations(): array
     {
-        $today = \Carbon\Carbon::today();
-
         // Find reservations with invalid date ranges (check_out <= check_in)
         $invalidReservations = $this->reservations()
             ->whereColumn('check_out_date', '<=', 'check_in_date')

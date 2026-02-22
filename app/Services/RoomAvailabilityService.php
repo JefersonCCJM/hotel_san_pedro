@@ -6,6 +6,7 @@ use App\Models\Room;
 use App\Models\Stay;
 use App\Models\ReservationRoom;
 use App\Enums\RoomDisplayStatus;
+use App\Support\HotelTime;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -67,7 +68,7 @@ class RoomAvailabilityService
      */
     public function getStayForDate(?Carbon $date = null): ?\App\Models\Stay
     {
-        $date = $date ?? Carbon::today();
+        $date = $date ?? HotelTime::currentOperationalDate();
         $startOfDay = $date->copy()->startOfDay();
         $endOfDay = $date->copy()->endOfDay();
 
@@ -133,8 +134,9 @@ class RoomAvailabilityService
      */
     public function isHistoricDate(?Carbon $date = null): bool
     {
-        $date = $date ?? now();
-        return $date->copy()->startOfDay()->lt(Carbon::today());
+        $date = $date ?? HotelTime::currentOperationalDate();
+
+        return HotelTime::isOperationalPastDate($date->copy()->startOfDay());
     }
 
     /**
@@ -164,7 +166,7 @@ class RoomAvailabilityService
      */
     public function hasPendingCheckoutOn(?Carbon $date = null): bool
     {
-        $date = $date ?? Carbon::today();
+        $date = $date ?? HotelTime::currentOperationalDate();
         $previousDay = $date->copy()->subDay();
 
         // Verificar si había ocupación el día anterior
@@ -211,7 +213,7 @@ class RoomAvailabilityService
      */
     public function getDisplayStatusOn(?Carbon $date = null): RoomDisplayStatus
     {
-        $date = $date ?? Carbon::today();
+        $date = $date ?? HotelTime::currentOperationalDate();
 
         // Priority 1: Maintenance blocks everything
         if ($this->room->isInMaintenance()) {
@@ -257,7 +259,7 @@ class RoomAvailabilityService
      */
     public function getAccessInfo(?Carbon $date = null): array
     {
-        $date = $date ?? now();
+        $date = $date ?? HotelTime::currentOperationalDate();
         $isHistoric = $this->isHistoricDate($date);
         $canModify = $this->canModifyOn($date);
         $status = $this->getDisplayStatusOn($date);
@@ -454,7 +456,7 @@ class RoomAvailabilityService
             }
 
             // Verificar que check-in no sea en el pasado
-            if ($checkInDate < now()->startOfDay()) {
+            if (HotelTime::isOperationalPastDate($checkInDate)) {
                 $errors['checkIn'] = 'La fecha de entrada no puede ser anterior a hoy.';
             }
 

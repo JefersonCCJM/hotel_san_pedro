@@ -548,7 +548,7 @@ class RoomManager extends Component
             return Carbon::parse((string) $this->date);
         }
 
-        return Carbon::now();
+        return HotelTime::currentOperationalDate();
     }
 
     /**
@@ -556,7 +556,7 @@ class RoomManager extends Component
      */
     private function isSelectedDatePast(): bool
     {
-        return $this->getSelectedDate()->startOfDay()->lt(Carbon::today());
+        return HotelTime::isOperationalPastDate($this->getSelectedDate()->startOfDay());
     }
 
     /**
@@ -574,7 +574,7 @@ class RoomManager extends Component
 
     public function mount($date = null, $search = null, $status = null)
     {
-        $this->currentDate = $date ? Carbon::parse($date) : now();
+        $this->currentDate = $date ? Carbon::parse($date) : HotelTime::currentOperationalDate();
         $this->date = $this->currentDate;
         $this->search = $search ?? '';
         $this->statusFilter = in_array((string) $status, self::ALLOWED_STATUS_FILTERS, true) ? $status : null;
@@ -742,11 +742,11 @@ class RoomManager extends Component
     {
         $selectedDate = $this->date instanceof Carbon
             ? $this->date->copy()
-            : Carbon::parse($this->date ?? now());
+            : Carbon::parse($this->date ?? HotelTime::currentOperationalDate());
 
         $dateString = $selectedDate->toDateString();
-        $dayStart = $selectedDate->copy()->startOfDay();
-        $dayEnd = $selectedDate->copy()->endOfDay();
+        $dayStart = HotelTime::startOfOperationalDay($selectedDate);
+        $dayEnd = HotelTime::endOfOperationalDay($selectedDate);
 
         $activeRoomsQuery = Room::query();
         if (Schema::hasColumn('rooms', 'is_active')) {
@@ -814,7 +814,7 @@ class RoomManager extends Component
         $arrivalsToday = Stay::query()
             ->whereNotNull('reservation_id')
             ->whereNotNull('check_in_at')
-            ->whereDate('check_in_at', $dateString)
+            ->whereBetween('check_in_at', [$dayStart, $dayEnd])
             ->distinct()
             ->count('reservation_id');
 
@@ -822,7 +822,7 @@ class RoomManager extends Component
             ->whereNotNull('reservation_id')
             ->whereNotNull('check_out_at')
             ->where('status', 'finished')
-            ->whereDate('check_out_at', $dateString)
+            ->whereBetween('check_out_at', [$dayStart, $dayEnd])
             ->distinct()
             ->count('reservation_id');
 
@@ -1171,8 +1171,8 @@ class RoomManager extends Component
      */
     protected function getReceptionReservationsSummary(): array
     {
-        $today = Carbon::today();
-        $tomorrow = Carbon::today()->copy()->addDay();
+        $today = HotelTime::currentOperationalDate();
+        $tomorrow = HotelTime::currentOperationalDate()->copy()->addDay();
 
         $todayData = $this->getArrivalsSummaryForDate($today, 6, true);
         $tomorrowData = $this->getArrivalsSummaryForDate($tomorrow);
@@ -1209,7 +1209,7 @@ class RoomManager extends Component
             }
 
             // Obtener la Stay que intersecta con la fecha consultada
-            $stay = $room->getAvailabilityService()->getStayForDate($this->date ?? Carbon::today());
+            $stay = $room->getAvailabilityService()->getStayForDate($this->date ?? HotelTime::currentOperationalDate());
 
             // GUARD CLAUSE: Si no hay stay o reserva, retornar vacío
             if (!$stay || !$stay->reservation) {
@@ -1352,11 +1352,11 @@ class RoomManager extends Component
             $availabilityService = $room->getAvailabilityService();
             $selectedDate = $this->getSelectedDate()->startOfDay();
 
-            // Regla operativa: continuar estadia solo aplica en la fecha actual.
-            if (!$selectedDate->isToday()) {
+            // Regla operativa: continuar estadia solo aplica en el dia operativo actual.
+            if (!HotelTime::isOperationalToday($selectedDate)) {
                 $this->dispatch('notify', [
                     'type' => 'warning',
-                    'message' => 'La estadia solo se puede continuar en la fecha actual.'
+                    'message' => 'La estadia solo se puede continuar en el dia operativo actual.'
                 ]);
                 return;
             }
@@ -1574,24 +1574,20 @@ class RoomManager extends Component
         // ðŸ” PROTECCIÓN: Solo generar noches para HOY, nunca para fechas futuras
         // ðŸ” PROTECCIÓN EXTRA: NO generar noche si HOY es checkout o después
         try {
-            $today = Carbon::today();
+            $today = HotelTime::currentOperationalDate();
             
             // Protección explícita: NO generar noches futuras
-            if ($this->date->isAfter($today)) {
-                // Fecha futura: NO generar noches aquí
-                return;
-            }
             
             // Solo generar noche si la fecha nueva es HOY
             if ($this->date->equalTo($today)) {
                 // Obtener todas las habitaciones con stay activa para hoy
-                $endOfToday = HotelTime::endOfOperatingDay($today);
-                $startOfToday = $today->copy()->startOfDay();
+                $startOfToday = HotelTime::startOfOperationalDay($today);
+                $endOfToday = HotelTime::endOfOperationalDay($today);
                 
                 $activeStays = \App\Models\Stay::where('check_in_at', '<=', $endOfToday)
                     ->where(function($q) use ($startOfToday) {
                         $q->whereNull('check_out_at')
-                          ->where('check_out_at', '>=', $startOfToday);
+                          ->orWhere('check_out_at', '>=', $startOfToday);
                     })
                     ->where('status', 'active')
                     ->with(['reservation.reservationRooms', 'room'])
@@ -1658,7 +1654,7 @@ class RoomManager extends Component
 
     public function goToToday()
     {
-        $this->date = now();
+        $this->date = HotelTime::currentOperationalDate();
         $this->currentDate = $this->date;
         
         // CRITICAL: Forzar actualización inmediata
@@ -1735,7 +1731,7 @@ class RoomManager extends Component
                 'deposit_history' => [],
                 'refunds_history' => [],
                 'total_refunds' => 0,
-                'is_past_date' => $this->date->lt(now()->startOfDay()),
+                'is_past_date' => HotelTime::isOperationalPastDate($this->getSelectedDate()),
                 'isHistoric' => $accessInfo['isHistoric'],
                 'canModify' => $accessInfo['canModify'],
             ];
@@ -1979,7 +1975,7 @@ class RoomManager extends Component
                 ];
             })->filter(fn($row) => (float)($row['amount'] ?? 0) > 0)->values()->toArray(),
             'total_refunds' => $refundsTotal ?? 0, // Total de devoluciones para mostrar en el header del historial
-            'is_past_date' => $this->date->lt(now()->startOfDay()), // Usar HotelTime sería mejor pero mantenemos consistencia con now() para validación de fecha actual
+            'is_past_date' => HotelTime::isOperationalPastDate($this->getSelectedDate()),
             'isHistoric' => $accessInfo['isHistoric'],
             'canModify' => $accessInfo['canModify'],
         ];
@@ -2567,18 +2563,20 @@ class RoomManager extends Component
             return;
         }
 
-        $date = $this->date instanceof \Carbon\Carbon ? $this->date : \Carbon\Carbon::parse($this->date);
-        if (!$date->isToday()) {
-            $this->dispatch('notify', type: 'error', message: 'Solo se pueden anular ingresos del dia de hoy.');
+        $date = $this->getSelectedDate()->startOfDay();
+        if (!HotelTime::isOperationalToday($date)) {
+            $this->dispatch('notify', type: 'error', message: 'Solo se pueden anular ingresos del dia operativo actual.');
             return;
         }
 
         try {
             $room = \App\Models\Room::findOrFail($roomId);
+            $operationalStart = HotelTime::startOfOperationalDay($date);
+            $operationalEnd = HotelTime::endOfOperationalDay($date);
 
             $stay = \App\Models\Stay::where('room_id', $roomId)
                 ->where('status', 'finished')
-                ->whereDate('check_out_at', today())
+                ->whereBetween('check_out_at', [$operationalStart, $operationalEnd])
                 ->orderByDesc('check_out_at')
                 ->first();
 
@@ -2594,7 +2592,7 @@ class RoomManager extends Component
                 return;
             }
 
-            \DB::transaction(function () use ($stay, $reservation, $room) {
+            \DB::transaction(function () use ($stay, $reservation, $room, $date) {
                 // 1. Revertir pagos positivos que no hayan sido ya revertidos
                 $alreadyReversedIds = $reservation->payments()
                     ->where('amount', '<', 0)
@@ -2629,7 +2627,7 @@ class RoomManager extends Component
 
                 // 5. Eliminar release history del egreso de hoy
                 \App\Models\RoomReleaseHistory::where('reservation_id', $reservation->id)
-                    ->whereDate('release_date', today())
+                    ->whereDate('release_date', $date->toDateString())
                     ->delete();
 
                 // 6. Marcar habitacion como limpia
@@ -3909,7 +3907,7 @@ class RoomManager extends Component
             $reference = $paymentMethod === 'transferencia' ? trim($this->rentForm['reference'] ?? '') : null;
 
             // BLOQUEO: Verificar si es fecha histórica
-            if (Carbon::parse($this->rentForm['check_in_date'])->lt(Carbon::today())) {
+            if (HotelTime::isOperationalPastDate(Carbon::parse($this->rentForm['check_in_date']))) {
                 throw new \RuntimeException('No se pueden crear reservas en fechas históricas.');
             }
 
@@ -4451,7 +4449,7 @@ class RoomManager extends Component
                     throw new \RuntimeException('La fecha de salida debe ser posterior a la fecha de entrada.');
                 }
 
-                $today = Carbon::today();
+                $today = HotelTime::currentOperationalDate();
                 if ($newCheckInDate->gt($today)) {
                     throw new \RuntimeException('La fecha de entrada no puede ser futura para una ocupación activa.');
                 }
@@ -4996,7 +4994,7 @@ class RoomManager extends Component
         try {
             $room = Room::findOrFail($roomId);
 
-            if ($room->getAvailabilityService()->getStayForDate($this->date ?? Carbon::today())) {
+            if ($room->getAvailabilityService()->getStayForDate($this->date ?? HotelTime::currentOperationalDate())) {
                 throw new \RuntimeException('No se puede eliminar una habitación con ocupación activa.');
             }
 
@@ -5218,11 +5216,11 @@ class RoomManager extends Component
             }
 
             // Validar que no sea fecha histórica - usando lógica de HotelTime
-            $today = Carbon::today();
-            $selectedDate = $this->date ?? $today;
+            $today = HotelTime::currentOperationalDate();
+            $selectedDate = $this->getSelectedDate()->startOfDay();
             
             // ðŸ”¥ PERMITIR cambios en fecha actual (hoy)
-            if ($selectedDate->copy()->startOfDay()->lt($today)) {
+            if (HotelTime::isOperationalPastDate($selectedDate)) {
                 $this->dispatch('notify', type: 'error', message: 'No se pueden hacer cambios en fechas históricas.');
                 return;
             }
@@ -5232,8 +5230,8 @@ class RoomManager extends Component
                 'room_id' => $roomId,
                 'status' => $status,
                 'selectedDate' => $selectedDate->format('Y-m-d'),
-                'today' => $today->format('Y-m-d'),
-                'isPast' => $selectedDate->copy()->startOfDay()->lt($today)
+                'today_operational' => $today->format('Y-m-d'),
+                'isPast' => HotelTime::isOperationalPastDate($selectedDate)
             ]);
 
             // Validar que el estado sea válido
@@ -5319,10 +5317,19 @@ class RoomManager extends Component
             $started = true;
 
             $availabilityService = $room->getAvailabilityService();
-            $today = Carbon::today();
+            $operationalDate = $this->getSelectedDate()->startOfDay();
+            $today = $operationalDate->copy();
+
+            if (!HotelTime::isOperationalToday($operationalDate)) {
+                $this->dispatch('notify', type: 'warning', message: 'La liberacion solo se permite en el dia operativo actual.');
+                if ($started) {
+                    $this->dispatch('room-release-finished', roomId: $roomId);
+                }
+                return;
+            }
             
             // BLOQUEO: No se puede liberar ocupaciones históricas
-            if ($availabilityService->isHistoricDate($today)) {
+            if ($availabilityService->isHistoricDate($operationalDate)) {
                 $this->dispatch('notify', type: 'error', message: 'No se pueden hacer cambios en fechas históricas.');
                 if ($started) {
                     $this->dispatch('room-release-finished', roomId: $roomId);
@@ -5331,10 +5338,10 @@ class RoomManager extends Component
             }
 
             // ===== PASO 1: Obtener el stay que intersecta HOY =====
-            $activeStay = $availabilityService->getStayForDate($today);
+            $activeStay = $availabilityService->getStayForDate($operationalDate);
 
             if (!$activeStay) {
-                $this->dispatch('notify', type: 'info', message: 'No hay ocupación activa para liberar hoy.');
+                $this->dispatch('notify', type: 'info', message: 'No hay ocupacion activa para liberar en el dia operativo actual.');
                 if ($started) {
                     $this->dispatch('room-release-finished', roomId: $roomId);
                 }
@@ -5465,7 +5472,7 @@ class RoomManager extends Component
             // ðŸ” PROTECCIÓN: Solo marcar noches hasta hoy (evitar pagar noches futuras accidentalmente)
             try {
                 \App\Models\StayNight::where('reservation_id', $reservation->id)
-                    ->where('date', '<=', now()->toDateString()) // Solo noches hasta hoy
+                    ->where('date', '<=', $today->toDateString()) // Solo noches hasta hoy operativo
                     ->where('is_paid', false)
                     ->update(['is_paid' => true]);
             } catch (\Exception $e) {
@@ -5810,7 +5817,7 @@ class RoomManager extends Component
                 // check_out puede ser null (walkin en curso) -> usar manana como fin para incluir noche actual
                 $checkOutDate = $reservation->check_out_date
                     ? \Carbon\Carbon::parse($reservation->check_out_date)
-                    : \Carbon\Carbon::today()->addDay();
+                    : HotelTime::currentOperationalDate()->addDay();
 
                 if ($checkInDate) {
                     $nightCount = max(1, $checkInDate->diffInDays($checkOutDate));

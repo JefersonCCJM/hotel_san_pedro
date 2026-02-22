@@ -1,4 +1,8 @@
-﻿@props(['statuses', 'ventilationTypes', 'currentDate', 'daysInMonth'])
+@props(['statuses', 'ventilationTypes', 'currentDate', 'daysInMonth'])
+
+@php
+    $operationalToday = \App\Support\HotelTime::currentOperationalDate();
+@endphp
 
 <div class="bg-white rounded-xl border border-gray-100 p-4 sm:p-6">
     <div class="space-y-6">
@@ -114,7 +118,7 @@
                                 @foreach($daysInMonth as $day)
                                     @php 
                                         $isCurrent = $day->isSameDay($currentDate);
-                                        $isToday = $day->isToday();
+                                        $isToday = $day->isSameDay($operationalToday);
                                     @endphp
                                     <button type="button" wire:click="changeDate('{{ $day->format('Y-m-d') }}')"
                                         class="flex flex-col items-center justify-center min-w-[50px] h-14 rounded-xl transition-all border
@@ -135,7 +139,7 @@
                                 @foreach($daysInMonth as $day)
                                     @php 
                                         $isCurrent = $day->isSameDay($currentDate);
-                                        $isToday = $day->isToday();
+                                        $isToday = $day->isSameDay($operationalToday);
                                     @endphp
                                     <button type="button" wire:click="changeDate('{{ $day->format('Y-m-d') }}')"
                                         class="flex flex-col items-center justify-center h-12 w-12 rounded-lg transition-all border

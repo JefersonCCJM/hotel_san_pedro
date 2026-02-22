@@ -20,6 +20,7 @@ use App\Enums\ShiftHandoverStatus;
 use App\Http\Requests\StoreReservationRequest;
 use App\Services\AuditService;
 use App\Services\ReservationReportService;
+use App\Support\HotelTime;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -61,9 +62,8 @@ class ReservationController extends Controller
      */
     public function index(Request $request, $date = null)
     {
-        $date = $date ? Carbon::parse($date) : Carbon::today();
         $view = $request->get('view', 'calendar');
-        $dateStr = $request->get('month', now()->format('Y-m'));
+        $dateStr = $request->get('month', HotelTime::currentOperationalDate()->format('Y-m'));
         $date = Carbon::createFromFormat('Y-m', $dateStr);
 
         $startOfMonth = $date->copy()->startOfMonth();
@@ -76,7 +76,7 @@ class ReservationController extends Controller
             $tempDate->addDay();
         }
 
-        $today = Carbon::today()->startOfDay();
+        $today = HotelTime::currentOperationalDate()->startOfDay();
         $hasPastDates = $startOfMonth->lt($today);
         
         // Load snapshots for past dates (immutable historical data)

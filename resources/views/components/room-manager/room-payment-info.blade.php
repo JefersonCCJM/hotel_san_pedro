@@ -1,8 +1,10 @@
-﻿@props(['room', 'stay', 'selectedDate' => null])
+@props(['room', 'stay', 'selectedDate' => null])
 
 @php
+    use App\Support\HotelTime;
+
     $isPastDate = $selectedDate
-        ? (\Carbon\Carbon::parse($selectedDate)->startOfDay()->lt(\Carbon\Carbon::today()))
+        ? HotelTime::isOperationalPastDate(\Carbon\Carbon::parse($selectedDate))
         : false;
 
     // SINGLE SOURCE OF TRUTH: Este componente recibe $stay explicitamente
@@ -160,4 +162,3 @@
         </button>
     </div>
 @endif
-

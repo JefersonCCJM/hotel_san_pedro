@@ -32,8 +32,7 @@
     };
     
     // Determinar si es fecha pasada (no permitir cambios en fechas historicas)
-    $today = \Carbon\Carbon::today();
-    $isPastDate = $selectedDate->copy()->startOfDay()->lt($today); // Mantener logica de fecha pasada
+    $isPastDate = HotelTime::isOperationalPastDate($selectedDate);
 @endphp
 
 <div 
@@ -119,4 +118,3 @@
         </div>
     @endif
 </div>
-

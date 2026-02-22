@@ -89,7 +89,7 @@
                             <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">CHECK-OUT</label>
                             <input type="date" 
                                 wire:model.live="rentForm.check_out_date" 
-                                   min="{{ $checkInDate ? \Carbon\Carbon::parse($checkInDate)->addDay()->format('Y-m-d') : \Carbon\Carbon::today()->addDay()->format('Y-m-d') }}"
+                                   min="{{ $checkInDate ? \Carbon\Carbon::parse($checkInDate)->addDay()->format('Y-m-d') : \App\Support\HotelTime::currentOperationalDate()->addDay()->format('Y-m-d') }}"
                                    class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold @error('rentForm.check_out_date') border-red-500 @enderror">
                             @error('rentForm.check_out_date')
                                 <p class="text-[10px] text-red-600 mt-1 flex items-center">

@@ -13,6 +13,7 @@ return [
 
     'check_in_time' => env('HOTEL_CHECK_IN_TIME', '15:00'),   // Hora estándar de entrada
     'check_out_time' => env('HOTEL_CHECK_OUT_TIME', '12:00'),  // Hora estándar de salida
+    'operational_day_start_time' => env('HOTEL_OPERATIONAL_DAY_START', '06:00'), // Inicio de día operativo
 
     /*
     |--------------------------------------------------------------------------

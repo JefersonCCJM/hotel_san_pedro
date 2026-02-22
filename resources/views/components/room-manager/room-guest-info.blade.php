@@ -58,7 +58,7 @@
             || $authUser->hasAnyRole(['Recepcionista Día', 'Recepcionista Noche'])
         );
     $isPastDate = $selectedDate
-        ? (\Carbon\Carbon::parse($selectedDate)->startOfDay()->lt(\Carbon\Carbon::today()))
+        ? HotelTime::isOperationalPastDate(\Carbon\Carbon::parse($selectedDate))
         : false;
     @endphp
 

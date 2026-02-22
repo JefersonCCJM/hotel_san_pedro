@@ -2,12 +2,12 @@
     $days = collect($daysInMonth ?? [])->values();
     $calendarDate = $days->isNotEmpty()
         ? $days->first()->copy()->startOfMonth()
-        : \Carbon\Carbon::today()->startOfMonth();
+        : \App\Support\HotelTime::currentOperationalDate()->startOfMonth();
 
-    $today = \Carbon\Carbon::today()->startOfDay();
+    $today = \App\Support\HotelTime::currentOperationalDate()->startOfDay();
     $sidebarWidthPx = 136;
     $dayCellWidthPx = 56;
-    $todayIndex = $days->search(static fn ($day) => $day->isToday());
+    $todayIndex = $days->search(static fn ($day) => $day->isSameDay($today));
     $todayLineLeft = $todayIndex !== false && $todayIndex !== null
         ? $sidebarWidthPx + ($todayIndex * $dayCellWidthPx) + ($dayCellWidthPx / 2)
         : null;
@@ -333,7 +333,7 @@
                         $checkIn = \Carbon\Carbon::parse($stay->check_in_at)->startOfDay();
                         $checkOut = $resolveStayCheckoutDate($stay, (int) $room->id);
                         $isPendingCheckoutDay = $checkOut
-                            && $dayNormalized->isToday()
+                            && $dayNormalized->isSameDay($today)
                             && $dayNormalized->equalTo($checkOut)
                             && empty($stay->check_out_at)
                             && in_array($status, ['active', 'pending_checkout'], true);
@@ -362,7 +362,7 @@
                         $status = (string) ($stay->status ?? '');
                         $checkOut = $resolveStayCheckoutDate($stay, (int) $room->id);
                         $isPendingCheckoutDay = $checkOut
-                            && $dayNormalized->isToday()
+                            && $dayNormalized->isSameDay($today)
                             && $dayNormalized->equalTo($checkOut)
                             && empty($stay->check_out_at)
                             && in_array($status, ['active', 'pending_checkout'], true);
@@ -385,7 +385,7 @@
                     $dayReservation = $activeStay->reservation ?? null;
                     $activeStayCheckOut = $resolveStayCheckoutDate($activeStay, (int) $room->id);
                     $isPendingCheckoutDay = $activeStayCheckOut
-                        && $dayNormalized->isToday()
+                        && $dayNormalized->isSameDay($today)
                         && $dayNormalized->equalTo($activeStayCheckOut)
                         && empty($activeStay->check_out_at)
                         && in_array($activeStayStatus, ['active', 'pending_checkout'], true);
@@ -623,12 +623,12 @@
                             <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Habitación</span>
                         </th>
                         @foreach ($days as $dayIndex => $day)
-                            <th :class="{ 'hidden': !isVisibleDay({{ $dayIndex }}) }" class="border-b border-r border-gray-100 min-w-[56px] w-[56px] py-3 transition-colors {{ $day->isToday() ? 'bg-orange-50/50' : '' }}">
+                            <th :class="{ 'hidden': !isVisibleDay({{ $dayIndex }}) }" class="border-b border-r border-gray-100 min-w-[56px] w-[56px] py-3 transition-colors {{ $day->isSameDay($today) ? 'bg-orange-50/50' : '' }}">
                                 <div class="flex flex-col items-center">
                                     <span
                                         class="text-[10px] font-bold text-gray-400 uppercase leading-none mb-1">{{ substr($day->translatedFormat('D'), 0, 1) }}</span>
                                     <span
-                                        class="text-sm font-bold {{ $day->isToday() ? 'text-orange-600' : 'text-gray-700' }}">{{ $day->day }}</span>
+                                        class="text-sm font-bold {{ $day->isSameDay($today) ? 'text-orange-600' : 'text-gray-700' }}">{{ $day->day }}</span>
                                 </div>
                             </th>
                         @endforeach

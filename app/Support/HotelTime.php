@@ -7,6 +7,14 @@ use Carbon\Carbon;
 class HotelTime
 {
     /**
+     * Zona horaria operativa del hotel.
+     */
+    public static function timezone(): string
+    {
+        return (string) config('hotel.timezone', config('app.timezone', 'America/Bogota'));
+    }
+
+    /**
      * Obtener hora estándar de check-in del hotel
      */
     public static function checkInTime(): string
@@ -20,6 +28,15 @@ class HotelTime
     public static function checkOutTime(): string
     {
         return config('hotel.check_out_time', '12:00');
+    }
+
+    /**
+     * Obtener hora de inicio del dia operativo.
+     * Ejemplo: 06:00 => entre 00:00 y 05:59 se considera dia anterior.
+     */
+    public static function operationalDayStartTime(): string
+    {
+        return config('hotel.operational_day_start_time', '06:00');
     }
 
     /**
@@ -71,11 +88,77 @@ class HotelTime
     }
 
     /**
+     * Obtener inicio (datetime) del dia operativo para una fecha operativa dada.
+     */
+    public static function startOfOperationalDay(Carbon $operationalDate): Carbon
+    {
+        return Carbon::parse(
+            $operationalDate->toDateString() . ' ' . self::operationalDayStartTime(),
+            self::timezone()
+        );
+    }
+
+    /**
+     * Obtener fin (datetime) del dia operativo para una fecha operativa dada.
+     */
+    public static function endOfOperationalDay(Carbon $operationalDate): Carbon
+    {
+        return self::startOfOperationalDay($operationalDate)->copy()->addDay()->subSecond();
+    }
+
+    /**
+     * Resolver la fecha operativa asociada a un momento puntual.
+     */
+    public static function operationalDateFor(?Carbon $moment = null): Carbon
+    {
+        $moment = ($moment ?? Carbon::now(self::timezone()))->copy()->setTimezone(self::timezone());
+        $startToday = self::startOfOperationalDay($moment->copy()->startOfDay());
+
+        if ($moment->lt($startToday)) {
+            return $moment->copy()->subDay()->startOfDay();
+        }
+
+        return $moment->copy()->startOfDay();
+    }
+
+    /**
+     * Fecha operativa actual del hotel.
+     */
+    public static function currentOperationalDate(): Carbon
+    {
+        return self::operationalDateFor(Carbon::now(self::timezone()));
+    }
+
+    /**
+     * Verifica si una fecha corresponde al "hoy operativo".
+     */
+    public static function isOperationalToday(Carbon $date, ?Carbon $moment = null): bool
+    {
+        return $date->copy()->startOfDay()->equalTo(self::operationalDateFor($moment));
+    }
+
+    /**
+     * Verifica si una fecha es pasada respecto al dia operativo actual.
+     */
+    public static function isOperationalPastDate(Carbon $date, ?Carbon $moment = null): bool
+    {
+        return $date->copy()->startOfDay()->lt(self::operationalDateFor($moment));
+    }
+
+    /**
+     * Verifica si una fecha es futura respecto al dia operativo actual.
+     */
+    public static function isOperationalFutureDate(Carbon $date, ?Carbon $moment = null): bool
+    {
+        return $date->copy()->startOfDay()->gt(self::operationalDateFor($moment));
+    }
+
+    /**
      * Obtener fin del día operativo (para cálculos de disponibilidad)
      */
     public static function endOfOperatingDay(Carbon $date): Carbon
     {
-        return $date->copy()->endOfDay();
+        return self::endOfOperationalDay($date);
     }
 
     /**

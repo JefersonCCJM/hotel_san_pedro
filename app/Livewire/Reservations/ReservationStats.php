@@ -4,7 +4,8 @@ namespace App\Livewire\Reservations;
 
 use Livewire\Component;
 use App\Models\Reservation;
-use Carbon\Carbon;
+use App\Models\Stay;
+use App\Support\HotelTime;
 use Illuminate\Support\Facades\DB;
 
 class ReservationStats extends Component
@@ -17,7 +18,7 @@ class ReservationStats extends Component
 
     public function getTotalReservationsProperty(): int
     {
-        $today = Carbon::today();
+        $today = HotelTime::currentOperationalDate();
         
         return Reservation::whereNull('deleted_at')
             ->whereNotExists(function ($query) use ($today) {
@@ -35,11 +36,11 @@ class ReservationStats extends Component
      */
     public function getActiveReservationsProperty(): int
     {
-        $today = Carbon::today();
+        $today = HotelTime::currentOperationalDate();
         
         return Reservation::whereNull('deleted_at')
-            ->whereHas('reservationRooms', function ($query) {
-                $query->whereDate('check_out_date', '>=', now()->toDateString());
+            ->whereHas('reservationRooms', function ($query) use ($today) {
+                $query->whereDate('check_out_date', '>=', $today->toDateString());
             })
             ->whereNotExists(function ($query) use ($today) {
                 $query->select(DB::raw(1))
@@ -61,10 +62,16 @@ class ReservationStats extends Component
      */
     public function getOccupiedRoomsTodayProperty(): int
     {
-        return \App\Models\Stay::where('status', 'active')
-            ->where(function ($query) {
+        $today = HotelTime::currentOperationalDate();
+        $dayStart = HotelTime::startOfOperationalDay($today);
+        $dayEnd = HotelTime::endOfOperationalDay($today);
+
+        return Stay::query()
+            ->whereIn('status', ['active', 'pending_checkout'])
+            ->where('check_in_at', '<=', $dayEnd)
+            ->where(function ($query) use ($dayStart) {
                 $query->whereNull('check_out_at')
-                      ->orWhere('check_out_at', '>', now());
+                    ->orWhere('check_out_at', '>', $dayStart);
             })
             ->distinct('room_id')
             ->count('room_id');
@@ -72,7 +79,7 @@ class ReservationStats extends Component
 
     public function getReservationsTodayProperty(): int
     {
-        $today = Carbon::today();
+        $today = HotelTime::currentOperationalDate();
         
         return Reservation::join('reservation_rooms', 'reservations.id', '=', 'reservation_rooms.reservation_id')
             ->whereDate('reservation_rooms.check_in_date', $today)
@@ -92,7 +99,7 @@ class ReservationStats extends Component
      */
     public function getTotalGuestsTodayProperty(): int
     {
-        $today = Carbon::today();
+        $today = HotelTime::currentOperationalDate();
         
         return Reservation::join('reservation_rooms', 'reservations.id', '=', 'reservation_rooms.reservation_id')
             ->where('reservation_rooms.check_in_date', '<=', $today)
@@ -111,4 +118,3 @@ class ReservationStats extends Component
         return view('livewire.reservations.reservation-stats');
     }
 }
-

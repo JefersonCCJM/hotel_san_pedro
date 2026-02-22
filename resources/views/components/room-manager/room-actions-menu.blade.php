@@ -1,10 +1,12 @@
 ﻿@props(['room', 'currentDate'])
 
 @php
-    // SINGLE SOURCE OF TRUTH: Estado operativo desde BD basado en stays y fecha seleccionada
-    $isFutureDate = $currentDate->isFuture();
-    $isPastDate = $currentDate->isPast() && !$currentDate->isToday();
     $selectedDate = $currentDate instanceof \Carbon\Carbon ? $currentDate : \Carbon\Carbon::parse($currentDate);
+    $isOperationalToday = \App\Support\HotelTime::isOperationalToday($selectedDate);
+    $isFutureDate = \App\Support\HotelTime::isOperationalFutureDate($selectedDate);
+    $isPastDate = \App\Support\HotelTime::isOperationalPastDate($selectedDate);
+
+    // SINGLE SOURCE OF TRUTH: Estado operativo desde BD basado en stays y fecha seleccionada
     $operationalStatus = $room->getOperationalStatus($selectedDate);
     $cleaningCode = data_get($room->cleaningStatus($selectedDate), 'code');
     
@@ -20,7 +22,7 @@
 <div class="flex items-center justify-end gap-1.5">
     {{-- ESTADO: free_clean (Libre y limpia) --}}
     @if($operationalStatus === 'free_clean' && $cleaningCode === 'limpia')
-        @if($selectedDate->isFuture())
+        @if($isFutureDate)
             {{-- Cambiar habitacion de reserva futura pendiente --}}
             @if($room->future_reservation)
                 <button type="button"
@@ -59,7 +61,7 @@
     @endif
 
     {{-- ESTADO: occupied (Ocupada) - NO pendiente de checkout --}}
-    @if($operationalStatus === 'occupied' && !$isPendingCheckout && $canPerformActions && $selectedDate->isToday())
+    @if($operationalStatus === 'occupied' && !$isPendingCheckout && $canPerformActions && $isOperationalToday)
         {{-- Cambiar habitacion --}}
         <button type="button"
             wire:click="openChangeRoom({{ $room->id }})"
@@ -80,7 +82,7 @@
     @endif
 
     {{-- ESTADO: pending_checkout (Pendiente por checkout) - SOLO PARA HOY --}}
-    @if($operationalStatus === 'pending_checkout' && $canPerformActions && $selectedDate->isToday())
+    @if($operationalStatus === 'pending_checkout' && $canPerformActions && $isOperationalToday)
         {{-- Cambiar habitacion --}}
         <button type="button"
             wire:click="openChangeRoom({{ $room->id }})"
@@ -114,7 +116,7 @@
     {{-- ESTADO: pending_cleaning (Pendiente por aseo) --}}
     {{-- Anular ingreso: condicion independiente basada en operationalStatus (SSOT correcto) --}}
     {{-- cleaningCode puede retornar 'limpia' incorrectamente cuando el stay termino hoy --}}
-    @if($operationalStatus === 'pending_cleaning' && $canPerformActions && $selectedDate->isToday())
+    @if($operationalStatus === 'pending_cleaning' && $canPerformActions && $isOperationalToday)
         <button type="button"
             @click="confirmUndoCheckout({{ $room->id }}, '{{ addslashes($room->room_number) }}')"
             wire:loading.attr="disabled"
@@ -125,7 +127,7 @@
         </button>
     @endif
     {{-- Marcar como limpia: solo si cleaningCode es pendiente --}}
-    @if($cleaningCode === 'pendiente' && !in_array($operationalStatus, ['occupied', 'pending_checkout'], true) && $canPerformActions && $selectedDate->isToday())
+    @if($cleaningCode === 'pendiente' && !in_array($operationalStatus, ['occupied', 'pending_checkout'], true) && $canPerformActions && $isOperationalToday)
         <button type="button"
             wire:click="markRoomAsClean({{ $room->id }})"
             wire:loading.attr="disabled"

@@ -4,8 +4,7 @@
     use App\Support\HotelTime;
     
     $selectedDate = $currentDate instanceof \Carbon\Carbon ? $currentDate : \Carbon\Carbon::parse($currentDate);
-    $today = \Carbon\Carbon::today();
-    $isPastDate = $selectedDate->copy()->startOfDay()->lt($today); // Mantener logica de fecha pasada
+    $isPastDate = HotelTime::isOperationalPastDate($selectedDate);
     
     // SINGLE SOURCE OF TRUTH: Usar solo getOperationalStatus()
     // Para fechas pasadas, este metodo retorna el estado historico (inmutable)
@@ -233,7 +232,7 @@
     </td>
 
     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium align-top" style="position: static;">
-        @if($currentDate->isPast() && !$currentDate->isToday())
+        @if($isPastDate)
             <span class="text-xs text-gray-400 italic">Historico</span>
         @else
             <x-room-manager.room-actions-menu :room="$room" :currentDate="$currentDate" />
