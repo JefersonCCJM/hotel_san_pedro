@@ -285,7 +285,18 @@
         {{-- Abonos de Reservas del Turno --}}
         @php
             $shiftPayments = $shiftPayments ?? collect();
-            $paymentsNetTotal = $shiftPayments->sum(fn($p) => (float) $p->amount);
+            // IDs de pagos que ya tienen reversa dentro de este turno
+            $alreadyReversedIds = $shiftPayments
+                ->filter(fn($p) => (float) $p->amount < 0 && preg_match('/anulacion\s+de\s+pago\s*#\s*(\d+)/i', $p->reference ?? '', $m))
+                ->map(fn($p) => (int) (preg_match('/anulacion\s+de\s+pago\s*#\s*(\d+)/i', $p->reference ?? '', $m) ? $m[1] : 0))
+                ->filter()
+                ->values()
+                ->toArray();
+            
+            // Calcular total neto excluyendo pagos revertidos
+            $paymentsNetTotal = $shiftPayments
+                ->filter(fn($p) => !in_array($p->id, $alreadyReversedIds))
+                ->sum(fn($p) => (float) $p->amount);
         @endphp
         <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
