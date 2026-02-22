@@ -58,6 +58,7 @@ class RoomManager extends Component
     public bool $isReleasingRoom = false;
     public bool $editPricesModal = false;
     public bool $allGuestsModal = false;
+    public bool $changeRoomModal = false;
 
     // Datos de modales
     public ?array $detailData = null;
@@ -66,6 +67,8 @@ class RoomManager extends Component
     public ?array $roomDailyHistoryData = null;
     public ?array $editPricesForm = null;
     public ?array $allGuestsForm = null;
+    public array $changeRoomData = [];
+    public array $availableRoomsForChange = [];
     
     // Computed properties para UX (no persistidos)
     public function getBalanceDueProperty()
@@ -2374,6 +2377,135 @@ class RoomManager extends Component
     {
         $this->editPricesModal = false;
         $this->editPricesForm = null;
+    }
+
+    // =========================================================
+    // CAMBIO DE HABITACION
+    // =========================================================
+
+    public function openChangeRoom($roomId)
+    {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
+        try {
+            $room = \App\Models\Room::findOrFail($roomId);
+            $reservation = $room->getActiveReservation($this->date);
+
+            if (!$reservation) {
+                // Intentar con reserva futura (pendiente de check-in)
+                // getFutureReservation retorna un objeto Reservation directamente
+                $reservation = $room->getFutureReservation($this->date);
+            }
+
+            if (!$reservation) {
+                $this->dispatch('notify', type: 'error', message: 'No se encontro una reserva activa o pendiente para esta habitacion.');
+                return;
+            }
+
+            // Cargar habitaciones disponibles (free_clean en la fecha seleccionada)
+            $date = $this->date instanceof \Carbon\Carbon ? $this->date : \Carbon\Carbon::parse($this->date);
+            $allRooms = \App\Models\Room::active()->with('roomType')->orderBy('room_number')->get();
+            $available = $allRooms->filter(function ($r) use ($room, $date) {
+                if ($r->id === $room->id) return false;
+                return $r->getOperationalStatus($date) === 'free_clean';
+            })->values();
+
+            if ($available->isEmpty()) {
+                $this->dispatch('notify', type: 'error', message: 'No hay habitaciones libres disponibles para el cambio.');
+                return;
+            }
+
+            $this->changeRoomData = [
+                'room_id'          => $room->id,
+                'room_number'      => $room->room_number,
+                'reservation_id'   => $reservation->id,
+                'reservation_code' => $reservation->reservation_code ?? ('#' . $reservation->id),
+                'customer_name'    => $reservation->customer?->name ?? 'Sin cliente',
+            ];
+
+            $this->availableRoomsForChange = $available->map(fn($r) => [
+                'id'          => $r->id,
+                'room_number' => $r->room_number,
+                'type_name'   => $r->roomType?->name ?? '',
+            ])->toArray();
+
+            $this->changeRoomModal = true;
+
+        } catch (\Exception $e) {
+            \Log::error('Error en openChangeRoom: ' . $e->getMessage());
+            $this->dispatch('notify', type: 'error', message: 'Error al abrir cambio de habitacion: ' . $e->getMessage());
+        }
+    }
+
+    public function submitChangeRoom($newRoomId)
+    {
+        if (!$newRoomId || $this->blockEditsForPastDate()) {
+            return;
+        }
+
+        try {
+            $reservationId = $this->changeRoomData['reservation_id'] ?? null;
+            $currentRoomId = $this->changeRoomData['room_id'] ?? null;
+
+            if (!$reservationId || !$currentRoomId) {
+                $this->dispatch('notify', type: 'error', message: 'Datos de cambio incompletos.');
+                return;
+            }
+
+            $newRoom = \App\Models\Room::findOrFail($newRoomId);
+            $date    = $this->date instanceof \Carbon\Carbon ? $this->date : \Carbon\Carbon::parse($this->date);
+
+            if ($newRoom->getOperationalStatus($date) !== 'free_clean') {
+                $this->dispatch('notify', type: 'error', message: 'La habitacion seleccionada ya no esta disponible.');
+                return;
+            }
+
+            $reservation = \App\Models\Reservation::with(['stays', 'stayNights', 'reservationRooms'])->findOrFail($reservationId);
+
+            \DB::transaction(function () use ($reservation, $currentRoomId, $newRoomId) {
+                // Actualizar stay activo si existe
+                $activeStay = $reservation->stays->whereNull('check_out_at')->first();
+                if ($activeStay) {
+                    $activeStay->update(['room_id' => $newRoomId]);
+                }
+
+                // Reasignar TODOS los stay_nights al nuevo room
+                \App\Models\StayNight::where('reservation_id', $reservation->id)
+                    ->update(['room_id' => $newRoomId]);
+
+                // Actualizar reservation_rooms: eliminar old, crear new
+                $oldReservationRoom = $reservation->reservationRooms
+                    ->where('room_id', $currentRoomId)->first();
+
+                if ($oldReservationRoom) {
+                    $newReservationRoom = $oldReservationRoom->replicate();
+                    $newReservationRoom->room_id = $newRoomId;
+
+                    $oldReservationRoom->delete();
+                    $newReservationRoom->save();
+                }
+
+                // Marcar habitacion vieja como pendiente aseo
+                \App\Models\Room::where('id', $currentRoomId)
+                    ->update(['last_cleaned_at' => null]);
+            });
+
+            $this->cancelChangeRoom();
+            $this->dispatch('notify', type: 'success', message: 'Habitacion cambiada correctamente.');
+
+        } catch (\Exception $e) {
+            \Log::error('Error en submitChangeRoom: ' . $e->getMessage());
+            $this->dispatch('notify', type: 'error', message: 'Error al cambiar habitacion: ' . $e->getMessage());
+        }
+    }
+
+    public function cancelChangeRoom()
+    {
+        $this->changeRoomModal        = false;
+        $this->changeRoomData         = [];
+        $this->availableRoomsForChange = [];
     }
 
     /**

@@ -280,8 +280,15 @@
     />
 
     <!-- MODAL: TODOS LOS HUESPEDES -->
-    <x-room-manager.all-guests-modal 
+    <x-room-manager.all-guests-modal
         :allGuestsForm="$allGuestsForm"
+    />
+
+    <!-- MODAL: CAMBIAR HABITACION -->
+    <x-room-manager.change-room-modal
+        :changeRoomModal="$changeRoomModal"
+        :changeRoomData="$changeRoomData"
+        :availableRoomsForChange="$availableRoomsForChange"
     />
 
     <!-- MODAL: DETALLE DE RESERVA -->

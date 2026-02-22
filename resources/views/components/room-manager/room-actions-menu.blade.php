@@ -23,8 +23,29 @@
     {{-- ESTADO: free_clean (Libre y limpia) --}}
     @if($operationalStatus === 'free_clean' && $cleaningCode === 'limpia')
         @if($selectedDate->isFuture())
-            {{-- Reservar (FECHA FUTURA) eliminado por requerimiento --}}
+            {{-- Cambiar habitacion de reserva futura pendiente --}}
+            @if($room->future_reservation)
+                <button type="button"
+                    wire:click="openChangeRoom({{ $room->id }})"
+                    wire:loading.attr="disabled"
+                    title="Cambiar habitacion de reserva pendiente"
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-purple-200 bg-purple-50 text-purple-600 hover:bg-purple-100 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50">
+                    <i class="fas fa-exchange-alt text-sm"></i>
+                    <span class="sr-only">Cambiar habitacion</span>
+                </button>
+            @endif
         @elseif($canPerformActions)
+            {{-- Cambiar habitacion de reserva futura si tiene RES- --}}
+            @if($room->future_reservation)
+                <button type="button"
+                    wire:click="openChangeRoom({{ $room->id }})"
+                    wire:loading.attr="disabled"
+                    title="Cambiar habitacion de reserva pendiente"
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-purple-200 bg-purple-50 text-purple-600 hover:bg-purple-100 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50">
+                    <i class="fas fa-exchange-alt text-sm"></i>
+                    <span class="sr-only">Cambiar habitacion</span>
+                </button>
+            @endif
             {{-- Ocupar habitacion (HOY) --}}
             <button type="button"
                 wire:click="openQuickRent({{ $room->id }})"
@@ -41,6 +62,15 @@
 
     {{-- ESTADO: occupied (Ocupada) - NO pendiente de checkout --}}
     @if($operationalStatus === 'occupied' && !$isPendingCheckout && $canPerformActions && $selectedDate->isToday())
+        {{-- Cambiar habitacion --}}
+        <button type="button"
+            wire:click="openChangeRoom({{ $room->id }})"
+            wire:loading.attr="disabled"
+            title="Cambiar habitacion"
+            class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-purple-200 bg-purple-50 text-purple-600 hover:bg-purple-100 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50">
+            <i class="fas fa-exchange-alt text-sm"></i>
+            <span class="sr-only">Cambiar habitacion</span>
+        </button>
         {{-- Liberar: Solo si NO esta pendiente de checkout Y es HOY --}}
         <button type="button"
             @click="confirmRelease({{ $room->id }}, '{{ $room->room_number }}', 0, null, false);"
@@ -53,6 +83,15 @@
 
     {{-- ESTADO: pending_checkout (Pendiente por checkout) - SOLO PARA HOY --}}
     @if($operationalStatus === 'pending_checkout' && $canPerformActions && $selectedDate->isToday())
+        {{-- Cambiar habitacion --}}
+        <button type="button"
+            wire:click="openChangeRoom({{ $room->id }})"
+            wire:loading.attr="disabled"
+            title="Cambiar habitacion"
+            class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-purple-200 bg-purple-50 text-purple-600 hover:bg-purple-100 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50">
+            <i class="fas fa-exchange-alt text-sm"></i>
+            <span class="sr-only">Cambiar habitacion</span>
+        </button>
         {{-- Continuar Estadia --}}
         <button type="button"
             wire:click="continueStay({{ $room->id }})"
@@ -62,7 +101,7 @@
             <i class="fas fa-redo-alt text-sm"></i>
             <span class="sr-only">Continuar</span>
         </button>
-        
+
         {{-- Cancelar Estadia --}}
         <button type="button"
             wire:click="releaseRoom({{ $room->id }})"

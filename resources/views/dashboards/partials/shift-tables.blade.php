@@ -326,15 +326,50 @@
     </div>
 
     <!-- Abonos de Reservas -->
-    <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+    @php
+        $paymentsNetTotal = $shiftPayments->sum(fn($p) => (float) $p->amount);
+        // IDs de pagos que ya tienen reversa dentro de este turno
+        $alreadyReversedIds = $shiftPayments
+            ->filter(fn($p) => (float) $p->amount < 0 && preg_match('/anulacion\s+de\s+pago\s*#\s*(\d+)/i', $p->reference ?? '', $m))
+            ->map(fn($p) => (int) (preg_match('/anulacion\s+de\s+pago\s*#\s*(\d+)/i', $p->reference ?? '', $m) ? $m[1] : 0))
+            ->filter()
+            ->values()
+            ->toArray();
+    @endphp
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden"
+        x-data="{
+            reversedInSession: {{ json_encode($alreadyReversedIds) }},
+            loading: null,
+            async reversePayment(resId, payId, formattedAmount) {
+                if (!confirm('¿Revertir el pago de $' + formattedAmount + '? Esta acción no se puede deshacer.')) return;
+                this.loading = payId;
+                try {
+                    const resp = await fetch(`/reservations/${resId}/payments/${payId}/cancel`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content ?? '',
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                    });
+                    const data = await resp.json();
+                    if (resp.ok) {
+                        this.reversedInSession.push(payId);
+                    } else {
+                        alert(data.message ?? 'Error al revertir el pago.');
+                    }
+                } catch (e) {
+                    alert('Error de conexión al revertir el pago.');
+                } finally {
+                    this.loading = null;
+                }
+            }
+        }">
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <h3 class="font-bold text-gray-900 uppercase text-xs tracking-wider">
                 <i class="fas fa-file-invoice-dollar mr-2 text-cyan-500"></i>Pagos y Abonos de Reservas
                 <span class="ml-2 text-cyan-600">({{ $shiftPayments->where('amount', '>', 0)->count() }})</span>
             </h3>
-            @php
-                $paymentsNetTotal = $shiftPayments->sum(fn($p) => (float) $p->amount);
-            @endphp
             <span class="text-sm font-bold {{ $paymentsNetTotal >= 0 ? 'text-cyan-700' : 'text-red-600' }}">
                 Total neto: ${{ number_format(abs($paymentsNetTotal), 0, ',', '.') }}
             </span>
@@ -347,20 +382,14 @@
                     <table class="min-w-full divide-y divide-gray-100">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase">Hora
-                                </th>
-                                <th class="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase">Forma
-                                </th>
-                                <th class="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase">Reserva
-                                </th>
-                                <th class="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase">Huesped
-                                </th>
-                                <th class="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase">
-                                    Habitacion</th>
-                                <th class="px-4 py-3 text-center text-[10px] font-black text-gray-500 uppercase">Metodo
-                                </th>
-                                <th class="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase">Monto
-                                </th>
+                                <th class="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase">Hora</th>
+                                <th class="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase">Forma</th>
+                                <th class="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase">Reserva</th>
+                                <th class="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase">Huesped</th>
+                                <th class="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase">Habitacion</th>
+                                <th class="px-4 py-3 text-center text-[10px] font-black text-gray-500 uppercase">Metodo</th>
+                                <th class="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase">Monto</th>
+                                <th class="px-4 py-3 text-center text-[10px] font-black text-gray-500 uppercase">Accion</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-100">
@@ -373,14 +402,14 @@
                                         ->unique()
                                         ->implode(', ');
                                     $isReversal = (float) $payment->amount < 0;
+                                    $isPositive = (float) $payment->amount > 0;
+                                    $alreadyReversed = in_array($payment->id, $alreadyReversedIds);
                                     $pmCode = strtolower(
                                         $payment->paymentMethod?->code ?? ($payment->paymentMethod?->name ?? ''),
                                     );
                                     $methodLabel = match (true) {
-                                        str_contains($pmCode, 'efectivo') || str_contains($pmCode, 'cash')
-                                            => 'efectivo',
-                                        str_contains($pmCode, 'transferencia') || str_contains($pmCode, 'transfer')
-                                            => 'transferencia',
+                                        str_contains($pmCode, 'efectivo') || str_contains($pmCode, 'cash') => 'efectivo',
+                                        str_contains($pmCode, 'transferencia') || str_contains($pmCode, 'transfer') => 'transferencia',
                                         default => $pmCode ?: 'otro',
                                     };
                                     $methodClass = match ($methodLabel) {
@@ -388,50 +417,61 @@
                                         'transferencia' => 'bg-blue-100 text-blue-700',
                                         default => 'bg-gray-100 text-gray-700',
                                     };
+                                    $resCode = $res?->reservation_code ?? '';
+                                    $isWalkIn = str_starts_with($resCode, 'RSV') || str_starts_with($resCode, 'WLK');
+                                    $formattedAmt = number_format(abs((float) $payment->amount), 0, ',', '.');
                                 @endphp
-                                <tr class="{{ $isReversal ? 'bg-red-50/40' : 'hover:bg-gray-50' }}">
+                                <tr
+                                    x-bind:class="reversedInSession.includes({{ $payment->id }}) ? 'opacity-50 bg-red-50/40' : '{{ $isReversal ? 'bg-red-50/40' : 'hover:bg-gray-50' }}'">
                                     <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
                                         {{ optional($payment->paid_at ?? $payment->created_at)->format('H:i') }}
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap text-center">
-                                        @php
-                                            $resCode = $res?->reservation_code ?? '';
-                                            $isWalkInOld = str_starts_with($resCode, 'RSV');
-                                            $isWalkinNew = str_starts_with($resCode, 'WLK');
-                                        @endphp
-                                        @if ($isWalkInOld or $isWalkinNew)
-                                            <span
-                                                class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-700">
-                                                Arrendada
-                                            </span>
+                                        @if ($isWalkIn)
+                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-700">Arrendada</span>
                                         @else
-                                            <span
-                                                class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-100 text-blue-700">
-                                                Reserva
-                                            </span>
+                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-100 text-blue-700">Reserva</span>
                                         @endif
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap text-xs font-mono text-gray-600">
                                         {{ $res?->reservation_code ?? '#' . ($res?->id ?? 'N/A') }}
                                         @if ($isReversal)
-                                            <span
-                                                class="ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700 uppercase">Reversa</span>
+                                            <span class="ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700 uppercase">Reversa</span>
                                         @endif
+                                        <span x-show="reversedInSession.includes({{ $payment->id }})"
+                                            class="ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-700 uppercase">Revertido</span>
                                     </td>
-                                    <td class="px-4 py-3 text-sm text-gray-700">{{ $res?->customer?->name ?? 'N/A' }}
-                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">{{ $res?->customer?->name ?? 'N/A' }}</td>
                                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
                                         {{ $rooms ? 'Hab. ' . $rooms : '—' }}
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap text-center">
-                                        <span
-                                            class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase {{ $methodClass }}">
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase {{ $methodClass }}">
                                             {{ $methodLabel }}
                                         </span>
                                     </td>
-                                    <td
-                                        class="px-4 py-3 whitespace-nowrap text-sm text-right font-bold {{ $isReversal ? 'text-red-600' : 'text-cyan-700' }}">
-                                        {{ $isReversal ? '-' : '' }}${{ number_format(abs((float) $payment->amount), 0, ',', '.') }}
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-bold {{ $isReversal ? 'text-red-600' : 'text-cyan-700' }}">
+                                        {{ $isReversal ? '-' : '' }}${{ $formattedAmt }}
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-center">
+                                        @if ($isPositive && !$alreadyReversed && $res)
+                                            <button
+                                                type="button"
+                                                x-show="!reversedInSession.includes({{ $payment->id }})"
+                                                :disabled="loading === {{ $payment->id }}"
+                                                @click="reversePayment({{ $res->id }}, {{ $payment->id }}, '{{ $formattedAmt }}')"
+                                                title="Revertir pago"
+                                                class="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors disabled:opacity-40">
+                                                <span x-show="loading !== {{ $payment->id }}"><i class="fas fa-undo text-xs"></i></span>
+                                                <span x-show="loading === {{ $payment->id }}"><i class="fas fa-spinner fa-spin text-xs"></i></span>
+                                            </button>
+                                            <span x-show="reversedInSession.includes({{ $payment->id }})"
+                                                class="text-[10px] text-red-500 font-semibold">Revertido</span>
+                                        @elseif ($isReversal)
+                                            <span class="text-[10px] text-red-400">—</span>
+                                        @else
+                                            <span class="text-[10px] text-gray-300">—</span>
+                                        @endif
                                     </td>
                                 </tr>
                             @endforeach
