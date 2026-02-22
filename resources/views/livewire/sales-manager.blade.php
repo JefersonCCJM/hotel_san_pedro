@@ -269,10 +269,74 @@
             </div>
             <div>
                 <h2 class="text-base sm:text-lg font-bold text-gray-900">Registro Rápido de Venta</h2>
-                <p class="text-xs text-gray-500">Registra ventas sin abrir modal.</p>
+                <p class="text-xs text-gray-500">Campos esenciales en una sola línea, sin modal.</p>
             </div>
         </div>
-        <livewire:create-sale :is-modal="false" :wire:key="'sales-inline-create-'.$selectedDate" />
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <div class="lg:col-span-4">
+                <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Producto</label>
+                <select wire:model.defer="quickSaleForm.product_id"
+                        class="block w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white">
+                    <option value="">Seleccione...</option>
+                    @foreach($quickProducts as $product)
+                        <option value="{{ $product->id }}">
+                            {{ $product->name }} | Stock: {{ $product->quantity }} | ${{ number_format($product->price, 0, ',', '.') }}
+                        </option>
+                    @endforeach
+                </select>
+                @error('quickSaleForm.product_id') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+            </div>
+
+            <div class="lg:col-span-1">
+                <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Cant.</label>
+                <input type="number"
+                       wire:model.defer="quickSaleForm.quantity"
+                       min="1"
+                       step="1"
+                       class="block w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                @error('quickSaleForm.quantity') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+            </div>
+
+            <div class="lg:col-span-2">
+                <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Habitación</label>
+                <select wire:model.defer="quickSaleForm.room_id"
+                        class="block w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white">
+                    <option value="">Normal</option>
+                    @foreach($rooms as $room)
+                        <option value="{{ $room->id }}">Hab. {{ $room->room_number }}</option>
+                    @endforeach
+                </select>
+                @error('quickSaleForm.room_id') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+            </div>
+
+            <div class="lg:col-span-2">
+                <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Método</label>
+                <select wire:model.defer="quickSaleForm.payment_method"
+                        class="block w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white">
+                    <option value="efectivo">Efectivo</option>
+                    <option value="transferencia">Transferencia</option>
+                    <option value="pendiente">Pendiente</option>
+                </select>
+                @error('quickSaleForm.payment_method') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+            </div>
+
+            <div class="lg:col-span-3">
+                <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Notas (opcional)</label>
+                <div class="flex gap-2">
+                    <input type="text"
+                           wire:model.defer="quickSaleForm.notes"
+                           maxlength="1000"
+                           class="block w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                           placeholder="Detalle">
+                    <button type="button"
+                            wire:click="registerQuickSale"
+                            class="inline-flex items-center justify-center px-4 py-2.5 rounded-xl border border-green-600 bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-all">
+                        <i class="fas fa-save mr-2"></i>Guardar
+                    </button>
+                </div>
+                @error('quickSaleForm.notes') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+            </div>
+        </div>
     </div>
     @endcan
 

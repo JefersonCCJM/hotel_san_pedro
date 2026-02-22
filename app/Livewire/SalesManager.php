@@ -6,8 +6,10 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\On;
 use App\Models\Sale;
+use App\Models\SaleItem;
 use App\Models\Shift;
 use App\Models\Room;
+use App\Models\Product;
 use App\Models\Category;
 use App\Models\User;
 use App\Models\ExternalIncome;
@@ -44,6 +46,15 @@ class SalesManager extends Component
         'amount' => '',
         'payment_method' => 'efectivo',
         'reason' => '',
+        'notes' => '',
+    ];
+
+    // Venta rápida (inline)
+    public array $quickSaleForm = [
+        'product_id' => '',
+        'quantity' => 1,
+        'room_id' => '',
+        'payment_method' => 'efectivo',
         'notes' => '',
     ];
 
@@ -267,6 +278,125 @@ class SalesManager extends Component
         $this->dispatch('notify', type: 'success', message: 'Venta marcada como pagada.');
     }
 
+    public function registerQuickSale(): void
+    {
+        if (!Auth::user()?->can('create_sales')) {
+            return;
+        }
+
+        $validated = $this->validate([
+            'quickSaleForm.product_id' => ['required', 'exists:products,id'],
+            'quickSaleForm.quantity' => ['required', 'integer', 'min:1', 'max:999'],
+            'quickSaleForm.room_id' => ['nullable', 'exists:rooms,id'],
+            'quickSaleForm.payment_method' => ['required', 'in:efectivo,transferencia,pendiente'],
+            'quickSaleForm.notes' => ['nullable', 'string', 'max:1000'],
+        ], [
+            'quickSaleForm.product_id.required' => 'Debe seleccionar un producto.',
+            'quickSaleForm.quantity.required' => 'La cantidad es obligatoria.',
+            'quickSaleForm.quantity.min' => 'La cantidad debe ser mayor a 0.',
+            'quickSaleForm.payment_method.required' => 'Debe seleccionar un método de pago.',
+        ]);
+
+        $user = Auth::user();
+        $operationalShift = Shift::openOperational()->first();
+        $activeHandover = $user?->turnoActivo()->first();
+        $isAdmin = $user?->hasRole('Administrador') ?? false;
+
+        if (
+            !$isAdmin &&
+            (
+                !$operationalShift ||
+                !$activeHandover ||
+                (int) ($activeHandover->from_shift_id ?? $activeHandover->id) !== (int) $operationalShift->id
+            )
+        ) {
+            $this->dispatch('notify', type: 'error', message: 'Debe existir un turno operativo abierto para registrar la venta.');
+            return;
+        }
+
+        $selectedDate = $this->date ?: now()->format('Y-m-d');
+        $payload = $validated['quickSaleForm'];
+
+        try {
+            DB::transaction(function () use ($payload, $user, $activeHandover, $selectedDate): void {
+                /** @var Product $product */
+                $product = Product::query()->lockForUpdate()->findOrFail((int) $payload['product_id']);
+                $quantity = (int) $payload['quantity'];
+
+                if ((int) ($product->quantity ?? 0) < $quantity) {
+                    throw new \RuntimeException("Stock insuficiente para {$product->name}. Disponible: {$product->quantity}");
+                }
+
+                $total = round((float) ($product->price ?? 0) * $quantity, 2);
+                if ($total <= 0) {
+                    throw new \RuntimeException('El total de la venta debe ser mayor a 0.');
+                }
+
+                $paymentMethod = (string) $payload['payment_method'];
+                $cashAmount = null;
+                $transferAmount = null;
+                $debtStatus = 'pagado';
+
+                if ($paymentMethod === 'efectivo') {
+                    $cashAmount = $total;
+                } elseif ($paymentMethod === 'transferencia') {
+                    $transferAmount = $total;
+                } else {
+                    $debtStatus = 'pendiente';
+                }
+
+                $sale = Sale::create([
+                    'user_id' => (int) $user->id,
+                    'room_id' => !empty($payload['room_id']) ? (int) $payload['room_id'] : null,
+                    'shift_handover_id' => $activeHandover?->id,
+                    'payment_method' => $paymentMethod,
+                    'cash_amount' => $cashAmount,
+                    'transfer_amount' => $transferAmount,
+                    'debt_status' => $debtStatus,
+                    'sale_date' => $selectedDate,
+                    'total' => $total,
+                    'notes' => !empty($payload['notes']) ? trim((string) $payload['notes']) : null,
+                ]);
+
+                SaleItem::create([
+                    'sale_id' => (int) $sale->id,
+                    'product_id' => (int) $product->id,
+                    'quantity' => $quantity,
+                    'unit_price' => (float) $product->price,
+                    'total' => $total,
+                ]);
+
+                $product->recordMovement(
+                    -$quantity,
+                    'sale',
+                    "Venta #{$sale->id}",
+                    !empty($payload['room_id']) ? (int) $payload['room_id'] : null
+                );
+
+                if ($activeHandover) {
+                    $activeHandover->updateTotals();
+                }
+            });
+
+            $this->quickSaleForm = [
+                'product_id' => '',
+                'quantity' => 1,
+                'room_id' => '',
+                'payment_method' => 'efectivo',
+                'notes' => '',
+            ];
+
+            $this->dispatch('notify', type: 'success', message: 'Venta registrada correctamente.');
+        } catch (\Throwable $e) {
+            \Log::error('Error registering quick sale', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'form' => $this->quickSaleForm,
+            ]);
+            $this->dispatch('notify', type: 'error', message: $e->getMessage());
+        }
+    }
+
     public function registerExternalIncome(): void
     {
         if (!Auth::user()?->can('create_sales')) {
@@ -419,6 +549,18 @@ class SalesManager extends Component
 
         $rooms = Room::all();
         $categories = Category::whereIn('name', ['Bebidas', 'Mecato'])->get();
+        $quickProducts = Product::query()
+            ->where('status', 'active')
+            ->where('quantity', '>', 0)
+            ->whereHas('category', function ($q): void {
+                $aseoKeywords = ['aseo', 'limpieza', 'amenities', 'insumo', 'papel', 'jabon', 'cloro', 'mantenimiento'];
+                foreach ($aseoKeywords as $keyword) {
+                    $q->where('name', 'not like', '%' . $keyword . '%');
+                }
+            })
+            ->with('category')
+            ->orderBy('name')
+            ->get();
 
         // Obtener conteo de ventas por día para el mes actual (para indicadores en el calendario)
         $salesByDay = Sale::whereBetween('sale_date', [$startOfMonth->format('Y-m-d'), $endOfMonth->format('Y-m-d')])
@@ -432,6 +574,7 @@ class SalesManager extends Component
             'receptionists' => $receptionists,
             'rooms' => $rooms,
             'categories' => $categories,
+            'quickProducts' => $quickProducts,
             'totalSales' => $totalSales,
             'paidSales' => $paidSales,
             'pendingSales' => $pendingSales,
