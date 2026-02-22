@@ -2837,6 +2837,7 @@ class RoomManager extends Component
                 DB::table('reservation_room_guests')->insert([
                     'reservation_room_id' => $reservationRoom->id,
                     'reservation_guest_id' => $reservationGuestId,
+                    'customer_id' => $guestId,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
@@ -4763,6 +4764,7 @@ class RoomManager extends Component
                     DB::table('reservation_room_guests')->insert([
                         'reservation_room_id' => $reservationRoom->id,
                         'reservation_guest_id' => $reservationGuestId,
+                        'customer_id' => $guestId,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
