@@ -158,10 +158,6 @@
                 </h3>
                 @php
                     $rentalsTotal = $shiftRentals->sum(function ($stay) {
-                        if (isset($stay->rental_total)) {
-                            return (float) $stay->rental_total;
-                        }
-
                         $reservation = $stay->reservation;
                         if (!$reservation) {
                             return 0;
@@ -172,11 +168,47 @@
                             $reservation->reservationRooms?->first();
 
                         $subtotal = (float) ($reservationRoom->subtotal ?? 0);
-                        if ($subtotal > 0) {
-                            return $subtotal;
+                        $totalAmount = (float) ($reservation->total_amount ?? 0);
+                        $rowTotal = $subtotal > 0 ? $subtotal : $totalAmount;
+                        
+                        if ($rowTotal <= 0) {
+                            return 0;
                         }
 
-                        return (float) ($reservation->total_amount ?? 0);
+                        // Calcular días totales de la reserva
+                        $checkInDate = $reservationRoom?->check_in_date 
+                            ? \Carbon\Carbon::parse($reservationRoom->check_in_date)
+                            : $reservation->created_at?->startOfDay();
+                        $checkOutDate = $reservationRoom?->check_out_date 
+                            ? \Carbon\Carbon::parse($reservationRoom->check_out_date)
+                            : null;
+                        
+                        if (!$checkInDate || !$checkOutDate) {
+                            return 0;
+                        }
+
+                        $totalDays = $checkInDate->diffInDays($checkOutDate);
+                        if ($totalDays <= 0) {
+                            return 0;
+                        }
+
+                        // Calcular días trabajados en este turno
+                        $shiftStart = $handover->started_at->startOfDay();
+                        $shiftEnd = $handover->ended_at ? $handover->ended_at->endOfDay() : now()->endOfDay();
+                        
+                        // El turno solo puede contar días que están dentro del rango de la reserva
+                        $periodStart = max($checkInDate, $shiftStart);
+                        $periodEnd = min($checkOutDate, $shiftEnd);
+                        
+                        if ($periodStart >= $periodEnd) {
+                            return 0;
+                        }
+                        
+                        $workedDays = $periodStart->diffInDays($periodEnd);
+                        
+                        // Calcular valor proporcional a los días trabajados
+                        $dailyRate = $rowTotal / $totalDays;
+                        return $dailyRate * $workedDays;
                     });
                 @endphp
                 <span class="text-sm font-bold text-gray-900">
@@ -214,15 +246,43 @@
                                             $reservation?->reservationRooms?->firstWhere('room_id', $stay->room_id) ??
                                             $reservation?->reservationRooms?->first();
                                         $subtotal = (float) ($reservationRoom->subtotal ?? 0);
-                                        $rowTotal = isset($stay->rental_total)
-                                            ? (float) $stay->rental_total
-                                            : ($subtotal > 0
-                                                ? $subtotal
-                                                : (float) ($reservation->total_amount ?? 0));
+                                        $totalAmount = (float) ($reservation->total_amount ?? 0);
+                                        $fullRowTotal = $subtotal > 0 ? $subtotal : $totalAmount;
                                         $paidInShift = (float) ($stay->paid_in_shift ?? 0);
                                         $paidTotal = (float) ($stay->reservation_paid_total ?? 0);
 
-                                        $isPaid = $rowTotal > 0 && $paidTotal >= $rowTotal - 0.01;
+                                        // Calcular valor proporcional para días trabajados en este turno
+                                        $rowTotal = 0;
+                                        if ($fullRowTotal > 0) {
+                                            // Calcular días totales de la reserva
+                                            $checkInDate = $reservationRoom?->check_in_date 
+                                                ? \Carbon\Carbon::parse($reservationRoom->check_in_date)
+                                                : $reservation->created_at?->startOfDay();
+                                            $checkOutDate = $reservationRoom?->check_out_date 
+                                                ? \Carbon\Carbon::parse($reservationRoom->check_out_date)
+                                                : null;
+                                            
+                                            if ($checkInDate && $checkOutDate) {
+                                                $totalDays = $checkInDate->diffInDays($checkOutDate);
+                                                if ($totalDays > 0) {
+                                                    // Calcular días trabajados en este turno
+                                                    $shiftStart = $handover->started_at->startOfDay();
+                                                    $shiftEnd = $handover->ended_at ? $handover->ended_at->endOfDay() : now()->endOfDay();
+                                                    
+                                                    // El turno solo puede contar días que están dentro del rango de la reserva
+                                                    $periodStart = max($checkInDate, $shiftStart);
+                                                    $periodEnd = min($checkOutDate, $shiftEnd);
+                                                    
+                                                    if ($periodStart < $periodEnd) {
+                                                        $workedDays = $periodStart->diffInDays($periodEnd);
+                                                        $dailyRate = $fullRowTotal / $totalDays;
+                                                        $rowTotal = $dailyRate * $workedDays;
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        $isPaid = $fullRowTotal > 0 && $paidTotal >= $fullRowTotal - 0.01;
                                         $isPartial = !$isPaid && $paidTotal > 0;
 
                                         if ($paidInShift > 0 && $isPaid) {
