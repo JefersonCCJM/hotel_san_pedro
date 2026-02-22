@@ -316,7 +316,7 @@
                 }
             } else {
                 $activeStay = $room->stays
-                    ->filter(static function ($stay) use ($dayNormalized, $room, $resolveStayCheckoutDate, $shouldDisplayReservationOnCalendar, $isWalkIn) {
+                    ->filter(static function ($stay) use ($dayNormalized, $room, $resolveStayCheckoutDate, $shouldDisplayReservationOnCalendar, $isWalkIn, $today) {
                         $status = (string) ($stay->status ?? '');
                         if (!in_array($status, ['active', 'pending_checkout', 'finished'], true)) {
                             return false;
@@ -358,7 +358,7 @@
 
                         return $dayNormalized->gte($checkIn);
                     })
-                    ->sortBy(static function ($stay) use ($dayNormalized, $room, $resolveStayCheckoutDate): int {
+                    ->sortBy(static function ($stay) use ($dayNormalized, $room, $resolveStayCheckoutDate, $today): int {
                         $status = (string) ($stay->status ?? '');
                         $checkOut = $resolveStayCheckoutDate($stay, (int) $room->id);
                         $isPendingCheckoutDay = $checkOut
