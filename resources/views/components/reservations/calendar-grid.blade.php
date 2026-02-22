@@ -332,9 +332,17 @@
 
                         $checkIn = \Carbon\Carbon::parse($stay->check_in_at)->startOfDay();
                         $checkOut = $resolveStayCheckoutDate($stay, (int) $room->id);
+                        $isPendingCheckoutDay = $checkOut
+                            && $dayNormalized->equalTo($checkOut)
+                            && empty($stay->check_out_at)
+                            && in_array($status, ['active', 'pending_checkout'], true);
+
+                        if ($isPendingCheckoutDay) {
+                            return true;
+                        }
 
                         if ($status === 'pending_checkout') {
-                            return $checkOut && $dayNormalized->equalTo($checkOut);
+                            return false;
                         }
 
                         if ($checkOut) {
@@ -349,12 +357,23 @@
 
                         return $dayNormalized->gte($checkIn);
                     })
-                    ->sortBy(static function ($stay): int {
-                        return match ((string) ($stay->status ?? '')) {
-                            'active' => 0,
-                            'pending_checkout' => 1,
-                            'finished' => 2,
-                            default => 3,
+                    ->sortBy(static function ($stay) use ($dayNormalized, $room, $resolveStayCheckoutDate): int {
+                        $status = (string) ($stay->status ?? '');
+                        $checkOut = $resolveStayCheckoutDate($stay, (int) $room->id);
+                        $isPendingCheckoutDay = $checkOut
+                            && $dayNormalized->equalTo($checkOut)
+                            && empty($stay->check_out_at)
+                            && in_array($status, ['active', 'pending_checkout'], true);
+
+                        if ($isPendingCheckoutDay) {
+                            return 0;
+                        }
+
+                        return match ($status) {
+                            'active' => 1,
+                            'pending_checkout' => 2,
+                            'finished' => 3,
+                            default => 4,
                         };
                     })
                     ->first();
@@ -362,13 +381,18 @@
                 if ($activeStay) {
                     $activeStayStatus = (string) ($activeStay->status ?? '');
                     $dayReservation = $activeStay->reservation ?? null;
+                    $activeStayCheckOut = $resolveStayCheckoutDate($activeStay, (int) $room->id);
+                    $isPendingCheckoutDay = $activeStayCheckOut
+                        && $dayNormalized->equalTo($activeStayCheckOut)
+                        && empty($activeStay->check_out_at)
+                        && in_array($activeStayStatus, ['active', 'pending_checkout'], true);
 
-                    if ($activeStayStatus === 'pending_checkout') {
+                    if ($isPendingCheckoutDay) {
                         $dayStatus = 'pending_checkout';
                         if ($dayReservation && !empty($dayReservation->id)) {
                             $pendingCheckoutReservationIds[(int) $dayReservation->id] = true;
                         }
-                    } elseif ($activeStayStatus === 'active') {
+                    } elseif (in_array($activeStayStatus, ['active', 'pending_checkout'], true)) {
                         $dayStatus = 'checked_in';
                         if ($dayReservation && !empty($dayReservation->id)) {
                             $checkedInReservationIds[(int) $dayReservation->id] = true;
@@ -479,16 +503,6 @@
         ];
     }
 
-    foreach (array_keys($pendingCheckoutReservationIds) as $pendingCheckoutReservationId) {
-        if (!isset($payloadsByReservationId[$pendingCheckoutReservationId])) {
-            continue;
-        }
-
-        $payloadsByReservationId[$pendingCheckoutReservationId]['status'] = 'Pendiente checkout';
-        $payloadsByReservationId[$pendingCheckoutReservationId]['can_checkin'] = false;
-        $payloadsByReservationId[$pendingCheckoutReservationId]['can_pay'] = !empty($payloadsByReservationId[$pendingCheckoutReservationId]['payment_url']);
-    }
-
     foreach (array_keys($checkedInReservationIds) as $checkedInReservationId) {
         if (!isset($payloadsByReservationId[$checkedInReservationId])) {
             continue;
@@ -497,6 +511,16 @@
         $payloadsByReservationId[$checkedInReservationId]['status'] = 'Llego';
         $payloadsByReservationId[$checkedInReservationId]['can_checkin'] = false;
         $payloadsByReservationId[$checkedInReservationId]['can_pay'] = !empty($payloadsByReservationId[$checkedInReservationId]['payment_url']);
+    }
+
+    foreach (array_keys($pendingCheckoutReservationIds) as $pendingCheckoutReservationId) {
+        if (!isset($payloadsByReservationId[$pendingCheckoutReservationId])) {
+            continue;
+        }
+
+        $payloadsByReservationId[$pendingCheckoutReservationId]['status'] = 'Pendiente checkout';
+        $payloadsByReservationId[$pendingCheckoutReservationId]['can_checkin'] = false;
+        $payloadsByReservationId[$pendingCheckoutReservationId]['can_pay'] = !empty($payloadsByReservationId[$pendingCheckoutReservationId]['payment_url']);
     }
 
     $monthLabel = ucfirst($calendarDate->translatedFormat('F Y'));
