@@ -887,7 +887,26 @@ class RoomManager extends Component
             ];
         }
 
-        $operationalStayStatuses = ['active', 'pending_checkout', 'finished'];
+        $hasPendingCheckout = false;
+        if ($reservation->relationLoaded('stays')) {
+            $hasPendingCheckout = $reservation->stays->contains(
+                static fn ($stay) => (string) ($stay->status ?? '') === 'pending_checkout',
+            );
+        } else {
+            $hasPendingCheckout = $reservation->stays()
+                ->where('status', 'pending_checkout')
+                ->exists();
+        }
+
+        if ($hasPendingCheckout) {
+            return [
+                'key' => 'pending_checkout',
+                'label' => 'Pendiente checkout',
+                'badge' => 'bg-yellow-100 text-yellow-800 border border-yellow-200',
+            ];
+        }
+
+        $operationalStayStatuses = ['active', 'finished'];
         $hasCheckIn = false;
 
         if ($reservation->relationLoaded('stays')) {
@@ -1048,15 +1067,19 @@ class RoomManager extends Component
         return $id ? (int) $id : null;
     }
 
-    protected function getArrivalsSummaryForDate(Carbon $date, int $limit = 6): array
+    protected function getArrivalsSummaryForDate(Carbon $date, int $limit = 6, bool $includePendingCheckout = false): array
     {
         $dateString = $date->toDateString();
         $canDoCheckIn = auth()->check() && auth()->user()->can('edit_reservations');
         $canDoPayments = auth()->check() && auth()->user()->can('edit_reservations');
 
         $reservationsQuery = Reservation::withTrashed()
-            ->whereHas('reservationRooms', function ($query) use ($dateString) {
+            ->whereHas('reservationRooms', function ($query) use ($dateString, $includePendingCheckout) {
                 $query->whereDate('check_in_date', $dateString);
+
+                if ($includePendingCheckout) {
+                    $query->orWhereDate('check_out_date', $dateString);
+                }
             });
 
         // Mostrar solo reservas del flujo "Reservas" y excluir walk-in de Room Manager.
@@ -1086,9 +1109,14 @@ class RoomManager extends Component
                 'customer.taxProfile:id,customer_id,identification',
                 'payments:id,reservation_id,amount,reference',
                 'stays:id,reservation_id,status',
-                'reservationRooms' => function ($query) use ($dateString) {
-                    $query->whereDate('check_in_date', $dateString)
-                        ->with('room:id,room_number');
+                'reservationRooms' => function ($query) use ($dateString, $includePendingCheckout) {
+                    $query->where(function ($reservationRoomQuery) use ($dateString, $includePendingCheckout) {
+                        $reservationRoomQuery->whereDate('check_in_date', $dateString);
+
+                        if ($includePendingCheckout) {
+                            $reservationRoomQuery->orWhereDate('check_out_date', $dateString);
+                        }
+                    })->with('room:id,room_number');
                 },
             ])
             ->orderBy('id')
@@ -1097,6 +1125,7 @@ class RoomManager extends Component
         $statusCounts = [
             'checked_in' => 0,
             'pending_checkin' => 0,
+            'pending_checkout' => 0,
             'cancelled' => 0,
         ];
 
@@ -1145,7 +1174,7 @@ class RoomManager extends Component
         $today = Carbon::today();
         $tomorrow = Carbon::today()->copy()->addDay();
 
-        $todayData = $this->getArrivalsSummaryForDate($today);
+        $todayData = $this->getArrivalsSummaryForDate($today, 6, true);
         $tomorrowData = $this->getArrivalsSummaryForDate($tomorrow);
 
         return [

@@ -100,6 +100,9 @@
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
                             Pendiente: {{ (int) data_get($receptionReservationsSummary, 'today_status_counts.pending_checkin', 0) }}
                         </span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-yellow-100 text-yellow-800 border border-yellow-200">
+                            Checkout pendiente: {{ (int) data_get($receptionReservationsSummary, 'today_status_counts.pending_checkout', 0) }}
+                        </span>
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-700 border border-red-200">
                             Cancelada: {{ (int) data_get($receptionReservationsSummary, 'today_status_counts.cancelled', 0) }}
                         </span>
