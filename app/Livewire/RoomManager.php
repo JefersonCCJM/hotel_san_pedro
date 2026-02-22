@@ -5400,88 +5400,71 @@ class RoomManager extends Component
         }
 
         try {
-            \Log::error('ðŸ”¥ openEditPrices llamado con reservationId: ' . $reservationId);
-            
-            $reservation = \App\Models\Reservation::with(['stayNights'])->findOrFail($reservationId);
-            
-            \Log::error('ðŸ“‹ Reservation encontrada:', [
-                'id' => $reservation->id,
-                'total_amount' => $reservation->total_amount,
-                'stay_nights_count' => $reservation->stayNights->count()
-            ]);
-            
-            // Preparar datos del formulario
-            $this->editPricesForm = [
-                'id' => $reservation->id,
-                'total_amount' => (float)$reservation->total_amount,
-                'nights' => []
-            ];
-            
-            // Cargar noches existentes
-            $stayNights = $reservation->stayNights;
-            \Log::error('ðŸŒ™ StayNights cargados: ' . $stayNights->count());
-            
-            // Si no hay stay_nights, intentar crearlos automáticamente
-            if ($stayNights->isEmpty() && $reservation->check_in_date && $reservation->check_out_date) {
-                \Log::error('ðŸ”¥ Creando stay_nights automáticamente para reservation ' . $reservation->id);
-                
-                $checkIn = \Carbon\Carbon::parse($reservation->check_in_date);
-                $checkOut = \Carbon\Carbon::parse($reservation->check_out_date);
-                $nights = $checkIn->diffInDays($checkOut);
-                
-                for ($i = 0; $i < $nights; $i++) {
-                    $nightDate = $checkIn->copy()->addDays($i);
-                    $nightPrice = $reservation->total_amount / $nights; // Distribuir total_amount entre las noches
-                    
-                    $stayNight = new \App\Models\StayNight();
-                    $stayNight->reservation_id = $reservation->id;
-                    $stayNight->date = $nightDate;
-                    $stayNight->price = $nightPrice;
-                    $stayNight->is_paid = false;
-                    $stayNight->created_at = now();
-                    $stayNight->updated_at = now();
-                    $stayNight->save();
-                    
-                    $this->editPricesForm['nights'][] = [
-                        'id' => $stayNight->id,
-                        'date' => $nightDate->format('Y-m-d'),
-                        'price' => (float)$nightPrice,
-                        'is_paid' => false
-                    ];
-                    
-                    \Log::error('ðŸŒ™ Noche creada:', [
-                        'id' => $stayNight->id,
-                        'date' => $nightDate->format('Y-m-d'),
-                        'price' => $nightPrice,
-                        'is_paid' => false
-                    ]);
-                }
-            } else {
-                foreach ($stayNights as $night) {
-                    \Log::error('ðŸŒ™ Noche procesada:', [
-                        'id' => $night->id,
-                        'date' => $night->date,
-                        'price' => $night->price,
-                        'is_paid' => $night->is_paid
-                    ]);
-                    
-                    $this->editPricesForm['nights'][] = [
-                        'id' => $night->id,
-                        'date' => $night->date instanceof \Carbon\Carbon ? $night->date->format('Y-m-d') : $night->date,
-                        'price' => (float)$night->price,
-                        'is_paid' => $night->is_paid
-                    ];
+            $reservation = \App\Models\Reservation::with(['stayNights', 'reservationRooms', 'stays'])
+                ->findOrFail($reservationId);
+
+            // Asegurar cobertura de noches (genera las que faltan si ya hay un stay activo)
+            $this->ensureStayNightsCoverageForReservation($reservation);
+
+            // Recargar noches tras el ensure
+            $reservation->unsetRelation('stayNights');
+            $stayNights = $reservation->stayNights()->orderBy('date')->get();
+
+            // Si aun no hay noches (walkin sin check_out_date o sin stay), generar desde la stay activa
+            if ($stayNights->isEmpty()) {
+                $stay = $reservation->stays->whereNull('check_out_at')->first();
+                $checkInDate = $stay
+                    ? \Carbon\Carbon::parse($stay->check_in_at)->startOfDay()
+                    : ($reservation->check_in_date ? \Carbon\Carbon::parse($reservation->check_in_date) : null);
+
+                // check_out puede ser null (walkin en curso) -> usar manana como fin para incluir noche actual
+                $checkOutDate = $reservation->check_out_date
+                    ? \Carbon\Carbon::parse($reservation->check_out_date)
+                    : \Carbon\Carbon::today()->addDay();
+
+                if ($checkInDate) {
+                    $nightCount = max(1, $checkInDate->diffInDays($checkOutDate));
+                    $nightPrice = $reservation->total_amount > 0
+                        ? (float)$reservation->total_amount / $nightCount
+                        : 0;
+
+                    for ($cursor = $checkInDate->copy(); $cursor->lt($checkOutDate); $cursor->addDay()) {
+                        $stayNight = \App\Models\StayNight::create([
+                            'reservation_id' => $reservation->id,
+                            'stay_id'        => $stay?->id,
+                            'room_id'        => $stay?->room_id ?? $reservation->reservationRooms->first()?->room_id,
+                            'date'           => $cursor->toDateString(),
+                            'price'          => $nightPrice,
+                            'is_paid'        => false,
+                        ]);
+
+                        $stayNights->push($stayNight);
+                    }
                 }
             }
-            
-            \Log::error('ðŸ’¾ editPricesForm final:', $this->editPricesForm);
-            
+
+            // Preparar formulario
+            $this->editPricesForm = [
+                'id'           => $reservation->id,
+                'total_amount' => (float)$reservation->total_amount,
+                'nights'       => [],
+            ];
+
+            foreach ($stayNights as $night) {
+                $this->editPricesForm['nights'][] = [
+                    'id'      => $night->id,
+                    'date'    => $night->date instanceof \Carbon\Carbon ? $night->date->format('Y-m-d') : (string)$night->date,
+                    'price'   => (float)$night->price,
+                    'is_paid' => (bool)$night->is_paid,
+                ];
+            }
+
             $this->editPricesModal = true;
-            
+
         } catch (\Exception $e) {
-            \Log::error('âŒ Error en openEditPrices: ' . $e->getMessage(), [
+            \Log::error('Error en openEditPrices: ' . $e->getMessage(), [
                 'reservation_id' => $reservationId,
-                'trace' => $e->getTraceAsString()
+                'trace'          => $e->getTraceAsString(),
             ]);
             $this->dispatch('notify', type: 'error', message: 'Error al cargar los datos de la reserva: ' . $e->getMessage());
         }

@@ -12,7 +12,8 @@
       "Read(//c/dev/hotel_san_pedro/**)",
       "Bash(grep:*)",
       "Bash(where:*)",
-      "Bash(php:*)"
+      "Bash(php:*)",
+      "Bash(node:*)"
     ]
   }
 }
