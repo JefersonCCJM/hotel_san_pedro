@@ -52,19 +52,17 @@ class EditSale extends Component
         if ($this->payment_method === 'pendiente') {
             $this->cash_amount = null;
             $this->transfer_amount = null;
-            if ($this->sale->room_id) {
-                $this->debt_status = 'pendiente';
-            }
+            $this->debt_status = 'pendiente';
         } elseif ($this->payment_method === 'efectivo') {
             $this->cash_amount = $this->sale->total;
             $this->transfer_amount = null;
-            if ($this->sale->room_id && $this->debt_status === 'pendiente') {
+            if ($this->debt_status === 'pendiente') {
                 $this->debt_status = 'pagado';
             }
         } elseif ($this->payment_method === 'transferencia') {
             $this->cash_amount = null;
             $this->transfer_amount = $this->sale->total;
-            if ($this->sale->room_id && $this->debt_status === 'pendiente') {
+            if ($this->debt_status === 'pendiente') {
                 $this->debt_status = 'pagado';
             }
         } elseif ($this->payment_method === 'ambos') {

@@ -39,6 +39,7 @@ class SalesManager extends Component
     public int $createSaleModalKey = 0;
     public int $showSaleModalKey = 0;
     public int $editSaleModalKey = 0;
+    public array $paymentMethodSelection = [];
 
     // Ingresos externos
     public array $externalIncomeForm = [
@@ -240,6 +241,49 @@ class SalesManager extends Component
         }
 
         return Sale::find($this->selectedSaleId);
+    }
+
+    public function markSaleAsPaid(int $saleId): void
+    {
+        if (!Auth::user()?->can('edit_sales')) {
+            return;
+        }
+
+        /** @var Sale|null $sale */
+        $sale = Sale::find($saleId);
+        if (!$sale) {
+            $this->dispatch('notify', type: 'error', message: 'La venta no existe.');
+            return;
+        }
+
+        if ($sale->debt_status !== 'pendiente') {
+            $this->dispatch('notify', type: 'warning', message: 'La venta ya está pagada.');
+            return;
+        }
+
+        $selectedMethod = (string) ($this->paymentMethodSelection[$saleId] ?? 'efectivo');
+        if (!in_array($selectedMethod, ['efectivo', 'transferencia'], true)) {
+            $selectedMethod = 'efectivo';
+        }
+
+        DB::transaction(function () use ($sale, $selectedMethod): void {
+            $cashAmount = $selectedMethod === 'efectivo' ? (float) $sale->total : null;
+            $transferAmount = $selectedMethod === 'transferencia' ? (float) $sale->total : null;
+
+            $sale->update([
+                'payment_method' => $selectedMethod,
+                'cash_amount' => $cashAmount,
+                'transfer_amount' => $transferAmount,
+                'debt_status' => 'pagado',
+            ]);
+
+            if ($sale->shiftHandover) {
+                $sale->shiftHandover->updateTotals();
+            }
+        });
+
+        unset($this->paymentMethodSelection[$saleId]);
+        $this->dispatch('notify', type: 'success', message: 'Venta marcada como pagada.');
     }
 
     public function registerExternalIncome(): void

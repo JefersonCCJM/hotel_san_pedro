@@ -152,11 +152,7 @@ class CreateSale extends Component
 
     public function updatedRoomId()
     {
-        // Si se quita la habitación y el método era pendiente, resetear a efectivo
-        if (!$this->room_id && $this->payment_method === 'pendiente') {
-            $this->payment_method = 'efectivo';
-            $this->updatedPaymentMethod();
-        }
+        // Se mantiene disponible "pendiente" también para ventas sin habitación.
     }
 
     public function updatedSelectedProduct()

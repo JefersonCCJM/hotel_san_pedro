@@ -513,6 +513,24 @@
                                 </td>
                                 <td class="px-4 py-4 whitespace-nowrap text-right">
                                     <div class="flex items-center justify-end space-x-1.5">
+                                        @can('edit_sales')
+                                        @if($sale->debt_status === 'pendiente')
+                                        <div class="flex items-center gap-1.5 mr-1">
+                                            <select wire:model="paymentMethodSelection.{{ $sale->id }}"
+                                                    class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                                                <option value="efectivo">Efectivo</option>
+                                                <option value="transferencia">Transferencia</option>
+                                            </select>
+                                            <button type="button"
+                                                    wire:click="markSaleAsPaid({{ $sale->id }})"
+                                                    class="inline-flex items-center px-2.5 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 transition-colors"
+                                                    title="Marcar como pagada">
+                                                <i class="fas fa-check mr-1"></i>Pagar
+                                            </button>
+                                        </div>
+                                        @endif
+                                        @endcan
+
                                         <button type="button"
                                            wire:click="openShowSaleModal({{ $sale->id }})"
                                            class="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-200" 
