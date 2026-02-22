@@ -343,30 +343,6 @@
         </div>
     @endif
 
-    @if($handover->cashOuts->isNotEmpty())
-        <div class="section">
-            <div class="section-title">Retiros de Caja ({{ $handover->cashOuts->count() }})</div>
-            <table class="data">
-                <thead>
-                    <tr>
-                        <th>Hora</th>
-                        <th>Concepto</th>
-                        <th class="right">Monto</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($handover->cashOuts->sortByDesc('created_at') as $co)
-                        <tr>
-                            <td>{{ optional($co->created_at)->format('H:i') }}</td>
-                            <td>{{ $co->concept }}</td>
-                            <td class="right">${{ number_format((float) ($co->amount ?? 0), 0, ',', '.') }}</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-    @endif
-
     @if($handover->productOuts->isNotEmpty())
         <div class="section">
             <div class="section-title">Salidas de Productos ({{ $handover->productOuts->count() }})</div>

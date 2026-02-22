@@ -71,7 +71,7 @@
     </div>
 
     {{-- Contadores rápidos --}}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
         <div class="bg-white rounded-xl border border-gray-100 p-4 shadow-sm flex items-center gap-3">
             <div class="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
                 <i class="fas fa-receipt text-sm"></i>
@@ -88,15 +88,6 @@
             <div>
                 <p class="text-lg font-black text-gray-900">{{ $pendingReception->cashOutflows->count() }}</p>
                 <p class="text-[10px] text-gray-500 uppercase font-bold">Gastos</p>
-            </div>
-        </div>
-        <div class="bg-white rounded-xl border border-gray-100 p-4 shadow-sm flex items-center gap-3">
-            <div class="p-2 bg-amber-50 text-amber-600 rounded-lg">
-                <i class="fas fa-money-bill-wave text-sm"></i>
-            </div>
-            <div>
-                <p class="text-lg font-black text-gray-900">{{ $pendingReception->cashOuts->count() }}</p>
-                <p class="text-[10px] text-gray-500 uppercase font-bold">Retiros</p>
             </div>
         </div>
         <div class="bg-white rounded-xl border border-gray-100 p-4 shadow-sm flex items-center gap-3">

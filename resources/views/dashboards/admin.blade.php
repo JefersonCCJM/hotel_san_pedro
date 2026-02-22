@@ -107,9 +107,6 @@
                             <a href="{{ route('cash-outflows.index') }}" class="inline-flex items-center px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 text-xs font-black hover:bg-rose-100 transition-colors">
                                 <i class="fas fa-receipt mr-2"></i> Gastos (Caja)
                             </a>
-                            <a href="{{ route('shift-cash-outs.index') }}" class="inline-flex items-center px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-black hover:bg-indigo-100 transition-colors">
-                                <i class="fas fa-wallet mr-2"></i> Retiros (Turno)
-                            </a>
                         </div>
                     @endif
                 </div>

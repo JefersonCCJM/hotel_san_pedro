@@ -650,11 +650,6 @@
                 </div>
                 <h3 class="text-sm font-semibold text-gray-900 mb-1">No se encontraron ventas</h3>
                 <p class="text-xs text-gray-500 mb-4">Intente ajustar los filtros de búsqueda</p>
-                <a href="#quick-sale-section"
-                   class="inline-flex items-center px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-all duration-200">
-                    <i class="fas fa-plus mr-2"></i>
-                    Registrar Venta
-                </a>
             </div>
         @endif
     </div>

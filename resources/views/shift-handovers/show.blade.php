@@ -701,7 +701,7 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 gap-6">
             {{-- Gastos del Turno --}}
             <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -745,49 +745,6 @@
                 </div>
             </div>
 
-            {{-- Retiros de Caja --}}
-            <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                    <h3 class="font-bold text-gray-900 uppercase text-xs tracking-wider">
-                        <i class="fas fa-hand-holding-usd mr-2 text-amber-500"></i>Retiros de Caja
-                        <span class="ml-2 text-amber-600">({{ $handover->cashOuts->count() }})</span>
-                    </h3>
-                    <span class="text-sm font-bold text-amber-600">
-                        ${{ number_format($handover->cashOuts->sum('amount'), 0, ',', '.') }}
-                    </span>
-                </div>
-                <div class="p-0">
-                    @if ($handover->cashOuts->isEmpty())
-                        <p class="p-6 text-sm text-gray-500 text-center">Sin retiros</p>
-                    @else
-                        <table class="min-w-full divide-y divide-gray-100">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase">Hora
-                                    </th>
-                                    <th class="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase">Concepto
-                                    </th>
-                                    <th class="px-4 py-3 text-right text-[10px] font-black text-gray-500 uppercase">Monto
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-100">
-                                @foreach ($handover->cashOuts->sortByDesc('created_at') as $cashOut)
-                                    <tr class="hover:bg-gray-50">
-                                        <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
-                                            {{ $cashOut->created_at->format('H:i') }}</td>
-                                        <td class="px-4 py-3 text-sm text-gray-700">
-                                            {{ Str::limit($cashOut->concept, 40) }}</td>
-                                        <td
-                                            class="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-amber-600">
-                                            ${{ number_format($cashOut->amount, 0, ',', '.') }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    @endif
-                </div>
-            </div>
         </div>
 
         {{-- Salidas de Productos --}}

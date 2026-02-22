@@ -32,10 +32,6 @@
                         <i class="fas fa-user-shield"></i> Panel Administrador
                     </span>
                 @endif
-                <a href="{{ route('shift-cash-outs.index') }}"
-                   class="inline-flex items-center justify-center px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 text-xs font-black hover:bg-gray-50 transition-colors">
-                    <i class="fas fa-wallet mr-2"></i> Retiros de Turno
-                </a>
             </div>
         </div>
     </div>

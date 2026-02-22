@@ -33,7 +33,7 @@
     </div>
 
     {{-- Conteos rapidos --}}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
         <div class="bg-white rounded-xl border border-gray-100 p-4 shadow-sm text-center">
             <p class="text-2xl font-black text-emerald-600">{{ $activeShift->sales->count() }}</p>
             <p class="text-xs text-gray-500 font-medium">Ventas</p>
@@ -41,10 +41,6 @@
         <div class="bg-white rounded-xl border border-gray-100 p-4 shadow-sm text-center">
             <p class="text-2xl font-black text-red-600">{{ $activeShift->cashOutflows->count() }}</p>
             <p class="text-xs text-gray-500 font-medium">Gastos</p>
-        </div>
-        <div class="bg-white rounded-xl border border-gray-100 p-4 shadow-sm text-center">
-            <p class="text-2xl font-black text-amber-600">{{ $activeShift->cashOuts->count() }}</p>
-            <p class="text-xs text-gray-500 font-medium">Retiros Caja</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-100 p-4 shadow-sm text-center">
             <p class="text-2xl font-black text-purple-600">{{ $activeShift->productOuts->count() }}</p>
@@ -99,10 +95,9 @@
     </div>
     @endif
 
-    {{-- Detalle de gastos y retiros (colapsable) --}}
-    @if($activeShift->cashOutflows->isNotEmpty() || $activeShift->cashOuts->isNotEmpty())
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        @if($activeShift->cashOutflows->isNotEmpty())
+    {{-- Detalle de gastos (colapsable) --}}
+    @if($activeShift->cashOutflows->isNotEmpty())
+    <div class="grid grid-cols-1 gap-6">
         <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden" x-data="{ open: false }">
             <button @click="open = !open" class="w-full px-6 py-4 border-b border-gray-100 flex items-center justify-between hover:bg-gray-50 transition-colors">
                 <h3 class="font-bold text-gray-900 uppercase text-xs tracking-wider">
@@ -123,30 +118,6 @@
                 </table>
             </div>
         </div>
-        @endif
-
-        @if($activeShift->cashOuts->isNotEmpty())
-        <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden" x-data="{ open: false }">
-            <button @click="open = !open" class="w-full px-6 py-4 border-b border-gray-100 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                <h3 class="font-bold text-gray-900 uppercase text-xs tracking-wider">
-                    <i class="fas fa-hand-holding-usd mr-2 text-amber-500"></i>Retiros ({{ $activeShift->cashOuts->count() }})
-                </h3>
-                <i class="fas fa-chevron-down text-gray-400 transition-transform" :class="{ 'rotate-180': open }"></i>
-            </button>
-            <div x-show="open" x-collapse>
-                <table class="min-w-full divide-y divide-gray-100">
-                    <tbody class="bg-white divide-y divide-gray-100">
-                        @foreach($activeShift->cashOuts->sortByDesc('created_at') as $cashOut)
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-4 py-3 text-sm text-gray-700">{{ $cashOut->concept }}</td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-amber-600">${{ number_format($cashOut->amount, 0, ',', '.') }}</td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        @endif
     </div>
     @endif
 
