@@ -2508,6 +2508,93 @@ class RoomManager extends Component
         $this->availableRoomsForChange = [];
     }
 
+    // =========================================================
+    // ANULAR INGRESO DEL DIA
+    // =========================================================
+
+    public function undoCheckout($roomId)
+    {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
+        $date = $this->date instanceof \Carbon\Carbon ? $this->date : \Carbon\Carbon::parse($this->date);
+        if (!$date->isToday()) {
+            $this->dispatch('notify', type: 'error', message: 'Solo se pueden anular ingresos del dia de hoy.');
+            return;
+        }
+
+        try {
+            $room = \App\Models\Room::findOrFail($roomId);
+
+            $stay = \App\Models\Stay::where('room_id', $roomId)
+                ->where('status', 'finished')
+                ->whereDate('check_out_at', today())
+                ->orderByDesc('check_out_at')
+                ->first();
+
+            if (!$stay) {
+                $this->dispatch('notify', type: 'error', message: 'No se encontro un egreso de hoy para anular en esta habitacion.');
+                return;
+            }
+
+            $reservation = \App\Models\Reservation::with(['payments', 'stayNights'])->find($stay->reservation_id);
+
+            if (!$reservation) {
+                $this->dispatch('notify', type: 'error', message: 'No se encontro la reserva asociada al egreso.');
+                return;
+            }
+
+            \DB::transaction(function () use ($stay, $reservation, $room) {
+                // 1. Revertir pagos positivos que no hayan sido ya revertidos
+                $alreadyReversedIds = $reservation->payments()
+                    ->where('amount', '<', 0)
+                    ->get()
+                    ->map(fn($p) => $this->extractReversedPaymentIdFromReference($p->reference))
+                    ->filter()
+                    ->values()
+                    ->toArray();
+
+                $reservation->payments()->where('amount', '>', 0)->get()
+                    ->reject(fn($p) => in_array($p->id, $alreadyReversedIds))
+                    ->each(function ($payment) use ($reservation) {
+                        \App\Models\Payment::create([
+                            'reservation_id'    => $reservation->id,
+                            'amount'            => -abs((float) $payment->amount),
+                            'payment_method_id' => $payment->payment_method_id,
+                            'reference'         => "Anulacion de pago #{$payment->id}",
+                            'paid_at'           => now(),
+                            'created_by'        => auth()->id(),
+                            'notes'             => 'Anulacion de ingreso del dia',
+                        ]);
+                    });
+
+                // 2. Eliminar stay_nights
+                \App\Models\StayNight::where('reservation_id', $reservation->id)->delete();
+
+                // 3. Hard delete del stay (sin SoftDeletes)
+                $stay->delete();
+
+                // 4. Soft delete de la reserva
+                $reservation->delete();
+
+                // 5. Eliminar release history del egreso de hoy
+                \App\Models\RoomReleaseHistory::where('reservation_id', $reservation->id)
+                    ->whereDate('release_date', today())
+                    ->delete();
+
+                // 6. Marcar habitacion como limpia
+                $room->update(['last_cleaned_at' => now()]);
+            });
+
+            $this->dispatch('notify', type: 'success', message: 'Ingreso anulado. La habitacion queda libre y limpia.');
+
+        } catch (\Exception $e) {
+            \Log::error('Error en undoCheckout: ' . $e->getMessage());
+            $this->dispatch('notify', type: 'error', message: 'Error al anular el ingreso: ' . $e->getMessage());
+        }
+    }
+
     /**
      * Mostrar todos los huéspedes de una habitación
      */

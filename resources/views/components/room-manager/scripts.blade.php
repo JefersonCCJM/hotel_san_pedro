@@ -652,6 +652,25 @@ document.addEventListener('init-all-guests-additional-guest-select', function() 
 
     // Funcion confirmRevertNight eliminada - Los pagos se gestionan a traves de la tabla payments;
 
+    function confirmUndoCheckout(roomId, roomNumber) {
+        window.dispatchEvent(new CustomEvent('open-confirm-modal', {
+            detail: {
+                title: 'Anular Ingreso del Dia',
+                html: `¿Anular el ingreso de la habitacion <b class="font-bold">${roomNumber}</b>?<br><span class="text-sm text-gray-600">Se revertiran los pagos registrados y se eliminara la reserva. La habitacion quedara libre y limpia.</span>`,
+                warningText: 'Esta accion no se puede deshacer.',
+                icon: 'error',
+                isDestructive: true,
+                confirmText: 'Si, anular ingreso',
+                cancelText: 'Cancelar',
+                confirmButtonClass: 'bg-orange-600 hover:bg-orange-700 focus:ring-orange-500',
+                confirmIcon: 'fa-undo',
+                onConfirm: () => {
+                    @this.undoCheckout(roomId);
+                }
+            }
+        }));
+    }
+
     function confirmDeleteDeposit(depositId, amount, formattedAmount) {
         window.dispatchEvent(new CustomEvent('open-confirm-modal', {
             detail: {

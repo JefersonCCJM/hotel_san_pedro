@@ -115,6 +115,15 @@
 
     {{-- ESTADO: pending_cleaning (Pendiente por aseo) --}}
     @if($cleaningCode === 'pendiente' && !in_array($operationalStatus, ['occupied', 'pending_checkout'], true) && $canPerformActions && $selectedDate->isToday())
+        {{-- Anular ingreso del dia --}}
+        <button type="button"
+            @click="confirmUndoCheckout({{ $room->id }}, '{{ addslashes($room->room_number) }}')"
+            wire:loading.attr="disabled"
+            title="Anular ingreso del dia"
+            class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:border-orange-300 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50">
+            <i class="fas fa-undo text-sm"></i>
+            <span class="sr-only">Anular ingreso</span>
+        </button>
         {{-- Marcar como limpia: Solo si es HOY --}}
         <button type="button"
             wire:click="markRoomAsClean({{ $room->id }})"
