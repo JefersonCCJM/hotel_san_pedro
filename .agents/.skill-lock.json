@@ -1,0 +1,143 @@
+{
+  "version": 3,
+  "skills": {
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/vercel-labs/skills.git",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "skillFolderHash": "c2f31172b6f256272305a5e6e7228b258446899f",
+      "installedAt": "2026-02-20T16:27:01.416Z",
+      "updatedAt": "2026-02-20T16:27:01.416Z"
+    },
+    "laravel-best-practices": {
+      "source": "asyrafhussin/agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/asyrafhussin/agent-skills.git",
+      "skillPath": "skills/laravel-best-practices/SKILL.md",
+      "skillFolderHash": "fe300c025f785dda8e34512bf438edc1e0255b9a",
+      "installedAt": "2026-02-22T14:54:43.775Z",
+      "updatedAt": "2026-02-22T15:12:27.303Z"
+    },
+    "livewire-development": {
+      "source": "spatie/freek.dev",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/spatie/freek.dev.git",
+      "skillPath": ".claude/skills/livewire-development/SKILL.md",
+      "skillFolderHash": "f4f02ce84e8ddae2d5e6733e6509d299ca8d3891",
+      "installedAt": "2026-02-22T14:54:51.946Z",
+      "updatedAt": "2026-02-22T15:04:57.753Z"
+    },
+    "frontend-tailwind-best-practices": {
+      "source": "sergiodxa/agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/sergiodxa/agent-skills.git",
+      "skillPath": "skills/frontend-tailwind-best-practices/SKILL.md",
+      "skillFolderHash": "6c3ee4e206a2ccdf13a1dd4b52e7697388a39f70",
+      "installedAt": "2026-02-22T14:54:55.453Z",
+      "updatedAt": "2026-02-22T15:05:43.068Z"
+    },
+    "alpine-js": {
+      "source": "mindrally/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mindrally/skills.git",
+      "skillPath": "alpine-js/SKILL.md",
+      "skillFolderHash": "6bbf7f20cccd2f644ba96d893305b71ce1cbbf99",
+      "installedAt": "2026-02-22T14:54:59.337Z",
+      "updatedAt": "2026-02-22T15:06:39.902Z"
+    },
+    "php-best-practices": {
+      "source": "asyrafhussin/agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/asyrafhussin/agent-skills.git",
+      "skillPath": "skills/php-best-practices/SKILL.md",
+      "skillFolderHash": "96f0a98b08a6ed4919bb04dc8d9b50b6b2812f90",
+      "installedAt": "2026-02-22T14:55:03.291Z",
+      "updatedAt": "2026-02-22T14:55:03.291Z"
+    },
+    "api-design-principles": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/wshobson/agents.git",
+      "skillPath": "plugins/backend-development/skills/api-design-principles/SKILL.md",
+      "skillFolderHash": "d9f49b5a4c69c1372041ac3892b9c4a3bdd4b02a",
+      "installedAt": "2026-02-22T14:55:09.276Z",
+      "updatedAt": "2026-02-22T15:07:18.071Z"
+    },
+    "api-resource-patterns": {
+      "source": "iserter/laravel-claude-agents",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/iserter/laravel-claude-agents.git",
+      "skillPath": ".claude/skills/api-resource-patterns/SKILL.md",
+      "skillFolderHash": "24287ef3085bef248c09d6232ec15112cc84e3d4",
+      "installedAt": "2026-02-22T14:55:12.572Z",
+      "updatedAt": "2026-02-22T14:55:12.572Z"
+    },
+    "unified-execute-with-file": {
+      "source": "catlog22/claude-code-workflow",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/catlog22/claude-code-workflow.git",
+      "skillPath": ".codex/skills/unified-execute-with-file/SKILL.md",
+      "skillFolderHash": "28443926fd14d12485b4f4847164178c270cd1b7",
+      "installedAt": "2026-02-22T14:55:29.139Z",
+      "updatedAt": "2026-02-22T14:55:29.139Z"
+    },
+    "analyze-with-file": {
+      "source": "catlog22/claude-code-workflow",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/catlog22/claude-code-workflow.git",
+      "skillPath": ".codex/skills/analyze-with-file/SKILL.md",
+      "skillFolderHash": "d577e2deab16a50b87620cb3095f23a7e0e31692",
+      "installedAt": "2026-02-22T14:55:53.211Z",
+      "updatedAt": "2026-02-22T14:55:53.211Z"
+    },
+    "workflow-plan": {
+      "source": "catlog22/claude-code-workflow",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/catlog22/claude-code-workflow.git",
+      "skillPath": ".claude/skills/workflow-plan/SKILL.md",
+      "skillFolderHash": "db78dfedb1e56f0eb2983ddf96df61ac3519f958",
+      "installedAt": "2026-02-22T14:56:01.661Z",
+      "updatedAt": "2026-02-22T14:56:01.661Z"
+    },
+    "workflow-execute": {
+      "source": "catlog22/claude-code-workflow",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/catlog22/claude-code-workflow.git",
+      "skillPath": ".claude/skills/workflow-execute/SKILL.md",
+      "skillFolderHash": "f8fe8e19170647b22003edfa137ed27770696f3f",
+      "installedAt": "2026-02-22T14:56:14.429Z",
+      "updatedAt": "2026-02-22T14:56:14.429Z"
+    },
+    "codex-review-workflow": {
+      "source": "daffy0208/ai-dev-standards",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/daffy0208/ai-dev-standards.git",
+      "skillPath": "skills/codex-review-workflow/SKILL.md",
+      "skillFolderHash": "8e0553989667fd9c0e90b9dff3235cd2a1759fb6",
+      "installedAt": "2026-02-22T14:56:45.203Z",
+      "updatedAt": "2026-02-22T15:10:15.511Z"
+    },
+    "simplify": {
+      "source": "brianlovin/claude-config",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/brianlovin/claude-config.git",
+      "skillPath": "skills/simplify/SKILL.md",
+      "skillFolderHash": "83566973442dc05bcf5abbe83053e8a8e5f50b6b",
+      "installedAt": "2026-02-22T15:40:43.220Z",
+      "updatedAt": "2026-02-22T15:40:43.220Z"
+    }
+  },
+  "dismissed": {
+    "findSkillsPrompt": true
+  },
+  "lastSelectedAgents": [
+    "amp",
+    "codex",
+    "cursor",
+    "gemini-cli",
+    "github-copilot",
+    "kimi-cli",
+    "opencode"
+  ]
+}
