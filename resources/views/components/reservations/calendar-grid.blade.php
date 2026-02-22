@@ -151,7 +151,7 @@
             'delete_url' => !$isCancelled && $canDoCancel ? route('reservations.destroy', $reservation) : null,
             'check_in_url' => !$isCancelled && $canDoCheckIn ? route('reservations.check-in', $reservation) : null,
             'payment_url' => !$isCancelled && $canDoPayments ? route('reservations.register-payment', $reservation) : null,
-            'cancel_payment_url' => !$isCancelled && $canDoPayments && $latestPositivePayment
+            'cancel_payment_url' => $canDoPayments && $latestPositivePayment
                 ? route('reservations.cancel-payment', ['reservation' => $reservation, 'payment' => $latestPositivePayment])
                 : null,
             'pdf_url' => $isCancelled ? null : route('reservations.download', $reservation),

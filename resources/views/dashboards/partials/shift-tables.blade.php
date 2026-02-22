@@ -345,7 +345,19 @@
             reversedInSession: {{ json_encode($alreadyReversedIds) }},
             loading: null,
             async reversePayment(resId, payId, formattedAmount) {
-                if (!confirm('¿Revertir el pago de $' + formattedAmount + '? Esta acción no se puede deshacer.')) return;
+                const result = await Swal.fire({
+                    title: '¿Revertir pago?',
+                    text: `¿Estás seguro de revertir el pago de $${formattedAmount}? Esta acción no se puede deshacer.`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#ef4444',
+                    cancelButtonColor: '#6b7280',
+                    confirmButtonText: 'Sí, revertir',
+                    cancelButtonText: 'Cancelar'
+                });
+
+                if (!result.isConfirmed) return;
+
                 this.loading = payId;
                 try {
                     const resp = await fetch(`/reservations/${resId}/payments/${payId}/cancel`, {
@@ -359,11 +371,27 @@
                     const data = await resp.json();
                     if (resp.ok) {
                         this.reversedInSession.push(payId);
+                        Swal.fire({
+                            title: '¡Pago revertido!',
+                            text: 'El pago se anuló correctamente y el dinero fue descontado del turno actual.',
+                            icon: 'success',
+                            confirmButtonColor: '#10b981'
+                        });
                     } else {
-                        alert(data.message ?? 'Error al revertir el pago.');
+                        Swal.fire({
+                            title: 'No se pudo revertir',
+                            text: data.message ?? 'Error desconocido al revertir el pago.',
+                            icon: 'error',
+                            confirmButtonColor: '#ef4444'
+                        });
                     }
                 } catch (e) {
-                    alert('Error de conexión al revertir el pago.');
+                    Swal.fire({
+                        title: 'Error de conexión',
+                        text: 'No se pudo comunicar con el servidor.',
+                        icon: 'error',
+                        confirmButtonColor: '#ef4444'
+                    });
                 } finally {
                     this.loading = null;
                 }

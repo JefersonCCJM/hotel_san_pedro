@@ -1,20 +1,5 @@
 @push('scripts')
 <script>
-const checkInConfirmState = {
-    url: null,
-    reservationLabel: '',
-    customerName: '',
-    sourceButton: null,
-    submitting: false,
-};
-const cancelPaymentConfirmState = {
-    url: null,
-    reservationLabel: '',
-    customerName: '',
-    amount: 0,
-    sourceButton: null,
-    submitting: false,
-};
 const reservationPaymentRouteTemplate = '{{ route("reservations.register-payment", ":id") }}';
 let reservationPaymentRequestInFlight = false;
 let reservationCancelPaymentRequestInFlight = false;
@@ -112,24 +97,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     setTimeout(testModal, 800);
-
-    const checkInModal = document.getElementById('checkin-confirm-modal');
-    if (checkInModal) {
-        checkInModal.addEventListener('click', function (event) {
-            if (event.target === checkInModal) {
-                closeCheckInConfirmModal();
-            }
-        });
-    }
-
-    const cancelPaymentModal = document.getElementById('cancel-payment-confirm-modal');
-    if (cancelPaymentModal) {
-        cancelPaymentModal.addEventListener('click', function (event) {
-            if (event.target === cancelPaymentModal) {
-                closeCancelPaymentConfirmModal();
-            }
-        });
-    }
 
     window.addEventListener('register-payment-event', function (event) {
         submitReservationPaymentFromModal(event?.detail || {});
@@ -346,9 +313,6 @@ function closeReservationDetail() {
         return;
     }
 
-    closeCheckInConfirmModal(true);
-    closeCancelPaymentConfirmModal(true);
-
     if (card) {
         card.classList.remove('scale-100', 'opacity-100');
         card.classList.add('scale-95', 'opacity-0');
@@ -555,342 +519,119 @@ async function submitReservationPaymentFromModal(paymentData) {
     }
 }
 
-function openCancelPaymentConfirmModal(url, amount = 0, reservationLabel = '', customerName = '', sourceButton = null) {
-    if (!url) {
-        return;
-    }
+async function openCancelPaymentConfirmModal(url, amount = 0, reservationLabel = '', customerName = '', sourceButton = null) {
+    if (!url) return;
 
-    const modal = document.getElementById('cancel-payment-confirm-modal');
-    const card = document.getElementById('cancel-payment-confirm-card');
-    if (!modal || !card) {
-        submitReservationPaymentCancellation(url, amount, true);
-        return;
-    }
+    const formattedAmount = Math.round(amount).toLocaleString('es-CO');
+    const result = await Swal.fire({
+        title: '¿Confirmar anulación?',
+        html: `Revertirás el pago de <b>$${formattedAmount}</b> para ${reservationLabel} (${customerName}).<br><br>Esta acción ajustará las noches pagadas de la reserva.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e11d48',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: '<i class="fas fa-undo mr-2"></i> Sí, anular',
+        cancelButtonText: 'Volver',
+        customClass: { popup: 'rounded-3xl' }
+    });
 
-    cancelPaymentConfirmState.url = url;
-    cancelPaymentConfirmState.amount = Number(amount || 0) || 0;
-    cancelPaymentConfirmState.reservationLabel = reservationLabel || 'Reserva';
-    cancelPaymentConfirmState.customerName = customerName || 'Cliente no disponible';
-    cancelPaymentConfirmState.sourceButton = sourceButton || null;
-    cancelPaymentConfirmState.submitting = false;
+    if (!result.isConfirmed) return;
 
-    const reservationEl = document.getElementById('cancel-payment-confirm-reservation');
-    const customerEl = document.getElementById('cancel-payment-confirm-customer');
-    const amountEl = document.getElementById('cancel-payment-confirm-amount');
-
-    if (reservationEl) {
-        reservationEl.innerText = cancelPaymentConfirmState.reservationLabel;
-    }
-    if (customerEl) {
-        customerEl.innerText = cancelPaymentConfirmState.customerName;
-    }
-    if (amountEl) {
-        amountEl.innerText = '$' + Math.round(cancelPaymentConfirmState.amount).toLocaleString('es-CO');
-    }
-
-    setCancelPaymentConfirmError('');
-    setCancelPaymentConfirmSubmitting(false);
-
-    modal.classList.remove('hidden');
-    card.classList.remove('scale-95', 'opacity-0');
-    card.classList.add('scale-100', 'opacity-100');
-}
-
-function closeCancelPaymentConfirmModal(force = false) {
-    if (cancelPaymentConfirmState.submitting && !force) {
-        return;
-    }
-
-    const modal = document.getElementById('cancel-payment-confirm-modal');
-    const card = document.getElementById('cancel-payment-confirm-card');
-    if (!modal || !card) {
-        return;
-    }
-
-    card.classList.remove('scale-100', 'opacity-100');
-    card.classList.add('scale-95', 'opacity-0');
-
-    setTimeout(() => {
-        modal.classList.add('hidden');
-    }, 150);
-
-    cancelPaymentConfirmState.url = null;
-    cancelPaymentConfirmState.reservationLabel = '';
-    cancelPaymentConfirmState.customerName = '';
-    cancelPaymentConfirmState.amount = 0;
-    cancelPaymentConfirmState.sourceButton = null;
-    cancelPaymentConfirmState.submitting = false;
-    setCancelPaymentConfirmError('');
-    setCancelPaymentConfirmSubmitting(false);
-}
-
-function setCancelPaymentConfirmError(message = '') {
-    const errorBox = document.getElementById('cancel-payment-confirm-error');
-    if (!errorBox) {
-        return;
-    }
-
-    if (!message) {
-        errorBox.classList.add('hidden');
-        errorBox.innerText = '';
-        return;
-    }
-
-    errorBox.innerText = message;
-    errorBox.classList.remove('hidden');
-}
-
-function setCancelPaymentConfirmSubmitting(isSubmitting) {
-    const submitBtn = document.getElementById('cancel-payment-confirm-submit-btn');
-    const submitText = document.getElementById('cancel-payment-confirm-submit-text');
-    const spinner = document.getElementById('cancel-payment-confirm-submit-spinner');
-
-    if (submitBtn) {
-        submitBtn.disabled = isSubmitting;
-    }
-    if (submitText) {
-        submitText.innerText = isSubmitting ? 'Anulando...' : 'Confirmar anulacion';
-    }
-    if (spinner) {
-        spinner.classList.toggle('hidden', !isSubmitting);
-    }
-
-    const sourceButton = cancelPaymentConfirmState.sourceButton;
-    if (sourceButton) {
-        sourceButton.disabled = isSubmitting;
-        sourceButton.classList.toggle('opacity-70', isSubmitting);
-        sourceButton.classList.toggle('cursor-not-allowed', isSubmitting);
-    }
-
-    cancelPaymentConfirmState.submitting = isSubmitting;
-}
-
-function confirmReservationPaymentCancellation() {
-    if (!cancelPaymentConfirmState.url || cancelPaymentConfirmState.submitting) {
-        return;
-    }
-
-    submitReservationPaymentCancellation(
-        cancelPaymentConfirmState.url,
-        cancelPaymentConfirmState.amount,
-        true
-    );
-}
-
-async function submitReservationPaymentCancellation(cancelUrl, amount = 0, skipDialog = false) {
-    if (!cancelUrl) {
-        window.dispatchEvent(new CustomEvent('notify', {
-            detail: { type: 'error', message: 'No se encontro la ruta para anular el pago.' },
-        }));
-        return;
-    }
-
-    if (!skipDialog) {
-        openCancelPaymentConfirmModal(cancelUrl, amount);
-        return;
-    }
-
-    if (reservationCancelPaymentRequestInFlight) {
-        return;
-    }
-
-    setCancelPaymentConfirmError('');
-    setCancelPaymentConfirmSubmitting(true);
-
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    if (reservationCancelPaymentRequestInFlight) return;
     reservationCancelPaymentRequestInFlight = true;
-
-    try {
-        const response = await fetch(cancelUrl, {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': csrfToken,
-            },
-        });
-
-        let payload = null;
-        try {
-            payload = await response.json();
-        } catch (error) {
-            payload = null;
-        }
-
-        if (!response.ok || !payload || payload.ok !== true) {
-            throw new Error(payload?.message || 'No fue posible anular el pago.');
-        }
-
-        window.dispatchEvent(new CustomEvent('notify', {
-            detail: { type: 'success', message: payload.message || 'Pago anulado correctamente.' },
-        }));
-
-        closeCancelPaymentConfirmModal(true);
-        closeReservationDetail();
-        setTimeout(() => {
-            window.location.reload();
-        }, 250);
-    } catch (error) {
-        setCancelPaymentConfirmError(error?.message || 'No fue posible anular el pago.');
-    } finally {
-        setCancelPaymentConfirmSubmitting(false);
-        reservationCancelPaymentRequestInFlight = false;
-    }
-}
-function openCheckInConfirmModal(url, reservationLabel = '', customerName = '', sourceButton = null) {
-    if (!url) {
-        return;
-    }
-
-    const modal = document.getElementById('checkin-confirm-modal');
-    const card = document.getElementById('checkin-confirm-card');
-    if (!modal || !card) {
-        submitReservationCheckIn(url, true);
-        return;
-    }
-
-    checkInConfirmState.url = url;
-    checkInConfirmState.reservationLabel = reservationLabel || 'Reserva';
-    checkInConfirmState.customerName = customerName || 'Cliente no disponible';
-    checkInConfirmState.sourceButton = sourceButton || null;
-    checkInConfirmState.submitting = false;
-
-    const reservationEl = document.getElementById('checkin-confirm-reservation');
-    const customerEl = document.getElementById('checkin-confirm-customer');
-    if (reservationEl) {
-        reservationEl.innerText = checkInConfirmState.reservationLabel;
-    }
-    if (customerEl) {
-        customerEl.innerText = checkInConfirmState.customerName;
-    }
-
-    setCheckInConfirmError('');
-    setCheckInConfirmSubmitting(false);
-
-    modal.classList.remove('hidden');
-    card.classList.remove('scale-95', 'opacity-0');
-    card.classList.add('scale-100', 'opacity-100');
-}
-
-function closeCheckInConfirmModal(force = false) {
-    if (checkInConfirmState.submitting && !force) {
-        return;
-    }
-
-    const modal = document.getElementById('checkin-confirm-modal');
-    const card = document.getElementById('checkin-confirm-card');
-    if (!modal || !card) {
-        return;
-    }
-
-    card.classList.remove('scale-100', 'opacity-100');
-    card.classList.add('scale-95', 'opacity-0');
-
-    setTimeout(() => {
-        modal.classList.add('hidden');
-    }, 150);
-
-    checkInConfirmState.url = null;
-    checkInConfirmState.reservationLabel = '';
-    checkInConfirmState.customerName = '';
-    checkInConfirmState.sourceButton = null;
-    checkInConfirmState.submitting = false;
-    setCheckInConfirmError('');
-    setCheckInConfirmSubmitting(false);
-}
-
-function setCheckInConfirmError(message = '') {
-    const errorBox = document.getElementById('checkin-confirm-error');
-    if (!errorBox) {
-        return;
-    }
-
-    if (!message) {
-        errorBox.classList.add('hidden');
-        errorBox.innerText = '';
-        return;
-    }
-
-    errorBox.innerText = message;
-    errorBox.classList.remove('hidden');
-}
-
-function setCheckInConfirmSubmitting(isSubmitting) {
-    const submitBtn = document.getElementById('checkin-confirm-submit-btn');
-    const submitText = document.getElementById('checkin-confirm-submit-text');
-    const spinner = document.getElementById('checkin-confirm-submit-spinner');
-
-    if (submitBtn) {
-        submitBtn.disabled = isSubmitting;
-    }
-    if (submitText) {
-        submitText.innerText = isSubmitting ? 'Registrando...' : 'Confirmar check-in';
-    }
-    if (spinner) {
-        spinner.classList.toggle('hidden', !isSubmitting);
-    }
-
-    const sourceButton = checkInConfirmState.sourceButton;
-    if (sourceButton) {
-        sourceButton.disabled = isSubmitting;
-        sourceButton.classList.toggle('opacity-70', isSubmitting);
-        sourceButton.classList.toggle('cursor-not-allowed', isSubmitting);
-    }
-
-    checkInConfirmState.submitting = isSubmitting;
-}
-
-function confirmReservationCheckIn() {
-    if (!checkInConfirmState.url || checkInConfirmState.submitting) {
-        return;
-    }
-
-    submitReservationCheckIn(checkInConfirmState.url, true);
-}
-
-async function submitReservationCheckIn(url, skipDialog = false) {
-    if (!url) {
-        return;
-    }
-
-    if (!skipDialog) {
-        openCheckInConfirmModal(url);
-        return;
-    }
-
-    setCheckInConfirmError('');
-    setCheckInConfirmSubmitting(true);
-
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     try {
         const response = await fetch(url, {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            },
+        });
+
+        let payload = null;
+        try { payload = await response.json(); } catch (e) {}
+
+        if (!response.ok || !payload || payload.ok !== true) {
+            throw new Error(payload?.message || 'No fue posible anular el pago.');
+        }
+
+        await Swal.fire({
+            title: '¡Pago anulado!',
+            text: payload.message || 'Pago anulado correctamente.',
+            icon: 'success',
+            confirmButtonColor: '#10b981',
+            customClass: { popup: 'rounded-3xl' }
+        });
+
+        closeReservationDetail();
+        window.location.reload();
+    } catch (error) {
+        Swal.fire({
+            title: 'No se pudo anular',
+            text: error?.message || 'No fue posible anular el pago.',
+            icon: 'error',
+            confirmButtonColor: '#e11d48',
+            customClass: { popup: 'rounded-3xl' }
+        });
+    } finally {
+        reservationCancelPaymentRequestInFlight = false;
+    }
+}
+
+async function openCheckInConfirmModal(url, reservationLabel = '', customerName = '', sourceButton = null) {
+    if (!url) return;
+
+    const result = await Swal.fire({
+        title: '¿Confirmar llegada?',
+        html: `Registrar check-in para <b>${reservationLabel}</b> (${customerName}).<br><br>El estado cambiará a "Llegó" en el calendario.`,
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonColor: '#059669',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: '<i class="fas fa-door-open mr-2"></i> Confirmar check-in',
+        cancelButtonText: 'Volver',
+        customClass: { popup: 'rounded-3xl' }
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                 'X-Requested-With': 'XMLHttpRequest',
                 'Accept': 'application/json',
             },
         });
 
         let payload = null;
-        try {
-            payload = await response.json();
-        } catch (error) {
-            payload = null;
-        }
+        try { payload = await response.json(); } catch (e) {}
 
         if (!response.ok || !payload || payload.ok !== true) {
             throw new Error(payload?.message || 'No fue posible registrar el check-in.');
         }
 
-        closeCheckInConfirmModal(true);
+        await Swal.fire({
+            title: 'Llegada registrada',
+            text: 'Se actualizó la reserva correctamente.',
+            icon: 'success',
+            confirmButtonColor: '#10b981',
+            customClass: { popup: 'rounded-3xl' }
+        });
+
         closeReservationDetail();
         window.location.reload();
     } catch (error) {
-        setCheckInConfirmError(error?.message || 'No fue posible registrar el check-in.');
-    } finally {
-        setCheckInConfirmSubmitting(false);
+        Swal.fire({
+            title: 'Error al registrar',
+            text: error?.message || 'No fue posible registrar el check-in.',
+            icon: 'error',
+            confirmButtonColor: '#059669',
+            customClass: { popup: 'rounded-3xl' }
+        });
     }
 }
 </script>
