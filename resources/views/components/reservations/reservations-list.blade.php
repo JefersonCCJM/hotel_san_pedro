@@ -196,7 +196,7 @@
 
     @if ($reservations->hasPages())
         <div class="bg-white px-6 py-4 border-t border-gray-100">
-            {{ $reservations->links() }}
+            {{ $reservations->withQueryString()->links() }}
         </div>
     @endif
 </div>
