@@ -1,8 +1,6 @@
 ﻿@props(['room', 'currentDate'])
 
 @php
-    use App\Support\HotelTime;
-    
     // SINGLE SOURCE OF TRUTH: Estado operativo desde BD basado en stays y fecha seleccionada
     $isFutureDate = $currentDate->isFuture();
     $isPastDate = $currentDate->isPast() && !$currentDate->isToday();
@@ -114,8 +112,9 @@
     @endif
 
     {{-- ESTADO: pending_cleaning (Pendiente por aseo) --}}
-    @if($cleaningCode === 'pendiente' && !in_array($operationalStatus, ['occupied', 'pending_checkout'], true) && $canPerformActions && $selectedDate->isToday())
-        {{-- Anular ingreso del dia --}}
+    {{-- Anular ingreso: condicion independiente basada en operationalStatus (SSOT correcto) --}}
+    {{-- cleaningCode puede retornar 'limpia' incorrectamente cuando el stay termino hoy --}}
+    @if($operationalStatus === 'pending_cleaning' && $canPerformActions && $selectedDate->isToday())
         <button type="button"
             @click="confirmUndoCheckout({{ $room->id }}, '{{ addslashes($room->room_number) }}')"
             wire:loading.attr="disabled"
@@ -124,7 +123,9 @@
             <i class="fas fa-undo text-sm"></i>
             <span class="sr-only">Anular ingreso</span>
         </button>
-        {{-- Marcar como limpia: Solo si es HOY --}}
+    @endif
+    {{-- Marcar como limpia: solo si cleaningCode es pendiente --}}
+    @if($cleaningCode === 'pendiente' && !in_array($operationalStatus, ['occupied', 'pending_checkout'], true) && $canPerformActions && $selectedDate->isToday())
         <button type="button"
             wire:click="markRoomAsClean({{ $room->id }})"
             wire:loading.attr="disabled"

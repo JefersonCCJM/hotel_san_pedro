@@ -206,7 +206,7 @@
                         </div>
 
                         <!-- Formulario para agregar huésped (usando Select2 como en assign-guests-modal) -->
-                        <div x-show="addingGuest && canEdit" class="bg-gray-50 rounded-lg p-4" x-data="{ showGuestSearch: false }">
+                        <div x-show="addingGuest && canEdit && canAddGuest" class="bg-gray-50 rounded-lg p-4" x-data="{ showGuestSearch: false }">
                             <h4 class="font-semibold text-gray-900 mb-3">Agregar Huésped Adicional</h4>
 
                             <div class="space-y-3">
