@@ -1777,8 +1777,16 @@ class RoomManager extends Component
             // Esto permite rastrear cada noche individualmente y su estado de pago
             try {
                 // Intentar usar stay_nights (si existe)
-                $stayNights = \App\Models\StayNight::where('reservation_id', $activeReservation->id)
-                    ->where('room_id', $room->id)
+                $stayNightsQuery = \App\Models\StayNight::where('reservation_id', $activeReservation->id)
+                    ->where('room_id', $room->id);
+
+                if ($reservationRoom && !empty($reservationRoom->check_in_date) && !empty($reservationRoom->check_out_date)) {
+                    $stayNightsQuery
+                        ->whereDate('date', '>=', Carbon::parse((string) $reservationRoom->check_in_date)->toDateString())
+                        ->whereDate('date', '<', Carbon::parse((string) $reservationRoom->check_out_date)->toDateString());
+                }
+
+                $stayNights = $stayNightsQuery
                     ->orderBy('date')
                     ->get();
 
@@ -1850,8 +1858,7 @@ class RoomManager extends Component
 
             // ===== VALIDACIÓN: Si totalHospedaje sigue siendo 0, algo está mal =====
             try {
-                $reservationTotalHospedaje = (float)\App\Models\StayNight::where('reservation_id', $activeReservation->id)
-                    ->sum('price');
+                $reservationTotalHospedaje = $this->calculateReservationStayNightsTotalByRoomRanges($activeReservation);
             } catch (\Exception $e) {
                 $reservationTotalHospedaje = 0.0;
             }
@@ -3408,6 +3415,40 @@ class RoomManager extends Component
                 ]
             );
         }
+    }
+
+    /**
+     * Calcula total de hospedaje de una reserva usando stay_nights
+     * acotado por los rangos contractuales de reservation_rooms.
+     */
+    private function calculateReservationStayNightsTotalByRoomRanges(Reservation $reservation): float
+    {
+        $reservation->loadMissing(['reservationRooms']);
+
+        $total = 0.0;
+        foreach ($reservation->reservationRooms as $reservationRoom) {
+            if (empty($reservationRoom->check_in_date) || empty($reservationRoom->check_out_date)) {
+                continue;
+            }
+
+            $checkIn = Carbon::parse((string) $reservationRoom->check_in_date)->startOfDay();
+            $checkOut = Carbon::parse((string) $reservationRoom->check_out_date)->startOfDay();
+
+            if (!$checkOut->gt($checkIn)) {
+                continue;
+            }
+
+            $roomTotal = (float) StayNight::query()
+                ->where('reservation_id', $reservation->id)
+                ->where('room_id', (int) $reservationRoom->room_id)
+                ->whereDate('date', '>=', $checkIn->toDateString())
+                ->whereDate('date', '<', $checkOut->toDateString())
+                ->sum('price');
+
+            $total += $roomTotal;
+        }
+
+        return round($total, 2);
     }
 
     /**

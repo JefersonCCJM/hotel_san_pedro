@@ -27,21 +27,43 @@
     $balanceDue = 0;
     
     if ($reservation) {
-        // Eager load payments y sales si no estan cargados
-        $reservation->loadMissing(['payments', 'sales']);
+        // Eager load relations necesarias
+        $reservation->loadMissing(['payments', 'sales', 'reservationRooms']);
+
+        // Tomar el rango contractual de esta habitación para excluir la noche de check-out
+        $reservationRoom = $reservation->reservationRooms
+            ->first(function ($rr) use ($room) {
+                return (int) ($rr->room_id ?? 0) === (int) ($room->id ?? 0);
+            });
         
         //  NUEVO SSOT: Total del hospedaje desde stay_nights si existe
         try {
-            $totalAmount = (float)\App\Models\StayNight::where('reservation_id', $reservation->id)
-                ->sum('price');
+            $stayNightsQuery = \App\Models\StayNight::where('reservation_id', $reservation->id)
+                ->where('room_id', $room->id);
+
+            if ($reservationRoom && !empty($reservationRoom->check_in_date) && !empty($reservationRoom->check_out_date)) {
+                $stayNightsQuery
+                    ->whereDate('date', '>=', \Carbon\Carbon::parse((string) $reservationRoom->check_in_date)->toDateString())
+                    ->whereDate('date', '<', \Carbon\Carbon::parse((string) $reservationRoom->check_out_date)->toDateString());
+            }
+
+            $totalAmount = (float)$stayNightsQuery->sum('price');
             
             // Si no hay noches, usar fallback
             if ($totalAmount <= 0) {
-                $totalAmount = (float)($reservation->total_amount ?? 0);
+                if ($reservationRoom && !empty($reservationRoom->subtotal)) {
+                    $totalAmount = (float)($reservationRoom->subtotal ?? 0);
+                } else {
+                    $totalAmount = (float)($reservation->total_amount ?? 0);
+                }
             }
         } catch (\Exception $e) {
             // Si falla (tabla no existe), usar fallback
-            $totalAmount = (float)($reservation->total_amount ?? 0);
+            if ($reservationRoom && !empty($reservationRoom->subtotal)) {
+                $totalAmount = (float)($reservationRoom->subtotal ?? 0);
+            } else {
+                $totalAmount = (float)($reservation->total_amount ?? 0);
+            }
         }
         
         // Pagos reales (SOLO positivos) - SSOT financiero
@@ -138,5 +160,4 @@
         </button>
     </div>
 @endif
-
 
