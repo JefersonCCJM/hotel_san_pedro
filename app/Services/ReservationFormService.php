@@ -161,7 +161,7 @@ final class ReservationFormService
             'customer.taxProfile',
             'reservationRooms.room',
             'reservationRooms.guests.taxProfile',
-            'payments',
+            'payments.paymentMethod',
         ]);
 
         $reservationRooms = $reservation->reservationRooms;
@@ -178,6 +178,18 @@ final class ReservationFormService
         $depositAmount = $paymentsTotal > 0
             ? $paymentsTotal
             : (float) ($reservation->deposit_amount ?? 0);
+        $paymentMethod = $reservation->payments
+            ->filter(static fn ($payment): bool => (float) ($payment->amount ?? 0) > 0)
+            ->sortByDesc(static fn ($payment) => $payment->paid_at ?? $payment->created_at)
+            ->map(static function ($payment): string {
+                $code = (string) ($payment->paymentMethod->code ?? '');
+                return strtolower(trim($code));
+            })
+            ->first(static fn (string $code): bool => in_array($code, ['efectivo', 'transferencia'], true));
+
+        if (!is_string($paymentMethod) || $paymentMethod === '') {
+            $paymentMethod = 'efectivo';
+        }
 
         $roomId = $this->resolveSingleRoomIdString($reservation, $reservationRooms, $isMultiRoom);
         $selectedRoomIds = $isMultiRoom
@@ -199,7 +211,7 @@ final class ReservationFormService
             'adults' => (int) ($reservation->adults ?? 0),
             'children' => (int) ($reservation->children ?? 0),
             'notes' => (string) ($reservation->notes ?? ''),
-            'paymentMethod' => 'efectivo',
+            'paymentMethod' => $paymentMethod,
             'showMultiRoomSelector' => $isMultiRoom,
             'roomId' => $roomId,
             'selectedRoomIds' => $selectedRoomIds,

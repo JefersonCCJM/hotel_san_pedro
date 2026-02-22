@@ -59,6 +59,14 @@ class ReservationService
             $errors['deposit'] = 'El deposito no puede ser mayor al total.';
         }
 
+        $paymentMethodRaw = $data['payment_method'] ?? $data['paymentMethod'] ?? 'efectivo';
+        $paymentMethod = is_string($paymentMethodRaw)
+            ? strtolower(trim($paymentMethodRaw))
+            : '';
+        if (!in_array($paymentMethod, ['efectivo', 'transferencia'], true)) {
+            $errors['payment_method'] = 'El metodo de pago seleccionado no es valido.';
+        }
+
         if (array_key_exists('adults', $data) && $data['adults'] !== null && $data['adults'] !== '') {
             if (!is_numeric($data['adults']) || (int) $data['adults'] < 0) {
                 $errors['adults'] = 'La cantidad de adultos debe ser un numero valido mayor o igual a 0.';
@@ -486,4 +494,3 @@ class ReservationService
         return max(0, (int) $value);
     }
 }
-

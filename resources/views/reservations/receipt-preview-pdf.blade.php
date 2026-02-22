@@ -108,6 +108,10 @@
                     <td class="deposit">-${{ number_format((float) ($depositAmount ?? 0), 0, ',', '.') }}</td>
                 </tr>
                 <tr>
+                    <td>Metodo de pago del abono</td>
+                    <td>{{ $paymentMethodLabel ?? (($paymentMethod ?? 'efectivo') === 'transferencia' ? 'Transferencia' : 'Efectivo') }}</td>
+                </tr>
+                <tr>
                     <td class="balance">Saldo pendiente</td>
                     <td class="balance">${{ number_format((float) ($balanceDue ?? 0), 0, ',', '.') }}</td>
                 </tr>

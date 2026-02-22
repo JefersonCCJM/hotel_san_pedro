@@ -225,6 +225,9 @@
                     'autoCalculatedTotal' => $autoCalculatedTotal,
                     'isReceiptReady' => $isReceiptReady,
                     'status' => $status,
+                    'reservationPaymentMethod' => $reservationPaymentMethod,
+                    'reservationPaymentMethodLabel' => $reservationPaymentMethodLabel,
+                    'isCreateMode' => $isCreateMode,
                 ])
             </div>
         </div>

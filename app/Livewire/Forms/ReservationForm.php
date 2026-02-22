@@ -34,6 +34,9 @@ class ReservationForm extends Form
     #[Validate('required|integer|min:0')]
     public $deposit = 0;
 
+    #[Validate('required|string|in:efectivo,transferencia')]
+    public string $paymentMethod = 'efectivo';
+
     #[Validate('nullable|string|max:1000')]
     public string $notes = '';
 
@@ -49,6 +52,7 @@ class ReservationForm extends Form
             'children' => 'nullable|integer|min:0',
             'total' => 'required|integer|min:1',
             'deposit' => 'required|integer|min:0',
+            'paymentMethod' => 'required|string|in:efectivo,transferencia',
             'notes' => 'nullable|string|max:1000',
         ];
     }
@@ -74,6 +78,8 @@ class ReservationForm extends Form
             'total.required' => 'El total es obligatorio.',
             'total.min' => 'El total debe ser mayor a cero.',
             'deposit.required' => 'El abono inicial es obligatorio.',
+            'paymentMethod.required' => 'Debes seleccionar un metodo de pago para el abono.',
+            'paymentMethod.in' => 'El metodo de pago seleccionado no es valido.',
             'notes.max' => 'Las observaciones no pueden exceder 1000 caracteres.',
         ];
     }
@@ -89,6 +95,7 @@ class ReservationForm extends Form
         $this->children = null;
         $this->total = 0;
         $this->deposit = 0;
+        $this->paymentMethod = 'efectivo';
         $this->notes = '';
     }
 

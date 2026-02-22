@@ -1,5 +1,8 @@
 <!-- Resumen de Cobro -->
 <div class="w-full bg-[#1e293b] rounded-[32px] p-6 shadow-2xl border border-slate-700/50 text-white">
+    @php($isCreateMode = (bool) ($isCreateMode ?? true))
+    @php($paymentMethodLabel = $reservationPaymentMethodLabel ?? (($reservationPaymentMethod ?? 'efectivo') === 'transferencia' ? 'Transferencia' : 'Efectivo'))
+
     <div class="flex justify-between items-center mb-6">
         <h2 class="text-2xl font-bold tracking-tight">Resumen de Cobro</h2>
         <div class="bg-slate-700/50 p-2 rounded-xl">
@@ -57,6 +60,32 @@
         @error('deposit')
             <p class="text-xs text-red-300">{{ $message }}</p>
         @enderror
+
+        @if ($isCreateMode)
+            <div class="pt-2">
+                <label for="reservation-payment-method" class="block text-xs font-semibold text-slate-300 mb-2">
+                    Metodo de pago del abono
+                </label>
+                <select
+                    id="reservation-payment-method"
+                    wire:model.live="reservation.paymentMethod"
+                    class="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-sm text-slate-100 focus:ring-2 focus:ring-blue-500"
+                >
+                    <option value="efectivo">Efectivo</option>
+                    <option value="transferencia">Transferencia</option>
+                </select>
+                <p class="mt-2 text-[11px] text-slate-400">
+                    Metodo seleccionado:
+                    <span class="font-semibold text-slate-200">{{ $paymentMethodLabel }}</span>
+                </p>
+                @error('reservation.paymentMethod')
+                    <p class="mt-1 text-xs text-red-300">{{ $message }}</p>
+                @enderror
+                @error('payment_method')
+                    <p class="mt-1 text-xs text-red-300">{{ $message }}</p>
+                @enderror
+            </div>
+        @endif
     </div>
 
     <div class="flex items-end justify-between mb-6 border-t border-slate-700 pt-5">

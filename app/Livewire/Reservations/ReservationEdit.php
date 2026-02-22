@@ -54,6 +54,7 @@ final class ReservationEdit extends ReservationCreate
         $this->checkInTime = (string) ($data['checkInTime'] ?? '14:00');
         $this->reservation->total = (int) round((float) ($data['total'] ?? 0));
         $this->reservation->deposit = (int) round((float) ($data['deposit'] ?? 0));
+        $this->reservation->paymentMethod = (string) ($data['paymentMethod'] ?? 'efectivo');
         $this->guestsCount = (int) ($data['guestsCount'] ?? 0);
         $this->reservation->adults = $data['adults'] ?? $this->reservation->adults;
         $this->reservation->children = $data['children'] ?? $this->reservation->children;
@@ -238,6 +239,7 @@ final class ReservationEdit extends ReservationCreate
                 'room_ids' => $effectiveRoomIds,
                 'total_amount' => $this->getReservationTotalValue(),
                 'deposit' => $this->getReservationDepositValue(),
+                'payment_method' => $this->getReservationPaymentMethodValue(),
                 'guests_count' => $this->getGuestsCountValue(),
                 'adults' => $this->getReservationAdultsValue(),
                 'children' => $this->getReservationChildrenValue(),

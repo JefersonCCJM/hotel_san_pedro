@@ -557,6 +557,8 @@ class ReservationCreate extends Component
 
         $total = $this->getReservationTotalValue();
         $deposit = $this->getReservationDepositValue();
+        $paymentMethod = $this->getReservationPaymentMethodValue();
+        $paymentMethodLabel = $this->getReservationPaymentMethodLabel();
         $balance = max(0, $total - $deposit);
         $status = $balance <= 0 ? 'Liquidado' : 'Pendiente';
         $issuedAt = now();
@@ -641,6 +643,8 @@ class ReservationCreate extends Component
             'roomSummaries' => $roomSummaries,
             'totalAmount' => $total,
             'depositAmount' => $deposit,
+            'paymentMethod' => $paymentMethod,
+            'paymentMethodLabel' => $paymentMethodLabel,
             'balanceDue' => $balance,
             'status' => $status,
             'notes' => (string) ($this->reservation->notes ?? ''),
@@ -686,6 +690,7 @@ class ReservationCreate extends Component
                 'room_ids' => $this->reservation->selectedRoomIds,
                 'total_amount' => $this->getReservationTotalValue(),
                 'deposit' => $this->getReservationDepositValue(),
+                'payment_method' => $this->getReservationPaymentMethodValue(),
                 'guests_count' => $this->getGuestsCountValue(),
                 'adults' => $this->getReservationAdultsValue(),
                 'children' => $this->getReservationChildrenValue(),
@@ -806,6 +811,9 @@ class ReservationCreate extends Component
             'autoCalculatedTotal' => $this->autoCalculatedTotal,
             'isReceiptReady' => $this->isReceiptReady,
             'status' => $this->status,
+            'reservationPaymentMethod' => $this->getReservationPaymentMethodValue(),
+            'reservationPaymentMethodLabel' => $this->getReservationPaymentMethodLabel(),
+            'isCreateMode' => $this->editingReservationId === null,
         ]);
     }
 
@@ -1160,6 +1168,7 @@ class ReservationCreate extends Component
             'dates', 'checkIn', 'check_in_date', 'checkOut', 'check_out_date' => 'reservation.checkOut',
             'total', 'total_amount' => 'reservation.total',
             'deposit', 'deposit_amount' => 'reservation.deposit',
+            'payment_method', 'paymentMethod' => 'reservation.paymentMethod',
             'adults' => 'reservation.adults',
             'children' => 'reservation.children',
             default => $field,
@@ -1194,6 +1203,32 @@ class ReservationCreate extends Component
         }
 
         return is_numeric($deposit) ? (float) $deposit : 0.0;
+    }
+
+    protected function getReservationPaymentMethodValue(): string
+    {
+        try {
+            $paymentMethod = $this->reservation->paymentMethod ?? 'efectivo';
+        } catch (\Throwable $e) {
+            return 'efectivo';
+        }
+
+        if (!is_string($paymentMethod)) {
+            return 'efectivo';
+        }
+
+        $normalized = strtolower(trim($paymentMethod));
+
+        return in_array($normalized, ['efectivo', 'transferencia'], true)
+            ? $normalized
+            : 'efectivo';
+    }
+
+    protected function getReservationPaymentMethodLabel(): string
+    {
+        return $this->getReservationPaymentMethodValue() === 'transferencia'
+            ? 'Transferencia'
+            : 'Efectivo';
     }
 
     protected function getGuestsCountValue(): int
