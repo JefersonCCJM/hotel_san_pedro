@@ -171,11 +171,26 @@ class Room extends Model
     public function getFutureReservation(?\Carbon\Carbon $date = null): ?\App\Models\Reservation
     {
         $date = $date ?? \Carbon\Carbon::today();
+        $dateStr = $date->toDateString();
 
         return $this->reservationRooms()
-            ->where('check_in_date', '>=', $date->toDateString())
+            ->where(function ($q) use ($dateStr) {
+                // check_in_date en reservation_rooms (fuente principal)
+                $q->where('check_in_date', '>=', $dateStr)
+                  // fallback: si check_in_date es null, usar el de la reserva
+                  ->orWhere(function ($q2) use ($dateStr) {
+                      $q2->whereNull('check_in_date')
+                         ->whereHas('reservation', function ($r) use ($dateStr) {
+                             $r->where('check_in_date', '>=', $dateStr);
+                         });
+                  });
+            })
             ->whereHas('reservation', function ($query) {
                 $query->whereNull('deleted_at');
+            })
+            // Excluir si ya hay un stay activo (checkin ya ocurrió) para esta habitacion
+            ->whereDoesntHave('reservation.stays', function ($q) {
+                $q->where('room_id', $this->id)->whereNotNull('check_in_at');
             })
             ->with('reservation.customer')
             ->orderBy('check_in_date', 'asc')

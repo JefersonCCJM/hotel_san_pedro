@@ -132,48 +132,58 @@
     </td>
 
     <td class="px-6 py-4 whitespace-nowrap text-center align-top">
-        <span
-            class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold transition-colors duration-300"
-            :class="{
-                'bg-gray-100 text-gray-600': displayState === 'releasing',
-                'bg-emerald-100 text-emerald-700 border border-emerald-200': displayState === 'released',
-                'bg-red-100 text-red-700 border border-red-200': displayState === 'occupied',
-                'bg-orange-100 text-orange-700 border border-orange-200': displayState === 'pending_checkout',
-                'bg-yellow-100 text-yellow-700 border border-yellow-200': displayState === 'pending_cleaning',
-                'bg-emerald-100 text-emerald-700 border border-emerald-200': displayState === 'free_clean'
-            }">
-            <span class="w-1.5 h-1.5 rounded-full mr-2" :class="displayState === 'releasing' ? 'animate-spin' : ''" style="background-color: currentColor"></span>
-            <template x-if="displayState === 'releasing'">
-                <span><i class="fas fa-spinner fa-spin mr-1"></i>Liberando...</span>
-            </template>
-            <template x-if="displayState === 'released'">
-                <span x-transition.opacity><i class="fas fa-check-circle mr-1"></i>Habitacion liberada</span>
-            </template>
-            <template x-if="displayState === 'occupied'">
-                <span>Ocupada</span>
-            </template>
-            <template x-if="displayState === 'pending_checkout'">
-                <span><i class="fas fa-door-open mr-1"></i>Pendiente por checkout</span>
-            </template>
-            <template x-if="displayState === 'pending_cleaning'">
-                {{-- CRITICAL: Estado operativo 'pending_cleaning' significa que la habitacion esta LIBRE pero necesita limpieza --}}
-                {{-- El estado de LIMPIEZA se muestra en su propia columna separada --}}
-                <span>Libre</span>
-            </template>
-            <template x-if="displayState === 'free_clean'">
-                <span>Libre</span>
-            </template>
-        </span>
+        <div class="flex flex-col items-center gap-1.5">
+            <span
+                class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold transition-colors duration-300"
+                :class="{
+                    'bg-gray-100 text-gray-600': displayState === 'releasing',
+                    'bg-emerald-100 text-emerald-700 border border-emerald-200': displayState === 'released',
+                    'bg-red-100 text-red-700 border border-red-200': displayState === 'occupied',
+                    'bg-orange-100 text-orange-700 border border-orange-200': displayState === 'pending_checkout',
+                    'bg-yellow-100 text-yellow-700 border border-yellow-200': displayState === 'pending_cleaning',
+                    'bg-emerald-100 text-emerald-700 border border-emerald-200': displayState === 'free_clean'
+                }">
+                <span class="w-1.5 h-1.5 rounded-full mr-2" :class="displayState === 'releasing' ? 'animate-spin' : ''" style="background-color: currentColor"></span>
+                <template x-if="displayState === 'releasing'">
+                    <span><i class="fas fa-spinner fa-spin mr-1"></i>Liberando...</span>
+                </template>
+                <template x-if="displayState === 'released'">
+                    <span x-transition.opacity><i class="fas fa-check-circle mr-1"></i>Habitacion liberada</span>
+                </template>
+                <template x-if="displayState === 'occupied'">
+                    <span>Ocupada</span>
+                </template>
+                <template x-if="displayState === 'pending_checkout'">
+                    <span><i class="fas fa-door-open mr-1"></i>Pendiente por checkout</span>
+                </template>
+                <template x-if="displayState === 'pending_cleaning'">
+                    {{-- CRITICAL: Estado operativo 'pending_cleaning' significa que la habitacion esta LIBRE pero necesita limpieza --}}
+                    {{-- El estado de LIMPIEZA se muestra en su propia columna separada --}}
+                    <span>Libre</span>
+                </template>
+                <template x-if="displayState === 'free_clean'">
+                    <span>Libre</span>
+                </template>
+            </span>
 
-        {{-- Etiqueta de reserva futura (RES-) --}}
-        @if ($room->future_reservation)
-            <div class="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-200"
-                title="{{ $room->future_reservation->customer->name ?? '' }}">
-                <i class="fas fa-calendar-check text-[8px]"></i>
-                <span>{{ \Illuminate\Support\Str::limit($room->future_reservation->customer->name ?? 'Sin cliente', 15) }}</span>
-                <span class="font-mono text-blue-500">{{ $room->future_reservation->reservation_code }}</span>
-            </div>
-        @endif
+            {{-- Etiqueta de reserva futura: solo RES-, excluir si ya esta ocupada al renderizar --}}
+            @php
+                $futureRes = $room->future_reservation;
+                $hasFutureBadge = $futureRes
+                    && str_starts_with(strtoupper($futureRes->reservation_code ?? ''), 'RES-')
+                    && !in_array($operationalStatus, ['occupied', 'pending_checkout']);
+            @endphp
+            @if ($hasFutureBadge)
+                {{-- x-show reactivo: se oculta inmediatamente si hay checkin (room-rented) sin esperar re-render --}}
+                <div x-show="displayState === 'free_clean' || displayState === 'pending_cleaning'"
+                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-200"
+                    title="{{ $futureRes->customer->name ?? '' }}">
+                    <i class="fas fa-calendar-check text-[8px]"></i>
+                    <span>{{ \Illuminate\Support\Str::limit($futureRes->customer->name ?? 'Sin cliente', 15) }}</span>
+                    <span class="font-mono text-blue-500">{{ $futureRes->reservation_code }}</span>
+                </div>
+            @endif
+        </div>
     </td>
 
     <td class="px-6 py-4 whitespace-nowrap text-center align-top">
