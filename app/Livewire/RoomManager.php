@@ -2480,11 +2480,7 @@ class RoomManager extends Component
                     ->where('room_id', $currentRoomId)->first();
 
                 if ($oldReservationRoom) {
-                    $newReservationRoom = $oldReservationRoom->replicate();
-                    $newReservationRoom->room_id = $newRoomId;
-
-                    $oldReservationRoom->delete();
-                    $newReservationRoom->save();
+                    $oldReservationRoom->update(['room_id' => $newRoomId]);
                 }
 
                 // Marcar habitacion vieja como pendiente aseo

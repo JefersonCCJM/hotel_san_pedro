@@ -66,8 +66,8 @@
             }
     
             $wire.call('addGuestToRoom', {
-                reservation_id: {{ $allGuestsForm['reservation_id'] }},
-                room_id: {{ $allGuestsForm['room_id'] }},
+                reservation_id: $wire.allGuestsForm.reservation_id,
+                room_id: $wire.allGuestsForm.room_id,
                 name: this.newGuestName,
                 identification: this.newGuestIdentification,
                 phone: this.newGuestPhone
