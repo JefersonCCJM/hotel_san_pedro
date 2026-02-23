@@ -1444,6 +1444,14 @@ class RoomManager extends Component
             // Ejemplo: Checkout anterior 19, nuevo checkout 20 â†’ Noche cobrable: 19 (NO 20)
             $nightToCharge = $newCheckOutDate->copy()->subDay();
             $this->ensureNightForDate($stay, $nightToCharge);
+            try {
+                $this->syncStayNightsPaymentCoverage($reservation);
+            } catch (\Exception $e) {
+                \Log::warning('Error syncing stay nights in continueStay', [
+                    'reservation_id' => $reservation->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             // ðŸ” REGLA HOTELERA: Continuar estadía = habitación queda pendiente por aseo
             // Toda extensión de estadía ensucia la habitación aunque el huésped continúe
@@ -1607,6 +1615,18 @@ class RoomManager extends Component
                     
                     // Generar noche solo si HOY < checkout
                     $this->ensureNightForDate($stay, $today);
+
+                    try {
+                        if ($stay->reservation) {
+                            $this->syncStayNightsPaymentCoverage($stay->reservation);
+                        }
+                    } catch (\Exception $e) {
+                        \Log::warning('Error syncing stay nights in nextDay', [
+                            'stay_id' => $stay->id,
+                            'reservation_id' => $stay->reservation_id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
                 }
             }
         } catch (\Exception $e) {
@@ -1775,6 +1795,8 @@ class RoomManager extends Component
                         }
                     }
                 }
+
+                $this->syncStayNightsPaymentCoverage($activeReservation);
             } catch (\Exception $e) {
                 // No crítico, solo log
                 \Log::warning('Error generating nights in openRoomDetail', [
@@ -2312,6 +2334,16 @@ class RoomManager extends Component
     {
         $reservation = Reservation::with(['payments', 'sales'])->find($reservationId);
         if (!$reservation) return;
+
+        try {
+            $this->syncStayNightsPaymentCoverage($reservation);
+            $reservation->refresh()->load(['payments', 'sales']);
+        } catch (\Exception $e) {
+            \Log::warning('Error syncing stay nights in recalculateReservationFinancials', [
+                'reservation_id' => $reservationId,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         $totalAmount = (float) StayNight::where('reservation_id', $reservationId)->sum('price');
         if ($totalAmount <= 0) {
@@ -3218,6 +3250,15 @@ class RoomManager extends Component
                 ]);
             }
 
+            try {
+                $this->syncStayNightsPaymentCoverage($reservation);
+            } catch (\Exception $e) {
+                \Log::warning('Error syncing stay nights payment coverage', [
+                    'reservation_id' => $reservation->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             // Recalcular balance_due de la reserva
             $paymentsTotal = (float)($reservation->payments()->sum('amount') ?? 0);
             $balanceDue = $totalAmount - $paymentsTotal + $salesDebt;
@@ -3352,6 +3393,37 @@ class RoomManager extends Component
             'nights_marked' => $nightsMarked,
             'remaining_amount' => $remaining,
         ];
+    }
+
+    /**
+     * Recalcula el estado pagado de stay_nights usando los pagos netos de la reserva.
+     * Regla: los pagos cubren noches en orden FIFO (fecha ascendente).
+     */
+    private function syncStayNightsPaymentCoverage(Reservation $reservation): void
+    {
+        $reservation->loadMissing(['payments']);
+
+        $availableAmount = round(max(0, (float) ($reservation->payments->sum('amount') ?? 0)), 2);
+
+        $stayNights = StayNight::query()
+            ->where('reservation_id', $reservation->id)
+            ->orderBy('date')
+            ->orderBy('room_id')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($stayNights as $stayNight) {
+            $nightPrice = round(max(0, (float) ($stayNight->price ?? 0)), 2);
+            $shouldBePaid = $nightPrice <= 0 || $availableAmount >= $nightPrice;
+
+            if ($shouldBePaid && $nightPrice > 0) {
+                $availableAmount = round(max(0, $availableAmount - $nightPrice), 2);
+            }
+
+            if ((bool) $stayNight->is_paid !== $shouldBePaid) {
+                $stayNight->update(['is_paid' => $shouldBePaid]);
+            }
+        }
     }
 
     /**
@@ -4174,6 +4246,17 @@ class RoomManager extends Component
                 'status' => 'active', // estados: active, pending_checkout, finished
             ]);
 
+            // Sincronizar noches y estado de pago por noches desde el abono inicial.
+            try {
+                $this->ensureStayNightsCoverageForReservation($reservation);
+                $this->syncStayNightsPaymentCoverage($reservation);
+            } catch (\Exception $e) {
+                \Log::warning('Quick Rent: Error syncing stay nights payment coverage', [
+                    'reservation_id' => $reservation->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             // CRITICAL: Refrescar el modelo Room para invalidar cualquier caché de relaciones
             // Esto asegura que las siguientes consultas encuentren la stay recién creada
             $room = Room::find($validated['room_id']);
@@ -4582,6 +4665,14 @@ class RoomManager extends Component
                     $newCheckOutDate,
                     $finalNightPrice
                 );
+                try {
+                    $this->syncStayNightsPaymentCoverage($reservation);
+                } catch (\Exception $e) {
+                    \Log::warning('Error syncing stay nights payment coverage in submitAssignGuests', [
+                        'reservation_id' => $reservation->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
 
                 // Recalcular total desde stay_nights (SSOT) para evitar que quede el precio anterior.
                 $stayNightsTotal = (float) StayNight::query()
@@ -5966,6 +6057,9 @@ class RoomManager extends Component
                     // Fallback: si no hay fecha de check-in, asumir 1 noche
                     $nightsConsumed = 1;
                 }
+
+                // No cobrar más noches que las contractuales de esta habitación.
+                $nightsConsumed = min($totalNights, $nightsConsumed);
                 
                 // Total que debería estar pagado hasta hoy
                 $expectedPaid = $pricePerNight * $nightsConsumed;
