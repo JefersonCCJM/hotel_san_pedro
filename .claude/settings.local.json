@@ -13,7 +13,9 @@
       "Bash(grep:*)",
       "Bash(where:*)",
       "Bash(php:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(python3:*)",
+      "Bash(python:*)"
     ]
   }
 }

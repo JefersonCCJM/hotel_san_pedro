@@ -1,18 +1,17 @@
-﻿@props(['room', 'selectedDate'])
+@props(['room', 'selectedDate'])
 
 @php
     use App\Support\HotelTime;
-    
-    // SINGLE SOURCE OF TRUTH: El estado de limpieza SOLO depende de last_cleaned_at y stays
-    // NUNCA usar getOperationalStatus() ni estados operativos aqui
-    $cleaningStatus = $room->cleaningStatus($selectedDate);
-    
-    // El metodo cleaningStatus() retorna un array con 'code' que puede ser:
-    // - 'limpia'  Habitacion limpia
-    // - 'pendiente'  Pendiente por aseo
-    // NUNCA retorna estados operativos como 'occupied', 'free_clean', etc.
-    
-    $statusConfig = match($cleaningStatus['code']) {
+    use Carbon\Carbon;
+
+    $normalizedSelectedDate = $selectedDate instanceof Carbon
+        ? $selectedDate
+        : Carbon::parse($selectedDate);
+
+    $selectedDateKey = $normalizedSelectedDate->format('Y-m-d');
+    $cleaningStatus = $room->cleaningStatus($normalizedSelectedDate);
+
+    $statusConfig = match ($cleaningStatus['code']) {
         'limpia' => [
             'label' => 'Limpia',
             'icon' => 'fa-check-circle',
@@ -24,44 +23,37 @@
             'color' => 'bg-yellow-100 text-yellow-700 border border-yellow-200',
         ],
         default => [
-            // Fallback: si por alguna razon el codigo no es reconocido, mostrar como limpia
             'label' => 'Limpia',
             'icon' => 'fa-check-circle',
             'color' => 'bg-emerald-100 text-emerald-700 border border-emerald-200',
         ],
     };
-    
-    // Determinar si es fecha pasada (no permitir cambios en fechas historicas)
-    $isPastDate = HotelTime::isOperationalPastDate($selectedDate);
+
+    $isPastDate = HotelTime::isOperationalPastDate($normalizedSelectedDate);
 @endphp
 
-<div 
-    x-data="{ 
-        showDropdown: false,
-        currentStatus: '{{ $cleaningStatus['code'] }}',
-        isLoading: false,
-        isPastDate: @js($isPastDate)
-    }"
+<div
+    wire:key="room-cleaning-status-{{ $room->id }}-{{ $selectedDateKey }}-{{ $cleaningStatus['code'] }}"
+    x-data="{ showDropdown: false, isPastDate: @js($isPastDate) }"
     class="relative inline-block"
     @click.away="showDropdown = false">
-    
-    {{-- Badge clickeable (solo si NO es fecha pasada) --}}
     <button
         type="button"
-        @click="!isPastDate && !isLoading && (showDropdown = !showDropdown)"
-        :disabled="isPastDate || isLoading"
-        :class="isPastDate || isLoading ? 'cursor-not-allowed opacity-75' : 'cursor-pointer hover:scale-105 transition-transform'"
+        @click="if (!isPastDate) showDropdown = !showDropdown"
+        :disabled="isPastDate"
+        :class="isPastDate ? 'cursor-not-allowed opacity-75' : 'cursor-pointer hover:scale-105 transition-transform'"
+        wire:loading.class="opacity-75 cursor-wait"
+        wire:target="updateCleaningStatus"
         class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold {{ $statusConfig['color'] }}"
         title="{{ $isPastDate ? 'Estado historico (no editable)' : 'Clic para cambiar estado de limpieza' }}">
         <i class="fas {{ $statusConfig['icon'] }} mr-1.5"></i>
-        <span x-text="currentStatus === 'limpia' ? 'Limpia' : 'Pendiente por aseo'"></span>
-        @if(!$isPastDate)
+        <span>{{ $statusConfig['label'] }}</span>
+        @if (!$isPastDate)
             <i class="fas fa-chevron-down ml-1.5 text-[10px]"></i>
         @endif
     </button>
-    
-    {{-- Dropdown de opciones (solo si NO es fecha pasada) --}}
-    @if(!$isPastDate)
+
+    @if (!$isPastDate)
         <div
             x-show="showDropdown"
             x-transition:enter="transition ease-out duration-100"
@@ -73,45 +65,26 @@
             x-cloak
             class="absolute bottom-full left-0 z-50 mb-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1"
             style="display: none;">
-            
             <button
                 type="button"
-                @click="
-                    if (currentStatus !== 'limpia') {
-                        isLoading = true;
-                        @this.call('updateCleaningStatus', {{ $room->id }}, 'limpia').then(() => {
-                            currentStatus = 'limpia';
-                            showDropdown = false;
-                            isLoading = false;
-                        }).catch(() => {
-                            isLoading = false;
-                        });
-                    }
-                "
-                :disabled="currentStatus === 'limpia' || isLoading"
-                class="w-full text-left px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-emerald-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                :class="currentStatus === 'limpia' ? 'bg-emerald-50 text-emerald-700' : ''">
+                wire:click="updateCleaningStatus({{ $room->id }}, 'limpia')"
+                wire:loading.attr="disabled"
+                wire:target="updateCleaningStatus"
+                @click="showDropdown = false"
+                @disabled($cleaningStatus['code'] === 'limpia')
+                class="w-full text-left px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-emerald-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 @if($cleaningStatus['code'] === 'limpia') bg-emerald-50 text-emerald-700 @endif">
                 <i class="fas fa-check-circle text-emerald-600"></i>
                 <span>Marcar como limpia</span>
             </button>
-            
+
             <button
                 type="button"
-                @click="
-                    if (currentStatus !== 'pendiente') {
-                        isLoading = true;
-                        @this.call('updateCleaningStatus', {{ $room->id }}, 'pendiente').then(() => {
-                            currentStatus = 'pendiente';
-                            showDropdown = false;
-                            isLoading = false;
-                        }).catch(() => {
-                            isLoading = false;
-                        });
-                    }
-                "
-                :disabled="currentStatus === 'pendiente' || isLoading"
-                class="w-full text-left px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-yellow-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                :class="currentStatus === 'pendiente' ? 'bg-yellow-50 text-yellow-700' : ''">
+                wire:click="updateCleaningStatus({{ $room->id }}, 'pendiente')"
+                wire:loading.attr="disabled"
+                wire:target="updateCleaningStatus"
+                @click="showDropdown = false"
+                @disabled($cleaningStatus['code'] === 'pendiente')
+                class="w-full text-left px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-yellow-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 @if($cleaningStatus['code'] === 'pendiente') bg-yellow-50 text-yellow-700 @endif">
                 <i class="fas fa-broom text-yellow-600"></i>
                 <span>Marcar como pendiente</span>
             </button>
