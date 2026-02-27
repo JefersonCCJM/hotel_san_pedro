@@ -116,7 +116,7 @@
     {{-- ESTADO: pending_cleaning (Pendiente por aseo) --}}
     {{-- Anular ingreso: condicion independiente basada en operationalStatus (SSOT correcto) --}}
     {{-- cleaningCode puede retornar 'limpia' incorrectamente cuando el stay termino hoy --}}
-    @if($operationalStatus === 'pending_cleaning' && $canPerformActions && $isOperationalToday)
+    {{-- @if($operationalStatus === 'pending_cleaning' && $canPerformActions && $isOperationalToday)
         <button type="button"
             @click="confirmUndoCheckout({{ $room->id }}, '{{ addslashes($room->room_number) }}')"
             wire:loading.attr="disabled"
@@ -125,7 +125,7 @@
             <i class="fas fa-undo text-sm"></i>
             <span class="sr-only">Anular ingreso</span>
         </button>
-    @endif
+    @endif --}}
     {{-- Marcar como limpia: solo si cleaningCode es pendiente --}}
     @if($cleaningCode === 'pendiente' && !in_array($operationalStatus, ['occupied', 'pending_checkout'], true) && $canPerformActions && $isOperationalToday)
         <button type="button"
