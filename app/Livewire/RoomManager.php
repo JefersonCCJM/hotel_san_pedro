@@ -5700,6 +5700,18 @@ class RoomManager extends Component
                 ->value('id');
             $reservation->save();
 
+            // Estado de limpieza al liberar.
+            // Por defecto queda pendiente por aseo, salvo que se solicite "limpia" o "libre".
+            $targetStatus = $status ? (string) $status : 'pendiente_aseo';
+            if (!in_array($targetStatus, ['libre', 'limpia', 'pendiente_aseo', 'pendiente'], true)) {
+                $targetStatus = 'pendiente_aseo';
+            }
+
+            $room->last_cleaned_at = in_array($targetStatus, ['pendiente_aseo', 'pendiente'], true)
+                ? null
+                : now();
+            $room->save();
+
             \Log::info('Release Room: stay closure applied', [
                 'room_id' => $room->id,
                 'reservation_id' => $reservation->id,
@@ -5798,18 +5810,7 @@ class RoomManager extends Component
                 $pendingAmount = 0;
                 
                 // Determinar target_status basado en el parámetro o estado de limpieza
-                $targetStatus = $status ?? 'libre';
-                if (!$status) {
-                    // Si no se especifica, verificar estado de limpieza
-                    $cleaningStatus = $room->cleaningStatus($today);
-                    if ($cleaningStatus === 'pendiente') {
-                        $targetStatus = 'pendiente_aseo';
-                    } elseif ($cleaningStatus === 'limpia') {
-                        $targetStatus = 'limpia';
-                    } else {
-                        $targetStatus = 'libre';
-                    }
-                }
+                // targetStatus ya fue determinado y aplicado al estado de limpieza.
                 
                 // Preparar datos de huéspedes
                 // Obtener huéspedes desde reservation_guests usando reservation_room_id
