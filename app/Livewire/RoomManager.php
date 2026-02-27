@@ -15,6 +15,7 @@ use App\Models\Payment;
 use App\Models\Product;
 use App\Models\ReservationSale;
 use App\Models\RoomReleaseHistory;
+use App\Models\RoomQuickReservation;
 use App\Models\Stay;
 use App\Models\StayNight;
 use App\Enums\RoomDisplayStatus;
@@ -1391,6 +1392,136 @@ class RoomManager extends Component
     public function loadRooms()
     {
         $this->resetPage();
+    }
+
+    /**
+     * Obtiene mapa [room_id => true] de reservas rapidas para la fecha operativa.
+     *
+     * @param Carbon $selectedDate
+     * @param \Illuminate\Support\Collection<int, int|string> $roomIds
+     * @return array<int, bool>
+     */
+    private function getQuickReservedRoomMap(Carbon $selectedDate, \Illuminate\Support\Collection $roomIds): array
+    {
+        if ($roomIds->isEmpty()) {
+            return [];
+        }
+
+        return RoomQuickReservation::query()
+            ->whereDate('operational_date', $selectedDate->toDateString())
+            ->whereIn('room_id', $roomIds->map(static fn ($id) => (int) $id)->all())
+            ->pluck('room_id')
+            ->map(static fn ($id) => (int) $id)
+            ->flip()
+            ->map(static fn () => true)
+            ->all();
+    }
+
+    /**
+     * Limpia una reserva rapida especifica para una habitacion/fecha.
+     */
+    private function clearQuickReserveForDate(int $roomId, Carbon $selectedDate): void
+    {
+        RoomQuickReservation::query()
+            ->where('room_id', $roomId)
+            ->whereDate('operational_date', $selectedDate->toDateString())
+            ->delete();
+    }
+
+    public function markRoomAsQuickReserved(int $roomId): void
+    {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
+        if (!$this->canEditOccupancy()) {
+            $this->dispatch('notify', type: 'error', message: 'Solo el administrador o recepcion puede marcar habitaciones como reservadas.');
+            return;
+        }
+
+        try {
+            $room = Room::findOrFail($roomId);
+            $selectedDate = $this->getSelectedDate()->startOfDay();
+            $operationalStatus = $room->getOperationalStatus($selectedDate);
+            $cleaningCode = data_get($room->cleaningStatus($selectedDate), 'code');
+
+            if ($operationalStatus !== 'free_clean' || $cleaningCode !== 'limpia') {
+                $this->dispatch('notify', type: 'error', message: 'Solo se puede reservar una habitacion libre y limpia.');
+                return;
+            }
+
+            $hasFormalReservation = $room->reservationRooms()
+                ->whereDate('check_in_date', '<=', $selectedDate->toDateString())
+                ->whereDate('check_out_date', '>', $selectedDate->toDateString())
+                ->whereHas('reservation', function ($query) {
+                    $query->whereNull('deleted_at');
+                })
+                ->exists();
+
+            if ($hasFormalReservation) {
+                $this->dispatch('notify', type: 'error', message: 'La habitacion ya tiene una reserva registrada para este dia.');
+                return;
+            }
+
+            RoomQuickReservation::query()->updateOrCreate(
+                [
+                    'room_id' => $room->id,
+                    'operational_date' => $selectedDate->toDateString(),
+                ],
+                [
+                    'created_by' => Auth::id(),
+                ]
+            );
+
+            $this->dispatch('notify', type: 'success', message: 'Habitacion marcada como reservada para este dia.');
+            $this->dispatch('room-quick-reserve-marked', roomId: (int) $room->id);
+            $this->dispatch('refreshRooms');
+        } catch (\Exception $e) {
+            \Log::error('Error marking quick room reservation', [
+                'room_id' => $roomId,
+                'date' => $this->getSelectedDate()->toDateString(),
+                'error' => $e->getMessage(),
+            ]);
+            $this->dispatch('notify', type: 'error', message: 'Error al marcar la habitacion como reservada: ' . $e->getMessage());
+        }
+    }
+
+    public function cancelQuickReserve(int $roomId): void
+    {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
+        if (!$this->canEditOccupancy()) {
+            $this->dispatch('notify', type: 'error', message: 'Solo el administrador o recepcion puede cancelar reservas rapidas.');
+            return;
+        }
+
+        try {
+            $room = Room::findOrFail($roomId);
+            $selectedDate = $this->getSelectedDate()->startOfDay();
+
+            $deleted = RoomQuickReservation::query()
+                ->where('room_id', $room->id)
+                ->whereDate('operational_date', $selectedDate->toDateString())
+                ->delete();
+
+            if ($deleted > 0) {
+                $this->dispatch('notify', type: 'success', message: 'Reserva rapida cancelada.');
+            } else {
+                $this->dispatch('notify', type: 'info', message: 'La habitacion no tenia reserva rapida para este dia.');
+            }
+
+            $this->dispatch('room-quick-reserve-cleared', roomId: (int) $room->id);
+            $this->dispatch('refreshRooms');
+        } catch (\Exception $e) {
+            \Log::error('Error canceling quick room reservation', [
+                'room_id' => $roomId,
+                'date' => $this->getSelectedDate()->toDateString(),
+                'error' => $e->getMessage(),
+            ]);
+            $this->dispatch('notify', type: 'error', message: 'Error al cancelar la reserva rapida: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -4723,6 +4854,19 @@ class RoomManager extends Component
                 $room->unsetRelation('stays');
             }
 
+            try {
+                $this->clearQuickReserveForDate(
+                    (int) $validated['room_id'],
+                    Carbon::parse((string) $validated['check_in_date'])->startOfDay()
+                );
+            } catch (\Exception $e) {
+                \Log::warning('Quick Rent: unable to clear quick reserve', [
+                    'room_id' => $validated['room_id'],
+                    'check_in_date' => $validated['check_in_date'],
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             // ÉXITO: Habitación ahora debe aparecer como OCUPADA
             $this->dispatch('notify', type: 'success', message: 'Arriendo registrado exitosamente. Habitación ocupada.');
             $this->closeQuickRent();
@@ -6456,11 +6600,25 @@ class RoomManager extends Component
         $this->sanitizeUtf8PublicState();
 
         $rooms = $this->getRoomsQuery()->paginate(30);
+        $selectedDate = $this->getSelectedDate()->startOfDay();
+        $quickReservedRoomMap = $this->getQuickReservedRoomMap(
+            $selectedDate,
+            $rooms->getCollection()->pluck('id')
+        );
         $dailyStats = $this->getDailyOverviewStats();
         $receptionReservationsSummary = $this->getReceptionReservationsSummary();
 
         // Enriquecer rooms con estados y deudas
-        $rooms->getCollection()->transform(function($room) {
+        $rooms->getCollection()->transform(function($room) use ($selectedDate, $quickReservedRoomMap) {
+            $roomIsQuickReserved = isset($quickReservedRoomMap[(int) $room->id]);
+            if ($roomIsQuickReserved) {
+                $operationalStatus = $room->getOperationalStatus($selectedDate);
+                if (in_array($operationalStatus, ['occupied', 'pending_checkout'], true)) {
+                    $roomIsQuickReserved = false;
+                }
+            }
+
+            $room->is_quick_reserved = $roomIsQuickReserved;
             $room->display_status = $room->getDisplayStatus($this->date);
             $room->current_reservation = $room->getActiveReservation($this->date);
             $room->future_reservation = $room->getFutureReservation($this->date);

@@ -101,6 +101,11 @@ class Room extends Model
         return $this->hasMany(RoomDailyStatus::class);
     }
 
+    public function quickReservations(): HasMany
+    {
+        return $this->hasMany(RoomQuickReservation::class);
+    }
+
     /**
      * Get the special rates for the room.
      */
