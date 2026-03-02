@@ -633,13 +633,14 @@ class Room extends Model
         // 2️⃣ OCUPADA: solo si la fecha está DENTRO del rango real de la estancia
         if ($stay) {
             // Obtener reservation_room para verificar check_out_date
+            // Nota: la reserva puede estar soft-deleted; usamos ?-> para evitar null crash
             $reservationRoom = $stay->reservation
-                ->reservationRooms
-                ->where('room_id', $this->id)
+                ?->reservationRooms
+                ?->where('room_id', $this->id)
                 ->first();
 
             if (!$reservationRoom || !$reservationRoom->check_out_date) {
-                // Si no hay reservation_room o check_out_date, asumir ocupada
+                // Si no hay reservation_room, check_out_date o reserva cancelada, asumir ocupada
                 return 'occupied';
             }
 
