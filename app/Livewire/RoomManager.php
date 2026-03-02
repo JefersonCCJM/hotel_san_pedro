@@ -16,7 +16,10 @@ use App\Models\Product;
 use App\Models\ReservationSale;
 use App\Models\RoomReleaseHistory;
 use App\Models\RoomQuickReservation;
+use App\Models\ShiftHandover;
 use App\Models\Stay;
+use App\Enums\ShiftHandoverStatus;
+use App\Services\AuditService;
 use App\Models\StayNight;
 use App\Enums\RoomDisplayStatus;
 use App\Support\HotelTime;
@@ -1687,15 +1690,67 @@ class RoomManager extends Component
             $room = Room::findOrFail($roomId);
             $selectedDate = $this->getSelectedDate()->startOfDay();
 
+            // 1. Eliminar el marcador visual del día
             $deleted = RoomQuickReservation::query()
                 ->where('room_id', $room->id)
                 ->whereDate('operational_date', $selectedDate->toDateString())
                 ->delete();
 
-            if ($deleted > 0) {
-                $this->dispatch('notify', type: 'success', message: 'Reserva rapida cancelada.');
+            // 2. Buscar y cancelar la Reserva global asociada a este cuarto en esta fecha
+            $reservation = Reservation::whereHas('reservationRooms', function ($q) use ($room, $selectedDate) {
+                $q->where('room_id', $room->id)
+                  ->whereDate('check_in_date', $selectedDate->toDateString());
+            })->latest()->first();
+
+            if ($reservation) {
+                // Cargar cliente antes de hacer soft-delete
+                $reservation->loadMissing('customer');
+
+                // Soft-delete de la reserva
+                $reservation->delete();
+
+                // Revertir abonos del turno activo (igual que el controlador)
+                $activeShift = ShiftHandover::where('entregado_por', Auth::id())
+                    ->where('status', ShiftHandoverStatus::ACTIVE)
+                    ->first();
+
+                if ($activeShift && $activeShift->started_at) {
+                    $paymentsInShift = Payment::where('reservation_id', $reservation->id)
+                        ->where('amount', '>', 0)
+                        ->whereBetween(DB::raw('COALESCE(paid_at, created_at)'), [
+                            $activeShift->started_at,
+                            now(),
+                        ])
+                        ->get();
+
+                    foreach ($paymentsInShift as $payment) {
+                        Payment::create([
+                            'reservation_id'    => $reservation->id,
+                            'amount'            => -abs((float) $payment->amount),
+                            'payment_method_id' => $payment->payment_method_id,
+                            'paid_at'           => now(),
+                            'created_by'        => Auth::id(),
+                            'notes'             => 'Reversión por cancelación de reserva ' . ($reservation->reservation_code ?? '#' . $reservation->id),
+                        ]);
+                    }
+
+                    if ($paymentsInShift->isNotEmpty()) {
+                        $activeShift->updateTotals();
+                    }
+                }
+
+                // Audit log
+                try {
+                    (new AuditService())->logReservationCancelled($reservation, request());
+                } catch (\Throwable) {
+                    // El fallo del log no debe interrumpir el flujo
+                }
+            }
+
+            if ($deleted > 0 || $reservation) {
+                $this->dispatch('notify', type: 'success', message: 'Reserva cancelada correctamente.');
             } else {
-                $this->dispatch('notify', type: 'info', message: 'La habitacion no tenia reserva rapida para este dia.');
+                $this->dispatch('notify', type: 'info', message: 'No se encontro reserva rapida para cancelar en este dia.');
             }
 
             $this->dispatch('room-quick-reserve-cleared', roomId: (int) $room->id);
@@ -1706,7 +1761,7 @@ class RoomManager extends Component
                 'date' => $this->getSelectedDate()->toDateString(),
                 'error' => $e->getMessage(),
             ]);
-            $this->dispatch('notify', type: 'error', message: 'Error al cancelar la reserva rapida: ' . $e->getMessage());
+            $this->dispatch('notify', type: 'error', message: 'Error al cancelar la reserva: ' . $e->getMessage());
         }
     }
 
