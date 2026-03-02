@@ -48,6 +48,7 @@ class RoomManager extends Component
 
     // Modales
     public bool $quickRentModal = false;
+    public bool $quickReservationModal = false;
     public bool $roomDetailModal = false;
     public bool $roomEditModal = false;
     public bool $createRoomModal = false;
@@ -64,6 +65,7 @@ class RoomManager extends Component
     // Datos de modales
     public ?array $detailData = null;
     public ?array $rentForm = null;
+    public ?array $quickReservationForm = null;
     public ?array $assignGuestsForm = null;
     public ?array $roomDailyHistoryData = null;
     public ?array $editPricesForm = null;
@@ -1442,6 +1444,11 @@ class RoomManager extends Component
 
     public function markRoomAsQuickReserved(int $roomId): void
     {
+        $this->openQuickReservation($roomId);
+    }
+
+    public function openQuickReservation(int $roomId): void
+    {
         if ($this->blockEditsForPastDate()) {
             return;
         }
@@ -1451,37 +1458,217 @@ class RoomManager extends Component
             return;
         }
 
-        try {
-            $room = Room::findOrFail($roomId);
-            $selectedDate = $this->getSelectedDate()->startOfDay();
-            $operationalStatus = $room->getOperationalStatus($selectedDate);
-            $cleaningCode = data_get($room->cleaningStatus($selectedDate), 'code');
+        $room = Room::with('rates')->findOrFail($roomId);
+        $selectedDate = $this->getSelectedDate()->startOfDay();
+        $operationalStatus = $room->getOperationalStatus($selectedDate);
+        $cleaningCode = data_get($room->cleaningStatus($selectedDate), 'code');
 
-            if ($operationalStatus !== 'free_clean' || $cleaningCode !== 'limpia') {
-                $this->dispatch('notify', type: 'error', message: 'Solo se puede reservar una habitacion libre y limpia.');
+        if ($operationalStatus !== 'free_clean' || $cleaningCode !== 'limpia') {
+            $this->dispatch('notify', type: 'error', message: 'Solo se puede reservar una habitacion libre y limpia.');
+            return;
+        }
+
+        $basePrice = $this->findRateForGuests($room, 1);
+        if ($basePrice <= 0 && $room->base_price_per_night) {
+            $basePrice = (float) $room->base_price_per_night;
+        }
+
+        $checkIn  = $selectedDate->toDateString();
+        $checkOut = $selectedDate->copy()->addDay()->toDateString();
+
+        $this->quickReservationForm = [
+            'room_id'        => $room->id,
+            'room_number'    => $room->room_number,
+            'max_capacity'   => $room->max_capacity,
+            'check_in_date'  => $checkIn,
+            'check_out_date' => $checkOut,
+            'customer_id'    => null,
+            'adults'         => null,
+            'children'       => null,
+            'notes'          => '',
+            'total'          => $basePrice,
+            'deposit'        => 0,
+            'payment_method' => 'efectivo',
+            'bank_name'      => '',
+            'reference'      => '',
+            '_nights'        => 1,
+        ];
+
+        $this->quickReservationModal = true;
+        $this->dispatch('quickReservationOpened');
+    }
+
+    public function closeQuickReservation(): void
+    {
+        $this->quickReservationModal = false;
+        $this->quickReservationForm  = null;
+    }
+
+    public function updatedQuickReservationFormCheckOutDate(string $value): void
+    {
+        if (!$this->quickReservationForm) {
+            return;
+        }
+
+        $this->quickReservationForm['check_out_date'] = $value;
+        $this->recalculateQuickReservationTotals();
+    }
+
+    public function updatedQuickReservationFormCustomerId(mixed $value): void
+    {
+        if (!$this->quickReservationForm) {
+            return;
+        }
+
+        $this->quickReservationForm['customer_id'] = ($value === '' || $value === null)
+            ? null
+            : (is_numeric($value) ? (int) $value : null);
+    }
+
+    public function setQuickReservationDepositFull(): void
+    {
+        if ($this->quickReservationForm) {
+            $this->quickReservationForm['deposit'] = $this->quickReservationForm['total'];
+        }
+    }
+
+    public function setQuickReservationDepositHalf(): void
+    {
+        if ($this->quickReservationForm) {
+            $this->quickReservationForm['deposit'] = round((float) $this->quickReservationForm['total'] / 2, 2);
+        }
+    }
+
+    public function setQuickReservationDepositNone(): void
+    {
+        if ($this->quickReservationForm) {
+            $this->quickReservationForm['deposit']         = 0;
+            $this->quickReservationForm['payment_method']  = 'efectivo';
+            $this->quickReservationForm['bank_name']       = '';
+            $this->quickReservationForm['reference']       = '';
+        }
+    }
+
+    private function recalculateQuickReservationTotals(): void
+    {
+        if (!$this->quickReservationForm) {
+            return;
+        }
+
+        $room = Room::with('rates')->find($this->quickReservationForm['room_id'] ?? null);
+        if (!$room) {
+            return;
+        }
+
+        try {
+            $checkIn  = Carbon::parse($this->quickReservationForm['check_in_date']);
+            $checkOut = Carbon::parse($this->quickReservationForm['check_out_date']);
+            $nights   = max(1, $checkIn->diffInDays($checkOut));
+        } catch (\Throwable) {
+            $nights = 1;
+        }
+
+        $pricePerNight = $this->findRateForGuests($room, 1);
+        if ($pricePerNight <= 0 && $room->base_price_per_night) {
+            $pricePerNight = (float) $room->base_price_per_night;
+        }
+
+        $total = round($pricePerNight * $nights, 2);
+
+        $this->quickReservationForm['_nights'] = $nights;
+        $this->quickReservationForm['total']   = $total;
+
+        $deposit = (float) ($this->quickReservationForm['deposit'] ?? 0);
+        if ($deposit > $total) {
+            $this->quickReservationForm['deposit'] = $total;
+        }
+    }
+
+    public function submitQuickReservation(): void
+    {
+        if (!$this->quickReservationForm) {
+            return;
+        }
+
+        $form = $this->quickReservationForm;
+
+        // Validaciones básicas
+        $customerId = $form['customer_id'] ?? null;
+        if (empty($customerId)) {
+            $this->dispatch('notify', type: 'error', message: 'Debe seleccionar un huésped principal.');
+            return;
+        }
+
+        $checkOut = $form['check_out_date'] ?? null;
+        if (empty($checkOut)) {
+            $this->dispatch('notify', type: 'error', message: 'Debe ingresar la fecha de check-out.');
+            return;
+        }
+
+        try {
+            $checkIn  = Carbon::parse($form['check_in_date']);
+            $checkOutDate = Carbon::parse($checkOut);
+            if (!$checkOutDate->greaterThan($checkIn)) {
+                $this->dispatch('notify', type: 'error', message: 'La fecha de check-out debe ser posterior a la de check-in.');
                 return;
             }
+        } catch (\Throwable) {
+            $this->dispatch('notify', type: 'error', message: 'Fechas inválidas.');
+            return;
+        }
 
+        $total   = (float) ($form['total'] ?? 0);
+        $deposit = (float) ($form['deposit'] ?? 0);
+
+        if ($total <= 0) {
+            $this->dispatch('notify', type: 'error', message: 'El total debe ser mayor a cero.');
+            return;
+        }
+
+        if ($deposit > $total) {
+            $this->dispatch('notify', type: 'error', message: 'El abono no puede superar el total.');
+            return;
+        }
+
+        try {
+            $reservationService = new \App\Services\ReservationService();
+
+            $reservation = $reservationService->createReservation([
+                'room_id'        => (int) $form['room_id'],
+                'customerId'     => (int) $customerId,
+                'check_in_date'  => $form['check_in_date'],
+                'check_out_date' => $form['check_out_date'],
+                'check_in_time'  => HotelTime::checkInTime(),
+                'check_out_time' => HotelTime::checkOutTime(),
+                'total_amount'   => $total,
+                'deposit'        => $deposit,
+                'payment_method' => $form['payment_method'] ?? 'efectivo',
+                'bank_name'      => $form['bank_name'] ?? null,
+                'reference'      => $form['reference'] ?? null,
+                'adults'         => !empty($form['adults']) ? (int) $form['adults'] : null,
+                'children'       => !empty($form['children']) ? (int) $form['children'] : null,
+                'notes'          => $form['notes'] ?? null,
+            ]);
+
+            // Marcar visualmente la habitación como reservada para el día
+            $selectedDate = $this->getSelectedDate()->startOfDay();
             RoomQuickReservation::query()->updateOrCreate(
                 [
-                    'room_id' => $room->id,
+                    'room_id'          => (int) $form['room_id'],
                     'operational_date' => $selectedDate->toDateString(),
                 ],
-                [
-                    'created_by' => Auth::id(),
-                ]
+                ['created_by' => Auth::id()]
             );
 
-            $this->dispatch('notify', type: 'success', message: 'Habitacion marcada como reservada para este dia.');
-            $this->dispatch('room-quick-reserve-marked', roomId: (int) $room->id);
+            $this->closeQuickReservation();
+            $this->dispatch('notify', type: 'success', message: 'Reserva creada exitosamente (Cód: ' . $reservation->reservation_code . ').');
             $this->dispatch('refreshRooms');
-        } catch (\Exception $e) {
-            \Log::error('Error marking quick room reservation', [
-                'room_id' => $roomId,
-                'date' => $this->getSelectedDate()->toDateString(),
-                'error' => $e->getMessage(),
+        } catch (\Throwable $e) {
+            \Log::error('Error creating quick reservation', [
+                'room_id' => $form['room_id'] ?? null,
+                'error'   => $e->getMessage(),
             ]);
-            $this->dispatch('notify', type: 'error', message: 'Error al marcar la habitacion como reservada: ' . $e->getMessage());
+            $this->dispatch('notify', type: 'error', message: 'Error al crear la reserva: ' . $e->getMessage());
         }
     }
 
