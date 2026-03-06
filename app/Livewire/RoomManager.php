@@ -4691,8 +4691,8 @@ class RoomManager extends Component
             $this->rentForm = [
                 'room_id' => $roomId,
                 'room_number' => $room->room_number,
-                'check_in_date' => $this->date->toDateString(),
-                'check_out_date' => $this->date->copy()->addDay()->toDateString(),
+                'check_in_date' => $selectedDate->toDateString(),
+                'check_out_date' => $selectedDate->copy()->addDay()->toDateString(),
                 'check_in_time' => HotelTime::checkInTime(), // Usar hora global del hotel
                 'check_out_time' => HotelTime::checkOutTime(), // Usar hora global del hotel
                 'client_id' => null,
@@ -5476,6 +5476,25 @@ class RoomManager extends Component
                     ->whereHas('reservation', static function ($query): void {
                         // Ignorar reservas canceladas (soft-deleted).
                         $query->whereNull('deleted_at');
+                    })
+                    ->where(function ($query) use ($data, $today): void {
+                        $roomId = (int) ($data['room_id'] ?? 0);
+
+                        // Conflicto real 1: otra reserva con estadia operativa abierta en esta habitacion.
+                        $query->whereHas('reservation.stays', static function ($stayQuery) use ($roomId): void {
+                            $stayQuery
+                                ->where('room_id', $roomId)
+                                ->whereIn('status', ['active', 'pending_checkout'])
+                                ->whereNull('check_out_at');
+                        })
+                        // Conflicto real 2: reserva futura (sin estadia iniciada aun) para esta habitacion.
+                        ->orWhere(function ($futureReservationQuery) use ($roomId, $today): void {
+                            $futureReservationQuery
+                                ->whereDate('check_in_date', '>=', $today->toDateString())
+                                ->whereDoesntHave('reservation.stays', static function ($stayQuery) use ($roomId): void {
+                                    $stayQuery->where('room_id', $roomId);
+                                });
+                        });
                     })
                     ->first();
 
