@@ -27,6 +27,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Throwable;
@@ -56,6 +57,45 @@ class ReservationController extends Controller
                 'exception' => $e,
             ]);
         }
+    }
+
+    private function resolveCheckedInReservationStatusId(): ?int
+    {
+        $normalize = static function (?string $value): string {
+            $raw = trim((string) ($value ?? ''));
+            if ($raw === '') {
+                return '';
+            }
+
+            $normalized = Str::ascii(strtolower($raw));
+            $normalized = str_replace(['-', ' '], '_', $normalized);
+
+            return preg_replace('/_+/', '_', $normalized) ?? '';
+        };
+
+        $statuses = DB::table('reservation_statuses')
+            ->select(['id', 'code', 'name'])
+            ->get();
+
+        $match = $statuses->first(function ($status) use ($normalize): bool {
+            $code = $normalize((string) ($status->code ?? ''));
+            $name = $normalize((string) ($status->name ?? ''));
+
+            if (in_array($code, ['checked_in', 'check_in', 'checkedin', 'arrived', 'llego'], true)) {
+                return true;
+            }
+
+            if (in_array($name, ['checked_in', 'check_in', 'checkedin', 'arrived', 'llego'], true)) {
+                return true;
+            }
+
+            return (str_contains($code, 'check') && str_contains($code, 'in'))
+                || (str_contains($name, 'check') && str_contains($name, 'in'))
+                || str_contains($code, 'llego')
+                || str_contains($name, 'llego');
+        });
+
+        return $match ? (int) $match->id : null;
     }
     /**
      * Display a listing of the resource.
@@ -1091,9 +1131,7 @@ class ReservationController extends Controller
                 $this->rebuildStayNightPaidStateFromPayments($reservation);
                 $this->syncReservationFinancials($reservation);
 
-                $checkedInStatusId = DB::table('reservation_statuses')
-                    ->where('code', 'checked_in')
-                    ->value('id');
+                $checkedInStatusId = $this->resolveCheckedInReservationStatusId();
 
                 if (!empty($checkedInStatusId)) {
                     $reservation->status_id = (int) $checkedInStatusId;

@@ -31,39 +31,11 @@
     }
 
     $hasStayInfo = $stay && $stay->reservation;
-    $currentReservation = $hasStayInfo ? $stay->reservation : null;
-    $currentReservationCode = strtoupper(trim((string) ($currentReservation->reservation_code ?? '')));
     $selectedDateNormalized = $selectedDate->copy()->startOfDay();
     $reservationBadge = null;
-    $isCheckoutDayForReservation = static function ($reservation) use ($room, $selectedDateNormalized): bool {
-        if (!$reservation || !isset($reservation->reservationRooms)) {
-            return false;
-        }
 
-        $reservationRoom = $reservation->reservationRooms->first(function ($item) use ($room) {
-            return (int) ($item->room_id ?? 0) === (int) ($room->id ?? 0) && !empty($item->check_out_date);
-        });
-
-        if (!$reservationRoom || empty($reservationRoom->check_out_date)) {
-            return false;
-        }
-
-        $checkOut = Carbon::parse((string) $reservationRoom->check_out_date)->startOfDay();
-
-        return $selectedDateNormalized->isSameDay($checkOut);
-    };
-
-    // Prioridad 1: reserva actual de la estadia (si es RES-)
-    if (
-        $currentReservation
-        && str_starts_with($currentReservationCode, 'RES-')
-        && !$isCheckoutDayForReservation($currentReservation)
-    ) {
-        $reservationBadge = $currentReservation;
-    }
-
-    // Prioridad 2: reserva contractual del dia seleccionado (sin stay aun), solo RES-
-    if (!$reservationBadge && isset($room->reservationRooms)) {
+    // Mostrar etiqueta de reserva SOLO cuando aun no existe check-in (sin stay activa).
+    if (!$hasStayInfo && !$reservationBadge && isset($room->reservationRooms)) {
         $reservationRoomForDate = $room->reservationRooms->first(function ($reservationRoom) use ($selectedDateNormalized) {
             $reservation = $reservationRoom->reservation ?? null;
             if (!$reservation) {

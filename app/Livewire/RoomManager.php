@@ -596,6 +596,9 @@ class RoomManager extends Component
         'refreshRooms' => 'loadRooms',
     ];
 
+    private ?int $checkedInReservationStatusIdCache = null;
+    private bool $checkedInReservationStatusResolved = false;
+
     private function isAdmin(): bool
     {
         $user = Auth::user();
@@ -994,20 +997,16 @@ class RoomManager extends Component
             ];
         }
 
-        $operationalStayStatuses = ['active', 'finished'];
+        $operationalStayStatuses = ['active', 'pending_checkout'];
         $hasCheckIn = false;
 
         if ($reservation->relationLoaded('stays')) {
             $hasCheckIn = $reservation->stays->contains(
-                static fn ($stay) => !empty($stay->check_in_at)
-                    || in_array((string) ($stay->status ?? ''), $operationalStayStatuses, true),
+                static fn ($stay) => in_array((string) ($stay->status ?? ''), $operationalStayStatuses, true),
             );
         } else {
             $hasCheckIn = $reservation->stays()
-                ->where(function ($query) use ($operationalStayStatuses) {
-                    $query->whereNotNull('check_in_at')
-                        ->orWhereIn('status', $operationalStayStatuses);
-                })
+                ->whereIn('status', $operationalStayStatuses)
                 ->exists();
         }
 
@@ -1435,6 +1434,53 @@ class RoomManager extends Component
             ->all();
     }
 
+    private function resolveCheckedInReservationStatusId(): ?int
+    {
+        if ($this->checkedInReservationStatusResolved) {
+            return $this->checkedInReservationStatusIdCache;
+        }
+
+        $this->checkedInReservationStatusResolved = true;
+
+        $normalize = static function (?string $value): string {
+            $raw = trim((string) ($value ?? ''));
+            if ($raw === '') {
+                return '';
+            }
+
+            $normalized = Str::ascii(strtolower($raw));
+            $normalized = str_replace(['-', ' '], '_', $normalized);
+
+            return preg_replace('/_+/', '_', $normalized) ?? '';
+        };
+
+        $statuses = DB::table('reservation_statuses')
+            ->select(['id', 'code', 'name'])
+            ->get();
+
+        $match = $statuses->first(function ($status) use ($normalize): bool {
+            $code = $normalize((string) ($status->code ?? ''));
+            $name = $normalize((string) ($status->name ?? ''));
+
+            if (in_array($code, ['checked_in', 'check_in', 'checkedin', 'arrived', 'llego'], true)) {
+                return true;
+            }
+
+            if (in_array($name, ['checked_in', 'check_in', 'checkedin', 'arrived', 'llego'], true)) {
+                return true;
+            }
+
+            return (str_contains($code, 'check') && str_contains($code, 'in'))
+                || (str_contains($name, 'check') && str_contains($name, 'in'))
+                || str_contains($code, 'llego')
+                || str_contains($name, 'llego');
+        });
+
+        $this->checkedInReservationStatusIdCache = $match ? (int) $match->id : null;
+
+        return $this->checkedInReservationStatusIdCache;
+    }
+
     /**
      * Limpia una reserva rapida especifica para una habitacion/fecha.
      */
@@ -1453,6 +1499,7 @@ class RoomManager extends Component
     private function getPendingCheckInReservationForRoom(Room $room, Carbon $selectedDate): ?Reservation
     {
         $dateString = $selectedDate->toDateString();
+        $checkedInStatusId = $this->resolveCheckedInReservationStatusId();
 
         return ReservationRoom::query()
             ->where('room_id', (int) $room->id)
@@ -1471,8 +1518,15 @@ class RoomManager extends Component
                 $query->whereNull('check_out_date')
                     ->orWhereDate('check_out_date', '>=', $dateString);
             })
-            ->whereHas('reservation', function ($query) {
+            ->whereHas('reservation', function ($query) use ($checkedInStatusId) {
                 $query->whereNull('deleted_at');
+
+                if (!empty($checkedInStatusId)) {
+                    $query->where(function ($statusQuery) use ($checkedInStatusId) {
+                        $statusQuery->whereNull('status_id')
+                            ->orWhere('status_id', '!=', (int) $checkedInStatusId);
+                    });
+                }
             })
             ->whereDoesntHave('reservation.stays', function ($query) use ($room) {
                 $query->where('room_id', (int) $room->id)
@@ -4862,9 +4916,7 @@ class RoomManager extends Component
                 $this->normalizeReservationStayNightTotals($reservation);
                 $this->syncStayNightsPaymentCoverage($reservation);
 
-                $checkedInStatusId = DB::table('reservation_statuses')
-                    ->where('code', 'checked_in')
-                    ->value('id');
+                $checkedInStatusId = $this->resolveCheckedInReservationStatusId();
 
                 if (!empty($checkedInStatusId)) {
                     $reservation->status_id = (int) $checkedInStatusId;
@@ -4885,6 +4937,7 @@ class RoomManager extends Component
             $this->resetPage();
             $this->dispatch('$refresh');
             $this->dispatch('refreshRooms');
+            $this->dispatch('room-rented', roomId: (int) $roomId);
             $this->dispatch('room-view-changed', date: $selectedDate->toDateString());
         } catch (\Throwable $e) {
             \Log::error('Error performing reservation check-in from room manager', [
