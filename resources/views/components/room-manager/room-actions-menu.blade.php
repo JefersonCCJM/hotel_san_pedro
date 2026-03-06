@@ -47,15 +47,27 @@
                     <span class="sr-only">Cambiar habitacion</span>
                 </button>
             @endif
-            {{-- Ocupar habitacion (HOY) --}}
-            <button type="button"
-                wire:click="openQuickRent({{ $room->id }})"
-                wire:loading.attr="disabled"
-                title="Ocupar habitacion"
-                class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:border-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50">
-                <i class="fas fa-key text-sm"></i>
-                <span class="sr-only">Ocupar habitacion</span>
-            </button>
+            @if($room->pending_checkin_reservation)
+                {{-- Check-in de reserva pendiente (HOY) --}}
+                <button type="button"
+                    wire:click="performReservationCheckIn({{ $room->id }})"
+                    wire:loading.attr="disabled"
+                    title="Realizar check-in"
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50">
+                    <i class="fas fa-door-open text-sm"></i>
+                    <span class="sr-only">Realizar check-in</span>
+                </button>
+            @else
+                {{-- Ocupar habitacion (HOY) --}}
+                <button type="button"
+                    wire:click="openQuickRent({{ $room->id }})"
+                    wire:loading.attr="disabled"
+                    title="Ocupar habitacion"
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:border-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50">
+                    <i class="fas fa-key text-sm"></i>
+                    <span class="sr-only">Ocupar habitacion</span>
+                </button>
+            @endif
 
         @endif
 

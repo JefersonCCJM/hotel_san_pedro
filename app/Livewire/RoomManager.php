@@ -1446,6 +1446,48 @@ class RoomManager extends Component
             ->delete();
     }
 
+    /**
+     * Obtiene una reserva pendiente de check-in para una habitacion y fecha operativa.
+     * Solo retorna reservas que aun no tienen una estadia registrada para esa habitacion.
+     */
+    private function getPendingCheckInReservationForRoom(Room $room, Carbon $selectedDate): ?Reservation
+    {
+        $dateString = $selectedDate->toDateString();
+
+        return ReservationRoom::query()
+            ->where('room_id', (int) $room->id)
+            ->where(function ($query) use ($dateString) {
+                $query->where(function ($checkInQuery) use ($dateString) {
+                    $checkInQuery->whereNotNull('check_in_date')
+                        ->whereDate('check_in_date', '<=', $dateString);
+                })->orWhere(function ($fallbackQuery) use ($dateString) {
+                    $fallbackQuery->whereNull('check_in_date')
+                        ->whereHas('reservation', function ($reservationQuery) use ($dateString) {
+                            $reservationQuery->whereDate('check_in_date', '<=', $dateString);
+                        });
+                });
+            })
+            ->where(function ($query) use ($dateString) {
+                $query->whereNull('check_out_date')
+                    ->orWhereDate('check_out_date', '>=', $dateString);
+            })
+            ->whereHas('reservation', function ($query) {
+                $query->whereNull('deleted_at');
+            })
+            ->whereDoesntHave('reservation.stays', function ($query) use ($room) {
+                $query->where('room_id', (int) $room->id)
+                    ->where(function ($stayQuery) {
+                        $stayQuery->whereNotNull('check_in_at')
+                            ->orWhereIn('status', ['active', 'pending_checkout', 'finished']);
+                    });
+            })
+            ->with(['reservation.customer'])
+            ->orderBy('check_in_date')
+            ->orderBy('id')
+            ->first()
+            ?->reservation;
+    }
+
     public function markRoomAsQuickReserved(int $roomId): void
     {
         $this->openQuickReservation($roomId);
@@ -4667,6 +4709,157 @@ class RoomManager extends Component
         }
     }
 
+    /**
+     * Registra check-in desde acciones de habitacion usando la reserva pendiente.
+     * Replica el comportamiento del check-in del detalle de reserva.
+     */
+    public function performReservationCheckIn(int $roomId): void
+    {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
+        if (!$this->canEditOccupancy()) {
+            $this->dispatch('notify', type: 'error', message: 'Solo el administrador o recepcion puede registrar check-in.');
+            return;
+        }
+
+        $selectedDate = $this->getSelectedDate()->startOfDay();
+        if (!HotelTime::isOperationalToday($selectedDate)) {
+            $this->dispatch('notify', type: 'warning', message: 'El check-in solo se puede registrar en el dia operativo actual.');
+            return;
+        }
+
+        try {
+            $room = Room::findOrFail($roomId);
+            $reservation = $this->getPendingCheckInReservationForRoom($room, $selectedDate);
+
+            if (!$reservation) {
+                $this->dispatch('notify', type: 'error', message: 'No hay una reserva pendiente de check-in para esta habitacion.');
+                return;
+            }
+
+            if (method_exists($reservation, 'trashed') && $reservation->trashed()) {
+                $this->dispatch('notify', type: 'error', message: 'No se puede registrar check-in para una reserva cancelada.');
+                return;
+            }
+
+            $reservation->loadMissing(['reservationRooms.room', 'customer']);
+
+            $roomIds = $reservation->reservationRooms
+                ->pluck('room_id')
+                ->filter()
+                ->map(static fn ($id) => (int) $id)
+                ->unique()
+                ->values();
+
+            if ($roomIds->isEmpty() && isset($reservation->room_id) && !empty($reservation->room_id)) {
+                $roomIds = collect([(int) $reservation->room_id]);
+            }
+
+            if ($roomIds->isEmpty()) {
+                $this->dispatch('notify', type: 'error', message: 'La reserva no tiene habitaciones asignadas para hacer check-in.');
+                return;
+            }
+
+            $earliestCheckInDate = $reservation->reservationRooms
+                ->pluck('check_in_date')
+                ->filter()
+                ->map(static fn ($date) => Carbon::parse((string) $date)->startOfDay())
+                ->sortBy(static fn (Carbon $date) => $date->timestamp)
+                ->first();
+
+            if ($earliestCheckInDate && $selectedDate->lt($earliestCheckInDate)) {
+                $this->dispatch(
+                    'notify',
+                    type: 'error',
+                    message: 'No se puede registrar check-in antes de la fecha programada (' . $earliestCheckInDate->format('d/m/Y') . ').'
+                );
+                return;
+            }
+
+            foreach ($roomIds as $assignedRoomId) {
+                $conflictingStay = Stay::query()
+                    ->where('room_id', $assignedRoomId)
+                    ->whereIn('status', ['active', 'pending_checkout'])
+                    ->where('reservation_id', '!=', $reservation->id)
+                    ->first();
+
+                if ($conflictingStay) {
+                    $roomNumber = $reservation->reservationRooms
+                        ->firstWhere('room_id', $assignedRoomId)?->room?->room_number
+                        ?? Room::find($assignedRoomId)?->room_number
+                        ?? (string) $assignedRoomId;
+
+                    $this->dispatch('notify', type: 'error', message: "La habitacion {$roomNumber} ya esta ocupada por otra estadia activa.");
+                    return;
+                }
+            }
+
+            $createdAnyStay = false;
+            DB::transaction(function () use ($reservation, $roomIds, $selectedDate, &$createdAnyStay) {
+                foreach ($roomIds as $assignedRoomId) {
+                    $existingStay = Stay::query()
+                        ->where('reservation_id', $reservation->id)
+                        ->where('room_id', $assignedRoomId)
+                        ->whereIn('status', ['active', 'pending_checkout'])
+                        ->first();
+
+                    if ($existingStay) {
+                        continue;
+                    }
+
+                    Stay::create([
+                        'reservation_id' => $reservation->id,
+                        'room_id' => $assignedRoomId,
+                        'check_in_at' => now(),
+                        'check_out_at' => null,
+                        'status' => 'active',
+                    ]);
+                    $createdAnyStay = true;
+                }
+
+                $reservation->unsetRelation('stays');
+                $this->ensureStayNightsCoverageForReservation($reservation);
+                $this->normalizeReservationStayNightTotals($reservation);
+                $this->syncStayNightsPaymentCoverage($reservation);
+
+                $checkedInStatusId = DB::table('reservation_statuses')
+                    ->where('code', 'checked_in')
+                    ->value('id');
+
+                if (!empty($checkedInStatusId)) {
+                    $reservation->status_id = (int) $checkedInStatusId;
+                    $reservation->save();
+                }
+
+                foreach ($roomIds as $assignedRoomId) {
+                    $this->clearQuickReserveForDate((int) $assignedRoomId, $selectedDate);
+                }
+            });
+
+            $this->dispatch(
+                'notify',
+                type: 'success',
+                message: $createdAnyStay ? 'Check-in registrado correctamente.' : 'La reserva ya tenia check-in registrado.'
+            );
+
+            $this->resetPage();
+            $this->dispatch('$refresh');
+            $this->dispatch('refreshRooms');
+            $this->dispatch('room-view-changed', date: $selectedDate->toDateString());
+        } catch (\Throwable $e) {
+            \Log::error('Error performing reservation check-in from room manager', [
+                'room_id' => $roomId,
+                'date' => $selectedDate->toDateString(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            $this->dispatch('notify', type: 'error', message: 'No fue posible registrar el check-in. Intenta nuevamente.');
+        }
+    }
+
     public function openQuickRent($roomId)
     {
         if ($this->blockEditsForPastDate()) {
@@ -6973,6 +7166,7 @@ class RoomManager extends Component
             $room->display_status = $room->getDisplayStatus($this->date);
             $room->current_reservation = $room->getActiveReservation($this->date);
             $room->future_reservation = $room->getFutureReservation($this->date);
+            $room->pending_checkin_reservation = $this->getPendingCheckInReservationForRoom($room, $selectedDate);
             
             if ($room->current_reservation) {
                 $room->current_reservation->loadMissing(['customer']);
@@ -6980,6 +7174,10 @@ class RoomManager extends Component
             
             if ($room->future_reservation) {
                 $room->future_reservation->loadMissing(['customer']);
+            }
+
+            if ($room->pending_checkin_reservation) {
+                $room->pending_checkin_reservation->loadMissing(['customer']);
             }
 
             if ($room->current_reservation) {
