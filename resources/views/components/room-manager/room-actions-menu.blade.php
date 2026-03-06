@@ -126,7 +126,7 @@
 
         {{-- Cancelar Estadia --}}
         <button type="button"
-            wire:click="releaseRoom({{ $room->id }})"
+            wire:click="cancelReservation({{ $room->id }})"
             wire:loading.attr="disabled"
             title="Cancelar estadia"
             class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-300 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50">

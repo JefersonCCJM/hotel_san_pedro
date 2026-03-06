@@ -20,6 +20,7 @@ use App\Models\ShiftHandover;
 use App\Models\Stay;
 use App\Enums\ShiftHandoverStatus;
 use App\Services\AuditService;
+use App\Services\ReservationCancellationService;
 use App\Models\StayNight;
 use App\Enums\RoomDisplayStatus;
 use App\Support\HotelTime;
@@ -1703,41 +1704,11 @@ class RoomManager extends Component
             })->latest()->first();
 
             if ($reservation) {
-                // Cargar cliente antes de hacer soft-delete
+                // Cargar cliente antes de cancelar
                 $reservation->loadMissing('customer');
 
-                // Soft-delete de la reserva
-                $reservation->delete();
-
-                // Revertir abonos del turno activo (igual que el controlador)
-                $activeShift = ShiftHandover::where('entregado_por', Auth::id())
-                    ->where('status', ShiftHandoverStatus::ACTIVE)
-                    ->first();
-
-                if ($activeShift && $activeShift->started_at) {
-                    $paymentsInShift = Payment::where('reservation_id', $reservation->id)
-                        ->where('amount', '>', 0)
-                        ->whereBetween(DB::raw('COALESCE(paid_at, created_at)'), [
-                            $activeShift->started_at,
-                            now(),
-                        ])
-                        ->get();
-
-                    foreach ($paymentsInShift as $payment) {
-                        Payment::create([
-                            'reservation_id'    => $reservation->id,
-                            'amount'            => -abs((float) $payment->amount),
-                            'payment_method_id' => $payment->payment_method_id,
-                            'paid_at'           => now(),
-                            'created_by'        => Auth::id(),
-                            'notes'             => 'Reversión por cancelación de reserva ' . ($reservation->reservation_code ?? '#' . $reservation->id),
-                        ]);
-                    }
-
-                    if ($paymentsInShift->isNotEmpty()) {
-                        $activeShift->updateTotals();
-                    }
-                }
+                app(ReservationCancellationService::class)
+                    ->cancelCompletely($reservation, Auth::id());
 
                 // Audit log
                 try {
@@ -1764,6 +1735,74 @@ class RoomManager extends Component
             $this->dispatch('notify', type: 'error', message: 'Error al cancelar la reserva: ' . $e->getMessage());
         }
     }
+
+    public function cancelReservation(int $roomId): void
+    {
+        if ($this->blockEditsForPastDate()) {
+            return;
+        }
+
+        if (!$this->canEditOccupancy()) {
+            $this->dispatch('notify', type: 'error', message: 'Solo el administrador o recepcion puede cancelar reservas.');
+            return;
+        }
+
+        try {
+            $room = Room::findOrFail($roomId);
+            $selectedDate = $this->getSelectedDate()->startOfDay();
+
+            if (!HotelTime::isOperationalToday($selectedDate)) {
+                $this->dispatch('notify', type: 'warning', message: 'La cancelacion solo se permite en el dia operativo actual.');
+                return;
+            }
+
+            $activeStay = Stay::query()
+                ->where('room_id', (int) $room->id)
+                ->whereNull('check_out_at')
+                ->where('check_in_at', '<=', now())
+                ->orderByDesc('check_in_at')
+                ->first();
+
+            if (!$activeStay) {
+                $this->dispatch('notify', type: 'info', message: 'No hay una ocupacion activa para cancelar en esta habitacion.');
+                return;
+            }
+
+            $reservation = $activeStay->reservation;
+            if (!$reservation) {
+                $this->dispatch('notify', type: 'error', message: 'La ocupacion activa no tiene reserva asociada.');
+                return;
+            }
+
+            app(ReservationCancellationService::class)
+                ->cancelCompletely($reservation, Auth::id());
+
+            RoomQuickReservation::query()
+                ->where('room_id', $room->id)
+                ->whereDate('operational_date', $selectedDate->toDateString())
+                ->delete();
+
+            try {
+                (new AuditService())->logReservationCancelled($reservation, request());
+            } catch (\Throwable) {
+                // El fallo del log no debe interrumpir el flujo principal.
+            }
+
+            $this->dispatch('notify', type: 'success', message: 'Reserva cancelada completamente.');
+            $this->closeRoomReleaseConfirmation();
+            $this->dispatch('refreshRooms');
+        } catch (\Throwable $e) {
+            \Log::error('Error cancelling reservation from room actions', [
+                'room_id' => $roomId,
+                'date' => $this->getSelectedDate()->toDateString(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            $this->dispatch('notify', type: 'error', message: 'Error al cancelar la reserva: ' . $e->getMessage());
+        }
+    }
+
 
     /**
      * Continúa la estadía (extiende el checkout por un día).
