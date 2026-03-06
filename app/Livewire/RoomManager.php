@@ -1738,69 +1738,9 @@ class RoomManager extends Component
 
     public function cancelReservation(int $roomId): void
     {
-        if ($this->blockEditsForPastDate()) {
-            return;
-        }
-
-        if (!$this->canEditOccupancy()) {
-            $this->dispatch('notify', type: 'error', message: 'Solo el administrador o recepcion puede cancelar reservas.');
-            return;
-        }
-
-        try {
-            $room = Room::findOrFail($roomId);
-            $selectedDate = $this->getSelectedDate()->startOfDay();
-
-            if (!HotelTime::isOperationalToday($selectedDate)) {
-                $this->dispatch('notify', type: 'warning', message: 'La cancelacion solo se permite en el dia operativo actual.');
-                return;
-            }
-
-            $activeStay = Stay::query()
-                ->where('room_id', (int) $room->id)
-                ->whereNull('check_out_at')
-                ->where('check_in_at', '<=', now())
-                ->orderByDesc('check_in_at')
-                ->first();
-
-            if (!$activeStay) {
-                $this->dispatch('notify', type: 'info', message: 'No hay una ocupacion activa para cancelar en esta habitacion.');
-                return;
-            }
-
-            $reservation = $activeStay->reservation;
-            if (!$reservation) {
-                $this->dispatch('notify', type: 'error', message: 'La ocupacion activa no tiene reserva asociada.');
-                return;
-            }
-
-            app(ReservationCancellationService::class)
-                ->cancelCompletely($reservation, Auth::id());
-
-            RoomQuickReservation::query()
-                ->where('room_id', $room->id)
-                ->whereDate('operational_date', $selectedDate->toDateString())
-                ->delete();
-
-            try {
-                (new AuditService())->logReservationCancelled($reservation, request());
-            } catch (\Throwable) {
-                // El fallo del log no debe interrumpir el flujo principal.
-            }
-
-            $this->dispatch('notify', type: 'success', message: 'Reserva cancelada completamente.');
-            $this->closeRoomReleaseConfirmation();
-            $this->dispatch('refreshRooms');
-        } catch (\Throwable $e) {
-            \Log::error('Error cancelling reservation from room actions', [
-                'room_id' => $roomId,
-                'date' => $this->getSelectedDate()->toDateString(),
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            $this->dispatch('notify', type: 'error', message: 'Error al cancelar la reserva: ' . $e->getMessage());
-        }
+        // Alias legacy: cancelar estadia debe pasar por releaseRoom
+        // para conservar validaciones de deuda e historial de liberacion.
+        $this->releaseRoom($roomId);
     }
 
 
