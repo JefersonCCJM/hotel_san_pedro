@@ -4352,6 +4352,21 @@ class RoomManager extends Component
                 'payment_status_id' => $paymentStatusId,
             ]);
 
+            if ($balanceDue <= 0.01) {
+                try {
+                    $this->attemptNightStateRepairForPaidReservation(
+                        $reservation->fresh(),
+                        !empty($nightDate) ? (string) $nightDate : null
+                    );
+                } catch (\Exception $e) {
+                    \Log::warning('registerPayment: unable to align night state after settled payment', [
+                        'reservation_id' => $reservation->id,
+                        'night_date' => $nightDate,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
             // Mensaje específico según el tipo de pago
             if ($balanceDue <= 0) {
                 $this->dispatch('notify', type: 'success', message: 'Pago registrado. Cuenta al día.');
@@ -7805,6 +7820,9 @@ class RoomManager extends Component
                 // Mostrar deuda contractual calculada en tiempo real para evitar desalineaciones
                 // con balances legacy calculados con reglas anteriores.
                 $room->total_debt = $computedDebt;
+                if ($computedDebt <= 0.01) {
+                    $room->is_night_paid = true;
+                }
             } else {
                 $room->total_debt = 0;
                 $room->is_night_paid = true;

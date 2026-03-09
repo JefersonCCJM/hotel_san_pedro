@@ -91,6 +91,9 @@
     
     // Para UI: usar abono real, no mezclado
     $paid = $abonoRealizado;
+    $nightPaidBadge = $balanceDue <= 0.01
+        ? true
+        : (bool) ($room->is_night_paid ?? false);
 @endphp
 
 @if($reservation)
@@ -98,7 +101,7 @@
     <div class="flex flex-col space-y-1">
         {{-- Badge de estado de noche --}}
         @if(isset($room->is_night_paid))
-            @if($room->is_night_paid)
+            @if($nightPaidBadge)
                 <span class="inline-flex items-center w-fit px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
                     <i class="fas fa-moon mr-1"></i> NOCHE PAGA
                 </span>
