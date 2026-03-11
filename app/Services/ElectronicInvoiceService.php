@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\Log;
 
 class ElectronicInvoiceService
 {
+    private const FACTUS_OBSERVATION_MAX_LENGTH = 250;
+
     public function __construct(
         private FactusApiService $apiService,
         private FactusNumberingRangeService $numberingRangeService
@@ -44,6 +46,7 @@ class ElectronicInvoiceService
         DB::beginTransaction();
         
         try {
+            $normalizedNotes = $this->normalizeObservation($data['notes'] ?? null);
             $customer = Customer::with('taxProfile')->findOrFail($data['customer_id']);
             
             // Agregar logs detallados para depurar el perfil fiscal
@@ -132,6 +135,7 @@ class ElectronicInvoiceService
                 'payment_form_code' => $data['payment_form_code'],
                 'reference_code' => $data['reference_code'] ?? $this->generateReferenceCode(),
                 'document' => $this->generateDocumentNumber($numberingRange),
+                'notes' => $normalizedNotes,
                 'status' => 'pending',
                 'gross_value' => $data['totals']['subtotal'],
                 'tax_amount' => $data['totals']['tax'],
@@ -528,7 +532,6 @@ class ElectronicInvoiceService
             'document' => $invoice->documentType->code,
             'numbering_range_id' => $invoice->factus_numbering_range_id,
             'reference_code' => $invoice->reference_code,
-            'observation' => $invoice->notes ?? '',
             'payment_method_code' => (int) $invoice->payment_method_code,
             'payment_form_code' => (int) $invoice->payment_form_code,
             'operation_type' => $invoice->operationType->code,
@@ -536,6 +539,11 @@ class ElectronicInvoiceService
             'customer' => $customerData,
             'items' => $items,
         ];
+
+        $observation = $this->normalizeObservation($invoice->notes);
+        if ($observation !== null) {
+            $payload['observation'] = $observation;
+        }
 
         // Agregar related_documents solo si el document_type lo requiere (ej. nota crédito)
         if ($invoice->documentType->code !== '01') {
@@ -804,5 +812,16 @@ class ElectronicInvoiceService
         } else {
             return 11 - $mod;
         }
+    }
+
+    private function normalizeObservation(?string $observation): ?string
+    {
+        $normalized = trim((string) ($observation ?? ''));
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        return mb_substr($normalized, 0, self::FACTUS_OBSERVATION_MAX_LENGTH);
     }
 }
