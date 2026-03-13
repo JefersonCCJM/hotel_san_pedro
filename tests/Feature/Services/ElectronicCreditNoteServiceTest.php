@@ -47,10 +47,25 @@ class ElectronicCreditNoteServiceTest extends TestCase
             itemCodeReference: 'HSP-001',
             itemName: 'Hospedaje una noche'
         );
+        $invoice->update(['factus_bill_id' => 999]);
+        $invoice->refresh();
 
         $capturedPayload = null;
 
         $factusApi = Mockery::mock(FactusApiService::class);
+        $factusApi->shouldReceive('getBills')
+            ->once()
+            ->with(Mockery::type('array'), 1, 1)
+            ->andReturn([
+                'data' => [
+                    'data' => [
+                        [
+                            'id' => 514,
+                            'number' => 'SETP990000302',
+                        ],
+                    ],
+                ],
+            ]);
         $factusApi->shouldReceive('post')
             ->once()
             ->with('/v1/credit-notes/validate', Mockery::on(function (array $payload) use (&$capturedPayload): bool {
@@ -113,8 +128,12 @@ class ElectronicCreditNoteServiceTest extends TestCase
         $this->assertSame(20, $capturedPayload['customization_id']);
         $this->assertSame(514, $capturedPayload['bill_id']);
         $this->assertSame('10', $capturedPayload['payment_method_code']);
+        $this->assertSame($invoice->customer->taxProfile->identification_document_id, $capturedPayload['customer']['identification_document_id']);
+        $this->assertSame($invoice->customer->taxProfile->identification, $capturedPayload['customer']['identification']);
+        $this->assertSame($invoice->customer->taxProfile->legal_organization_id, $capturedPayload['customer']['legal_organization_id']);
+        $this->assertSame($invoice->customer->taxProfile->tribute_id, $capturedPayload['customer']['tribute_id']);
         $this->assertSame('Anulacion total de la factura', $capturedPayload['observation']);
-        $this->assertSame(18, $capturedPayload['items'][0]['tribute_id']);
+        $this->assertSame(1, $capturedPayload['items'][0]['tribute_id']);
     }
 
     #[Test]
@@ -130,6 +149,19 @@ class ElectronicCreditNoteServiceTest extends TestCase
         );
 
         $factusApi = Mockery::mock(FactusApiService::class);
+        $factusApi->shouldReceive('getBills')
+            ->once()
+            ->with(Mockery::type('array'), 1, 1)
+            ->andReturn([
+                'data' => [
+                    'data' => [
+                        [
+                            'id' => 514,
+                            'number' => 'SETP990000303',
+                        ],
+                    ],
+                ],
+            ]);
         $factusApi->shouldReceive('post')
             ->once()
             ->with('/v1/credit-notes/validate', Mockery::type('array'))
@@ -190,7 +222,7 @@ class ElectronicCreditNoteServiceTest extends TestCase
             data_get($storedCreditNote->response_dian, 'data.errors.bill_id')
         );
         $this->assertSame(['El cliente no es valido.'], data_get($storedCreditNote->response_dian, 'data.errors.customer'));
-        $this->assertSame(18, data_get($storedCreditNote->payload_sent, 'items.0.tribute_id'));
+        $this->assertSame(1, data_get($storedCreditNote->payload_sent, 'items.0.tribute_id'));
     }
 
     /**
