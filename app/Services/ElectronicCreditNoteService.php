@@ -657,9 +657,12 @@ class ElectronicCreditNoteService
             if ($currentDv === null) {
                 $missingFields[] = 'DV';
             } elseif ($currentDv !== $expectedDv) {
-                throw new \Exception(
-                    "El DV configurado para el NIT {$taxProfile->identification} es incorrecto. Factus espera {$expectedDv} y el perfil del cliente tiene {$currentDv}."
-                );
+                Log::warning('DV del cliente no coincide con el calculo local, se enviara el valor almacenado para validacion final de Factus en nota credito.', [
+                    'customer_id' => $customer->id,
+                    'identification' => $taxProfile->identification,
+                    'stored_dv' => $currentDv,
+                    'calculated_dv' => $expectedDv,
+                ]);
             }
         } elseif (empty($taxProfile->names) && empty($customer->name)) {
             $missingFields[] = 'nombre del cliente';

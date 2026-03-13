@@ -1078,9 +1078,12 @@ class ElectronicInvoiceService
         }
 
         if ($currentDv !== $expectedDv) {
-            throw new \Exception(
-                "El DV configurado para el NIT {$taxProfile->identification} es incorrecto. Factus espera {$expectedDv} y el perfil del cliente tiene {$currentDv}. Si este cliente no usa NIT, cambia el tipo de documento a cédula."
-            );
+            Log::warning('DV del cliente no coincide con el calculo local, se enviara el valor almacenado para validacion final de Factus.', [
+                'customer_id' => $customer->id,
+                'identification' => $taxProfile->identification,
+                'stored_dv' => $currentDv,
+                'calculated_dv' => $expectedDv,
+            ]);
         }
     }
 
