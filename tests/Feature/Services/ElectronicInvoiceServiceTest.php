@@ -13,6 +13,7 @@ use App\Models\DianMunicipality;
 use App\Models\DianOperationType;
 use App\Models\DianPaymentForm;
 use App\Models\DianPaymentMethod;
+use App\Models\ElectronicInvoice;
 use App\Models\FactusNumberingRange;
 use App\Services\ElectronicInvoiceService;
 use App\Services\FactusApiService;
@@ -155,6 +156,7 @@ class ElectronicInvoiceServiceTest extends TestCase
             ->andReturn([
                 'data' => [
                     'bill' => [
+                        'id' => 514,
                         'status' => 'accepted',
                         'cufe' => 'CUFE-123456',
                         'qr' => 'https://factus.test/qr/123456',
@@ -198,11 +200,196 @@ class ElectronicInvoiceServiceTest extends TestCase
 
         $this->assertSame('Observacion enviada a Factus', $storedInvoice->notes);
         $this->assertSame('accepted', $storedInvoice->status);
+        $this->assertSame(514, $storedInvoice->factus_bill_id);
         $this->assertNotNull($capturedPayload);
         $this->assertSame('Observacion enviada a Factus', $capturedPayload['observation'] ?? null);
         $this->assertSame(
             'Observacion enviada a Factus',
             $storedInvoice->payload_sent['observation'] ?? null
+        );
+    }
+
+    #[Test]
+    public function it_marks_the_invoice_as_rejected_and_cleans_the_hidden_factus_pending_document_after_a_422(): void
+    {
+        $this->seedInvoiceCatalogs();
+
+        $municipality = DianMunicipality::create([
+            'factus_id' => 980,
+            'code' => '68001',
+            'name' => 'San Gil',
+            'department' => 'Santander',
+        ]);
+
+        CompanyTaxSetting::create([
+            'company_name' => 'Hotel San Pedro',
+            'nit' => '900123456',
+            'dv' => '7',
+            'email' => 'facturacion@hotelsanpedro.test',
+            'municipality_id' => $municipality->factus_id,
+            'economic_activity' => '5511',
+        ]);
+
+        $identificationDocument = DianIdentificationDocument::create([
+            'code' => 'CC',
+            'name' => 'Cedula de ciudadania',
+            'requires_dv' => false,
+        ]);
+
+        $legalOrganization = DianLegalOrganization::create([
+            'code' => '2',
+            'name' => 'Persona Natural',
+        ]);
+
+        $customer = Customer::create([
+            'name' => 'Alan Turing',
+            'email' => 'alan@example.com',
+            'phone' => '3001234567',
+            'address' => 'Calle 123',
+            'requires_electronic_invoice' => true,
+            'is_active' => true,
+        ]);
+
+        CustomerTaxProfile::create([
+            'customer_id' => $customer->id,
+            'identification_document_id' => $identificationDocument->id,
+            'identification' => '123456789',
+            'legal_organization_id' => $legalOrganization->id,
+            'tribute_id' => 18,
+            'municipality_id' => $municipality->factus_id,
+            'names' => 'Alan Turing',
+            'email' => $customer->email,
+            'phone' => $customer->phone,
+            'address' => $customer->address,
+        ]);
+
+        $documentType = DianDocumentType::create([
+            'code' => '01',
+            'name' => 'Factura electronica de venta',
+        ]);
+
+        $operationType = DianOperationType::create([
+            'code' => '10',
+            'name' => 'Estandar',
+        ]);
+
+        DianPaymentMethod::create([
+            'code' => '10',
+            'name' => 'Efectivo',
+        ]);
+
+        DianPaymentForm::create([
+            'code' => '1',
+            'name' => 'Pago de contado',
+        ]);
+
+        $numberingRange = FactusNumberingRange::create([
+            'factus_id' => 4,
+            'document' => 'Factura de Venta',
+            'document_code' => '01',
+            'prefix' => 'SETP',
+            'range_from' => 990000000,
+            'range_to' => 995000000,
+            'current' => 990000001,
+            'resolution_number' => '18760000001',
+            'technical_key' => 'abc123',
+            'start_date' => now()->subDay(),
+            'end_date' => now()->addYear(),
+            'is_expired' => false,
+            'is_active' => true,
+        ]);
+
+        $factusApi = Mockery::mock(FactusApiService::class);
+        $factusApi->shouldReceive('get')
+            ->once()
+            ->with('/v1/company')
+            ->andReturn([
+                'data' => [
+                    'company' => 'Hotel San Pedro',
+                    'address' => 'Cra 10 # 9-04',
+                    'phone' => '3001234567',
+                    'email' => 'facturacion@hotelsanpedro.test',
+                    'municipality' => [
+                        'code' => $municipality->code,
+                        'name' => $municipality->name,
+                    ],
+                ],
+            ]);
+
+        $factusApi->shouldReceive('post')
+            ->once()
+            ->with('/v1/bills/validate', Mockery::type('array'))
+            ->andThrow(new \App\Exceptions\FactusApiException(
+                'Error en Factus API (post /v1/bills/validate): El documento contiene errores de validación',
+                422,
+                [
+                    'status' => 'Validation error',
+                    'message' => 'El documento contiene errores de validación',
+                    'data' => [
+                        'errors' => [
+                            'FAK24' => 'Regla: FAK24, Rechazo: No está informado el DV del NIT',
+                        ],
+                    ],
+                ]
+            ));
+
+        $factusApi->shouldReceive('deleteBillByReference')
+            ->once()
+            ->with('OBS-FACTUS-422')
+            ->andReturn([
+                'status' => 'OK',
+                'message' => 'Documento eliminado con éxito',
+            ]);
+
+        $service = new ElectronicInvoiceService(
+            $factusApi,
+            Mockery::mock(FactusNumberingRangeService::class)
+        );
+
+        try {
+            $service->createFromForm([
+                'customer_id' => $customer->id,
+                'document_type_id' => $documentType->id,
+                'operation_type_id' => $operationType->id,
+                'payment_method_code' => '10',
+                'payment_form_code' => '1',
+                'numbering_range_id' => $numberingRange->id,
+                'reference_code' => 'OBS-FACTUS-422',
+                'notes' => 'Documento con error',
+                'items' => [
+                    [
+                        'name' => 'Hospedaje una noche',
+                        'quantity' => 1,
+                        'price' => 100000,
+                        'tax_rate' => 19,
+                        'tax' => 19000,
+                        'total' => 119000,
+                    ],
+                ],
+                'totals' => [
+                    'subtotal' => 100000,
+                    'tax' => 19000,
+                    'total' => 119000,
+                ],
+            ]);
+
+            $this->fail('Se esperaba una excepción de Factus.');
+        } catch (\Exception $exception) {
+            $this->assertStringContainsString('422', $exception->getMessage());
+            $this->assertStringContainsString('FAK24', $exception->getMessage());
+            $this->assertStringContainsString('pendiente oculto', $exception->getMessage());
+        }
+
+        $storedInvoice = ElectronicInvoice::query()->where('reference_code', 'OBS-FACTUS-422')->firstOrFail();
+
+        $this->assertSame('rejected', $storedInvoice->status);
+        $this->assertSame('OBS-FACTUS-422', $storedInvoice->payload_sent['reference_code'] ?? null);
+        $this->assertSame(
+            'Regla: FAK24, Rechazo: No está informado el DV del NIT',
+            data_get($storedInvoice->response_dian, 'data.errors.FAK24')
+        );
+        $this->assertTrue(
+            (bool) data_get($storedInvoice->response_dian, '_cleanup.current_reference_cleanup.success')
         );
     }
 
@@ -370,6 +557,7 @@ class ElectronicInvoiceServiceTest extends TestCase
             $table->id();
             $table->unsignedBigInteger('customer_id');
             $table->unsignedBigInteger('factus_numbering_range_id')->nullable();
+            $table->unsignedBigInteger('factus_bill_id')->nullable();
             $table->unsignedBigInteger('document_type_id');
             $table->unsignedBigInteger('operation_type_id');
             $table->string('payment_method_code', 10)->nullable();
